@@ -1,23 +1,25 @@
-name: Apaluu Bot 24 Jam
-
+name: run-bot
 on:
-  push:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
-
 jobs:
-  run-bot:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-      - run: pip install requests
-      - name: Run python main.py
+          python-version: '3.9'
+      - run: pip install requests pytz
+      - run: python main.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python main.py
+      - name: Save anti-spam
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add last.txt || true
+          git commit -m "update last" || true
+          git push || true
