@@ -1,51 +1,56 @@
-import requests, os
-from datetime import datetime, timezone, timedelta
+import requests, os, pytz, datetime
 
-TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-WIB = timezone(timedelta(hours=7))
 
-def kirim_tele(pesan):
+url = "https://indodax.com/api/tickers"
+data = requests.get(url).json()["tickers"]
+
+hasil = []
+for koin, t in data.items():
     try:
-        url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        r = requests.post(url, json={"chat_id": CHAT_ID, "text": pesan}, timeout=15)
-        print(f"TELEGRAM STATUS: {r.status_code} {r.text[:200]}")
-        return r
-    except Exception as e:
-        print(f"TELEGRAM ERROR: {e}")
+        last = float(t["last"])
+        low = float(t["low"])
+        high = float(t["high"])
+        vol_idr = float(t["vol_idr"])
 
-now = datetime.now(WIB)
-print(f"🔥 MODE AKAN PUMP 30-50 REAL START {now}")
+        if low==0 or vol_idr < 10000000: continue
+        if last < 10: continue
 
-data = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
-print(f"Scan {len(data)} koin...")
+        naik = ((last - low) / low) * 100
+        total = ((high - low) / low) * 100
 
-signals=[]
-for pair,d in data.items():
-    if not pair.lower().endswith('idr'): continue
-    coin=pair.replace('_idr','').replace('idr','').upper()
-    if coin in ['USDT','USDC','BTC','ETH']: continue
-    try:
-        high=float(d['high']); low=float(d['low']); last=float(d['last']); vol=float(d.get('vol_idr',0))
-        if low==0 or vol<10000000: continue
-        if last<10: continue
-        naik=((last-low)/low)*100
-        total=((high-low)/low)*100
-        if 3.0 <= naik <= 12.0 and 4.0 <= total <= 50.0:
-            signals.append({"coin":coin, "naik":naik, "total":total, "vol":vol})
-    except: continue
+        if total > 20.0: continue # H-L max 20%
+        if 3.0 <= naik <= 12.0:
+            hasil.append((koin.upper(), naik, total, vol_idr))
+    except:
+        continue
 
-signals.sort(key=lambda x: x['naik'], reverse=True)
-print(f"Hasil scan: {len(signals)} AKAN PUMP - TARGET 30-50")
+hasil = sorted(hasil, key=lambda x: x[1], reverse=True)
+total_koin = len(hasil)
+top15 = hasil[:15]
 
-if not signals:
-    kirim_tele(f"😴 Market kalem {now.strftime('%H:%M')} WIB - {len(data)} koin ga ada yang 3-12%")
-else:
-    top=signals[:20]
-    msg=f"⏳ AKAN PUMP {now.strftime('%H:%M')} WIB\n"
-    msg+=f"Scan {len(data)} | {len(signals)} koin REAL 30-50 | TOP 20:\n\n"
-    for s in top:
-        msg+=f"👀 {s['coin']} +{s['naik']:.1f}% (H-L {s['total']:.1f}%) Vol {int(s['vol']/1000000)}jt\n"
-    msg+=f"\nTotal {len(signals)} koin fase awal"
-    kirim_tele(msg)
-    print(f"Top: {top[0]['coin']} Total {len(signals)}")
+# ANTI-SPAM
+koin_saat_ini = ",".join([x[0] for x in top15])
+try:
+    with open("last.txt","r") as f:
+        last_data = f.read()
+except:
+    last_data = ""
+
+if koin_saat_ini == last_data and total_koin!= 0:
+    print(f"SKIP spam - {total_koin} koin sama")
+    exit()
+
+with open("last.txt","w") as f:
+    f.write(koin_saat_ini)
+
+wib = datetime.datetime.now(pytz.timezone('Asia/Jakarta')).strftime('%H:%M')
+pesan = f"⏳ BARU MAU PUMP {wib} WIB\nScan {len(data)} | {total_koin} koin BARU MAU (H-L<20%) | TOP 15:\n\n"
+for koin, naik, hl, vol in top15:
+    vol_jt = int(vol/1000000)
+    pesan += f"👀 {koin} +{naik:.1f}% (H-L {hl:.1f}%) Vol {vol_jt}jt\n"
+pesan += f"\nTotal {total_koin} koin fase awal"
+
+requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": pesan})
+print(f"KIRIM {total_koin} koin")
