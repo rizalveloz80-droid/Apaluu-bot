@@ -1,66 +1,76 @@
+
 import requests
 import time
 from datetime import datetime, timezone, timedelta
 
-TOKEN =TOKEN = "8675452184:AAEx0Sp0LHuOQ7gSd0-N0zHKAjWdMY3u2A4"
+TOKEN = "8675452184:AAExOSp0LHuOQ7gSd0-l"
 CHAT_ID = "213453765"
 WIB = timezone(timedelta(hours=7))
+
+# COIN YANG UDAH DCA - JANGAN MASUK TOP 20
+BLACKLIST = ['usdt_idr', 'usdc_idr', 'btc_idr', 'sol_idr', 'xrp_idr', 'eth_idr', 'fartcoin_idr', 'hype_idr', 'sui_idr', 'doge_idr', 'pepe_idr']
 
 def kirim_tele(pesan):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        data = {"chat_id": CHAT_ID, "text": pesan, "parse_mode": "Markdown"}
-        requests.post(url, data=data, timeout=15)
+        data = {"chat_id": CHAT_ID, "text": pesan}
+        requests.post(url, data=data, timeout=10)
     except Exception as e:
         print(f"Gagal kirim: {e}")
 
 def cek_all_signal():
     try:
-        r = requests.get("https://indodax.com/api/tickers", timeout=10).json()
-        tickers = r.get("tickers", {})
-
+        r = requests.get("https://indodax.com/api/tickers", timeout=15)
+        tickers = r.json().get("tickers", {})
+        
         signals = []
         for pair, data in tickers.items():
-            if not pair.endswith("_idr"): continue
+            if not pair.endswith("_idr"):
+                continue
+            if pair in BLACKLIST:
+                continue
             try:
-                last = float(data.get("last", 0))
                 vol_idr = float(data.get("vol_idr", 0))
-                high = float(data.get("high", 0))
+                last = float(data.get("last", 0))
                 low = float(data.get("low", 0))
-                if low == 0 or last == 0: continue
+                if low == 0:
+                    continue
+                change = ((last - low) / low * 100) if low else 0
 
-                change = (last - low) / low * 100
+                if vol_idr < 1000000:
+                    continue
+                if change < 6:
+                    continue
 
-                # V2 FILTER KETAT
-                if vol_idr > 1_000_000_000: # Cuma Vol diatas 1 Miliar
-                    signals.append((vol_idr, f"🔥 {pair.upper()} Vol Rp{vol_idr/1e9:.2f}M - {last:,.0f}"))
+                signals.append({
+                    "pair": pair.upper(),
+                    "vol": vol_idr,
+                    "change": change,
+                    "last": last
+                })
+            except:
+                continue
+        
+        signals = sorted(signals, key=lambda x: x["vol"], reverse=True)[:20]
+        
+        if not signals:
+            print("Tidak ada signal >6%")
+            return
 
-                if change > 6: # Cuma PUMP diatas 6%
-                    signals.append((change, f"📈 {pair.upper()} PUMP +{change:.1f}% - {last:,.0f}"))
-
-                if high > 0 and ((high-last)/high*100) < 2.5 and change > 4:
-                    signals.append((change+20, f"🚀 {pair.upper()} BREAKOUT dekat High {high:,.0f}! Last {last:,.0f}"))
-
-            except: continue
-
-        # Sort dari yang paling panas
-        signals.sort(key=lambda x: x[0], reverse=True)
-
-        jam = datetime.now(WIB).strftime("%H:%M WIB")
-
-        if signals:
-            top_signals = [s[1] for s in signals[:20]] # Cuma Top 10
-            pesan = f"📊 *ALL SIGNAL {jam} - TOP 20TERPANAS*\n\n" + "\n".join(top_signals)
-            kirim_tele(pesan)
-        else:
-            kirim_tele(f"✅ Market kalem {jam} - Gak ada pump gede min, bot tetep jagain!")
-
+        now_wib = datetime.now(WIB).strftime("%H:%M WIB")
+        pesan = f"📊 ALL SIGNAL {now_wib} - TOP 20 TERPANAS - FILTER >6%\n"
+        pesan += f"Blacklist: {len(BLACKLIST)} coin DCA di-skip\n"
+        pesan += "--------------------------------\n"
+        
+        for s in signals:
+            vol_m = s["vol"] / 1000000
+            pesan += f"🔥 {s['pair']} Vol Rp{vol_m:.2f}M +{s['change']:.2f}%\n"
+        
+        print(pesan)
+        kirim_tele(pesan)
+        
     except Exception as e:
         print(f"Error: {e}")
 
-print("BOT ALL SIGNAL V2 NYALA!")
-kirim_tele("🤖 *BOT V2 NYALA!*\nFilter ketat: Vol >1M, Pump >6%, Top 10 aja biar gak spam! Jam WIB udah bener min!")
-
-while True:
+if __name__ == "__main__":
     cek_all_signal()
-    time.sleep(300)
