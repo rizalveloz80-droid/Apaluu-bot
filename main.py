@@ -2,7 +2,7 @@ import requests
 import time
 from datetime import datetime, timezone, timedelta
 
-TOKEN = "8675452184:AAHlWcaNYQg62ioe3p3yI1wUO5zXMyFBkVw"
+TOKEN =TOKEN = "8675452184:AAEx0Sp0LHuOQ7gSd0-N0zHKAjWdMY3u2A4"
 CHAT_ID = "213453765"
 WIB = timezone(timedelta(hours=7))
 
