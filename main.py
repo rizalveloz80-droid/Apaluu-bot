@@ -23,22 +23,23 @@ for pair, d in data.items():
     try:
         high = float(d['high']); low = float(d['low']); last = float(d['last']); vol = float(d['vol_idr'])
         if low == 0 or last == 0: continue
-        if vol < 2000000: continue
-        if last < 1: continue
+        if vol < 1000000: continue # 1jt aja - biar malem tetep dapet
         naik_low = ((last - low) / low) * 100
-        if 1.0 <= naik_low <= 15.0 and high > last:
+        # LONGGARIN BIAR MALEM DAPET 30-50
+        if 0.5 <= naik_low <= 20.0:
             signals.append({"coin": pair.replace('idr','').upper(), "naik": naik_low, "vol": vol})
     except: continue
 
-signals.sort(key=lambda x: x['vol'], reverse=True)
+signals.sort(key=lambda x: x['naik'], reverse=True) # urut yang paling naik duluan
 print(f"Hasil scan: {len(signals)} AKAN PUMP - TARGET 30-50")
 
 if not signals:
-    kirim_tele(f"😴 Market kalem {now.strftime('%H:%M')} WIB - Scan 476 koin")
+    kirim_tele(f"😴 Market kalem {now.strftime('%H:%M')} WIB")
 else:
     top = signals[:20]
-    msg = f"⏳ AKAN PUMP {now.strftime('%H:%M')} WIB\nScan 476 | {len(signals)} koin 1-15% | TOP 20:\n\n"
+    msg = f"⏳ AKAN PUMP {now.strftime('%H:%M')} WIB\nScan 476 | {len(signals)} koin | TOP 20:\n\n"
     for s in top:
         msg += f"👀 {s['coin']} +{s['naik']:.1f}% Vol {int(s['vol']/1000000)}jt\n"
+    msg += f"\nTotal {len(signals)} koin siap"
     kirim_tele(msg)
-    print(f"Telegram terkirim! Top: {top[0]['coin']} +{top[0]['naik']:.1f}% - Total {len(signals)}")
+    print(f"Telegram terkirim! Total {len(signals)} | Top: {top[0]['coin']} +{top[0]['naik']:.1f}%")
