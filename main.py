@@ -1,101 +1,56 @@
 
-import requests, os, time
+import requests, os
 from datetime import datetime
 
 TELE_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 def kirim_tele(pesan):
-    if not TELE_TOKEN or not CHAT_ID:
-        print("Token kosong!")
-        return
     url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+    # Potong pesan kalo kepanjangan biar ga gagal kirim kaya tadi
+    if len(pesan) > 4000:
+        pesan = pesan[:4000] + "\n...kepotong 4000 huruf"
+    requests.post(url, json={"chat_id": CHAT_ID, "text": pesan, "parse_mode": "Markdown"}, timeout=15)
+
+print(f"🔥 MODE ALL COIN AGRESIF START {datetime.now()}")
+
+tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+print(f"Scan {len(tickers)} koin...")
+
+signals = []
+for coin, d in tickers.items():
+    if not coin.endswith('idr'): continue
+    # SEMUA MASUK! GA ADA YANG DI SKIP! Micin, btc, usdt masuk semua
     try:
-        requests.post(url, json={"chat_id": CHAT_ID, "text": pesan, "parse_mode": "Markdown"}, timeout=15)
-        print("Telegram terkirim!")
-    except Exception as e:
-        print(f"Gagal kirim tele: {e}")
+        high = float(d['high'])
+        low = float(d['low'])
+        last = float(d['last'])
+        vol = float(d['vol_idr'])
+        if low == 0: continue
 
-def cek_signal_agresif(coin, ticker_data):
-    try:
-        # Data 24 jam dulu buat filter awal biar cepet
-        last_price = float(ticker_data['last'])
-        vol_idr = float(ticker_data['vol_idr'])
+        pc = ((high - low) / low) * 100
 
-        # Coba ambil data 5m - kalo Indodax API chart error, fallback ke hitungan 1 jam
-        try:
-            url = f"https://indodax.com/api/chart?symbol={coin}&tf=5m&limit=25"
-            r = requests.get(url, timeout=8).json()
-            candles = r
-            if len(candles) >= 21:
-                close_now = float(candles[-1][4])
-                close_prev = float(candles[-2][4])
-                vol_now = float(candles[-1][5])
-
-                price_change = ((close_now - close_prev) / close_prev) * 100
-                vols_20 = [float(c[5]) for c in candles[-21:-1]]
-                ma_vol = sum(vols_20) / 20
-                vol_spike = (vol_now / ma_vol * 100) if ma_vol > 0 else 0
-            else:
-                raise Exception("candle kurang")
-        except:
-            # FALLBACK AGRESIF: pake data ticker 24h tapi threshold diturunin
-            # Ini buat jaga-jaga API chart Indodax kadang ngadat
-            high = float(ticker_data['high'])
-            low = float(ticker_data['low'])
-            price_change = ((high - low) / low * 100) if low > 0 else 0
-            vol_spike = 350 # Anggap spike kalo fallback biar tetep ke-detect
-            # Tapi kita filter cuma yang price_change 4%++
-            close_now = last_price
-
-        # ===== LOGIKA AGRESIF MEME HUNTER =====
-        # 3.5% - 12% + Vol 300%++
-        # Kenapa sampe 12%? Karena meme bisa 10% dalam 5 menit, kalo kita batas 4.5% malah kelewat
-        if 3.5 <= price_change <= 12.0 and vol_spike >= 300:
-            return {
-                "coin": coin.upper().replace("IDR",""),
-                "pc": round(price_change, 2),
-                "vs": int(vol_spike),
-                "price": close_now,
-                "vol_idr": vol_idr
-            }
+        # AI MINTA: 3.5% - 50% SEMUA MASUK
+        if pc >= 3.5:
+            signals.append({"coin": coin.replace('idr','').upper(), "pc": round(pc,2), "vol": vol, "price": last})
     except:
-        return None
-    return None
+        continue
 
-print(f"🔥 MODE MEME HUNTER AGRESIF START {datetime.now()}")
+signals.sort(key=lambda x: x['pc'], reverse=True)
+print(f"Hasil scan: {len(signals)} lolos filter")
 
-try:
-    tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
-    print(f"Scan {len(tickers)} koin...")
+if not signals:
+    pesan = f"Market kalem - Ga ada koin >3.5% jam {datetime.now().strftime('%H:%M')}"
+    kirim_tele(pesan)
+else:
+    # Kirim TOP 20 aja biar ga kepanjangan kaya 227 tadi yang bikin gagal
+    # Tapi di log tetep kehitung 227
+    top = signals[:20]
+    pesan = f"💥 *ALL COIN AGRESIF {datetime.now().strftime('%H:%M')} WIB*\n"
+    pesan += f"Scan {len(tickers)} | {len(signals)} koin >3.5% | TOP 20 TERLIAR:\n\n"
+    for s in top:
+        pesan += f"🚀 *{s['coin']}* +{s['pc']}% | Rp{int(s['vol']/1000000)}jt\n"
 
-    signals = []
-    for coin, data in tickers.items():
-        if not coin.endswith('idr'): continue
-        # Skip BTC, ETH biar fokus low cap (kalo mau blue chip, hapus baris ini)
-        if coin in ['btcidr','ethidr','usdtidr']: continue
-
-        hasil = cek_signal_agresif(coin, data)
-        if hasil:
-            signals.append(hasil)
-
-    print(f"Hasil scan: {len(signals)} lolos filter")
-
-    if not signals:
-        print("MEME HUNTER: Market micin kalem, ga ada yang pump 3.5% + Vol 3x")
-    else:
-        signals.sort(key=lambda x: (x['vs'], x['pc']), reverse=True)
-
-        pesan = f"🔥 *MEME HUNTER AGRESIF - {datetime.now().strftime('%H:%M')} WIB*\n"
-        pesan += f"Price +3.5-12% (5m) + Vol >300% | {len(signals)} koin\n\n"
-
-        for s in signals[:15]:
-            pesan += f"🚀 *{s['coin']}* | +{s['pc']}% | VOL {s['vs']}%\n"
-            pesan += f"`{s['price']}` | Vol Rp {int(s['vol_idr']/1000000)}jt\n"
-            pesan += f"TP 5-8% | TS 2% | JANGAN SERAKAH!\n\n"
-
-        kirim_tele(pesan)
-
-except Exception as e:
-    print(f"Error utama: {e}")
-    kirim_tele(f"Bot Error: {e}")
+    pesan += f"\nTotal {len(signals)} koin pump, cek log buat lengkapnya"
+    kirim_tele(pesan)
+    print(f"Telegram terkirim! Top: {top[0]['coin']} +{top[0]['pc']}%")
