@@ -1,9 +1,10 @@
-
 import requests
 import time
+from datetime import datetime, timezone, timedelta
 
 TOKEN = "8675452184:AAHlWcaNYQg62ioe3p3yI1wUO5zXMyFBkVw"
 CHAT_ID = "213453765"
+WIB = timezone(timedelta(hours=7))
 
 def kirim_tele(pesan):
     try:
@@ -26,39 +27,39 @@ def cek_all_signal():
                 vol_idr = float(data.get("vol_idr", 0))
                 high = float(data.get("high", 0))
                 low = float(data.get("low", 0))
-                if low == 0: continue
+                if low == 0 or last == 0: continue
+
                 change = (last - low) / low * 100
 
-                if vol_idr > 500_000_000:
-                    signals.append(f"🔥 {pair.upper()} Vol Rp{vol_idr/1e9:.2f}M - {last}")
-                if change > 5:
-                    signals.append(f"📈 {pair.upper()} PUMP +{change:.1f}% - {last}")
-                if high > 0 and ((high-last)/high*100) < 2 and change > 3:
-                    signals.append(f"🚀 {pair.upper()} BREAKOUT dekat High {high}!")
+                # V2 FILTER KETAT
+                if vol_idr > 1_000_000_000: # Cuma Vol diatas 1 Miliar
+                    signals.append((vol_idr, f"🔥 {pair.upper()} Vol Rp{vol_idr/1e9:.2f}M - {last:,.0f}"))
+
+                if change > 6: # Cuma PUMP diatas 6%
+                    signals.append((change, f"📈 {pair.upper()} PUMP +{change:.1f}% - {last:,.0f}"))
+
+                if high > 0 and ((high-last)/high*100) < 2.5 and change > 4:
+                    signals.append((change+20, f"🚀 {pair.upper()} BREAKOUT dekat High {high:,.0f}! Last {last:,.0f}"))
+
             except: continue
 
-        # Cek order book TIA khusus kayak di gambar kamu
-        try:
-            depth = requests.get("https://indodax.com/api/tia_idr/depth", timeout=10).json()
-            asks = depth.get("asks", [])[:3]
-            if asks:
-                total_wall = sum(float(a[0])*float(a[1]) for a in asks)
-                if total_wall > 50_000_000:
-                    signals.append(f"🧱 TIA Tembok Jual Rp{total_wall/1e6:.0f}jt di {asks[0][0]}")
-        except: pass
+        # Sort dari yang paling panas
+        signals.sort(key=lambda x: x[0], reverse=True)
 
-        jam = time.strftime("%H:%M")
+        jam = datetime.now(WIB).strftime("%H:%M WIB")
+
         if signals:
-            pesan = f"📊 *ALL SIGNAL {jam}*\n\n" + "\n".join(signals[:20])
+            top_signals = [s[1] for s in signals[:10]] # Cuma Top 10
+            pesan = f"📊 *ALL SIGNAL {jam} - TOP 10 TERPANAS*\n\n" + "\n".join(top_signals)
             kirim_tele(pesan)
         else:
-            kirim_tele(f"✅ Market kalem {jam} - Bot cek semua signal jalan min!")
+            kirim_tele(f"✅ Market kalem {jam} - Gak ada pump gede min, bot tetep jagain!")
 
     except Exception as e:
         print(f"Error: {e}")
 
-print("BOT ALL SIGNAL NYALA!")
-kirim_tele("🤖 *BOT ALL SIGNAL NYALA!*\nNgecek Volume, Pump, Breakout semua koin IDR tiap 5 menit min!")
+print("BOT ALL SIGNAL V2 NYALA!")
+kirim_tele("🤖 *BOT V2 NYALA!*\nFilter ketat: Vol >1M, Pump >6%, Top 10 aja biar gak spam! Jam WIB udah bener min!")
 
 while True:
     cek_all_signal()
