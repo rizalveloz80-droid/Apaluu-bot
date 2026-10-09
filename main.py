@@ -49,8 +49,8 @@ def cek_all_signal():
         jam = datetime.now(WIB).strftime("%H:%M WIB")
 
         if signals:
-            top_signals = [s[1] for s in signals[:10]] # Cuma Top 10
-            pesan = f"📊 *ALL SIGNAL {jam} - TOP 10 TERPANAS*\n\n" + "\n".join(top_signals)
+            top_signals = [s[1] for s in signals[:20]] # Cuma Top 10
+            pesan = f"📊 *ALL SIGNAL {jam} - TOP 20TERPANAS*\n\n" + "\n".join(top_signals)
             kirim_tele(pesan)
         else:
             kirim_tele(f"✅ Market kalem {jam} - Gak ada pump gede min, bot tetep jagain!")
