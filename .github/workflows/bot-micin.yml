@@ -1,7 +1,7 @@
 name: TOP 7 MICIN HUNTER
 on:
   schedule:
-    - cron:'2-57/5 * * * *'
+    - cron: '2-52/5 * * * *'
   workflow_dispatch:
 jobs:
   scan:
@@ -16,10 +16,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FILTER_GAIN_MIN: '0.3'
-          FILTER_GAIN_MAX: '10.0'
-          FILTER_HL_MIN: '3.0'
-          FILTER_HL_MAX: '15.0'
-          FILTER_VOL_MIN: '50000000'
-          FILTER_VOL_MAX: '800000000'
         run: python main.py
