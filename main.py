@@ -1,7 +1,7 @@
 import requests, os, pytz, datetime, time
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID")
 
 GAIN_MIN, GAIN_MAX = 0.5, 6.0
 HL_MIN, HL_MAX = 2.0, 8.0
@@ -38,22 +38,16 @@ for koin, t in tickers.items():
         kandidat.append((sym, naik, total, vol))
     except: continue
 
-# URUT: Vol gede + H-L kecil = paling potensial pump
 kandidat = sorted(kandidat, key=lambda x: (-x[3], x[2]))[:12]
-
 hasil = []
 for sym, naik, hl, vol in kandidat:
     br, sp = cek_borongan_safe(sym)
-    # Hitung Skor Potensi Pump (mirip STIK/MAGIC)
-    # Gain kecil + H-L kecil + Vol gede = skor tinggi
     skor = (vol/100000000) / (hl+1) / (naik+1)
     hasil.append((sym, naik, hl, vol, br, sp, skor))
     time.sleep(0.15)
 
-# AMBIL TOP 7 PALING BRUTAL
 hasil = sorted(hasil, key=lambda x: -x[6])[:7]
 
-# ANTI-SPAM
 koin_str = ",".join([x[0] for x in hasil])
 try:
     with open("last.txt","r") as f: last = f.read()
@@ -71,21 +65,14 @@ else:
     for i, (sym, naik, hl, vol, br, sp, skor) in enumerate(hasil, 1):
         vol_jt = int(vol/1000000)
         vstr = f"{vol_jt/1000:.1f}M" if vol_jt>=1000 else f"{vol_jt}jt"
-        # Kasih label potensi
-        if i<=3:
-            label = "🔥🔥 POTENSI 68%"
-        elif i<=5:
-            label = "🔥 POTENSI 40%"
-        else:
-            label = "👀 WATCH"
-
+        if i<=3: label = "🔥🔥 POTENSI 68%"
+        elif i<=5: label = "🔥 POTENSI 40%"
+        else: label = "👀 WATCH"
         if br>=65:
             pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr} BUY{br:.0f}%\n"
         else:
             pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr}\n"
-
-    pesan += f"\nFilter: Gain {GAIN_MIN}-{GAIN_MAX}% H-L {HL_MIN}-{HL_MAX}% | All Coin Hunter 24JAM"
-    pesan += f"\nFokus No 1-3 aja min!"
+    pesan += f"\nFilter: Gain {GAIN_MIN}-{GAIN_MAX}% H-L {HL_MIN}-{HL_MAX}% | All Coin Hunter 24JAM\nFokus No 1-3 aja min!"
 
 def kirim(txt):
     for i in range(0, len(txt), 3500):
