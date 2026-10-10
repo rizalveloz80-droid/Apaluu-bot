@@ -1,19 +1,75 @@
-name: TOP 7 MICIN HUNTER
-on:
-  schedule:
-    - cron: '2-52/5 * * * *'
-  workflow_dispatch:
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - run: pip install requests
-      - name: Run Micin Hunter
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
+import requests, os, pytz, datetime, time
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID")
+
+GAIN_MIN, GAIN_MAX = 0.5, 6.0
+HL_MIN, HL_MAX = 2.0, 8.0
+VOL_MIN = 50000000
+VOL_MAX = 800000000
+HARGA_MAX = 15000
+BLACKLIST = ["BTC","ETH","USDT","USDC"]
+
+def cek_borongan_safe(sym):
+    try:
+        r = requests.get(f"https://indodax.com/api/trades/{sym.lower()}_idr", timeout=4)
+        trades = r.json().get("trades", [])[:80]
+        if len(trades) < 20: return 0, 0
+        buys = sum(1 for t in trades if t['type']=='buy')
+        buy_ratio = buys/len(trades)*100
+        now = int(time.time())
+        v15 = sum(float(t['price'])*float(t['amount']) for t in trades if now-int(t['date'])<=900)
+        v60 = sum(float(t['price'])*float(t['amount']) for t in trades if now-int(t['date'])<=3600)
+        spike = (v15*4/v60) if v60>0 else 0
+        return buy_ratio, spike
+    except:
+        return 0, 0
+
+tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()["tickers"]
+kandidat = []
+for koin, t in tickers.items():
+    try:
+        sym = koin.upper().replace("_IDR","")
+        if sym in BLACKLIST: continue
+        last, low, high, vol = float(t["last"]), float(t["low"]), float(t["high"]), float(t["vol_idr"])
+        if low==0 or last<10 or last>HARGA_MAX or not (VOL_MIN <= vol <= VOL_MAX): continue
+        naik = (last-low)/low*100
+        total = (high-low)/low*100
+        if not (GAIN_MIN<=naik<=GAIN_MAX and HL_MIN<=total<=HL_MAX): continue
+        kandidat.append((sym, naik, total, vol))
+    except: continue
+
+kandidat = sorted(kandidat, key=lambda x: (-x[3], x[2]))[:12]
+hasil = []
+for sym, naik, hl, vol in kandidat:
+    br, sp = cek_borongan_safe(sym)
+    skor = (vol/100000000) / (hl+1) / (naik+1)
+    hasil.append((sym, naik, hl, vol, br, sp, skor))
+    time.sleep(0.15)
+
+hasil = sorted(hasil, key=lambda x: -x[6])[:7]
+
+wib = datetime.datetime.now(pytz.timezone('Asia/Jakarta')).strftime('%H:%M')
+
+if not hasil:
+    pesan = f"⏳ MICIN 50-800jt {wib} WIB\nScan {len(tickers)} | Belum ada yang fresh"
+else:
+    pesan = f"💎 TOP 7 MICIN 50-800jt {wib} WIB\nScan {len(tickers)} | Filter Vol 50-800jt:\n\n"
+    for i, (sym, naik, hl, vol, br, sp, skor) in enumerate(hasil, 1):
+        vol_jt = int(vol/1000000)
+        vstr = f"{vol_jt}jt"
+        if i<=3: label = "🔥🔥 POTENSI 68%"
+        elif i<=5: label = "🔥 POTENSI 40%"
+        else: label = "👀 WATCH"
+        if br>=65:
+            pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr} BUY{br:.0f}%\n"
+        else:
+            pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr}\n"
+    pesan += f"\nFilter Micin: Vol 50-800jt Gain {GAIN_MIN}-{GAIN_MAX}%"
+
+def kirim(txt):
+    for i in range(0, len(txt), 3500):
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id":CHAT_ID,"text":txt[i:i+3500]}, timeout=10)
+
+kirim(pesan)
+print(f"OK MICIN kirim {len(hasil)}")
