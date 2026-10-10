@@ -1,26 +1,41 @@
 import os, requests, pytz
 from datetime import datetime
-import json
 
-# AMBIL DARI SECRET LU
 TOKEN = os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 
-print(f"CEK TOKEN ADA? {bool(TOKEN)}")
-print(f"CEK CHAT_ID ADA? {bool(CHAT_ID)} - Value: {CHAT_ID}")
+print(f"TOKEN ADA: {bool(TOKEN)} | CHAT_ID: {CHAT_ID}")
 
 if not TOKEN or not CHAT_ID:
-    print("TOKEN/CHAT_ID KOSONG! CEK SECRETS DI GITHUB!")
+    print("TOKEN/CHAT_ID KOSONG - CEK SECRETS!")
     exit(0)
 
-def kirim_telegram(pesan):
+def kirim(pesan):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": pesan, "parse_mode": "HTML"}
     r = requests.post(url, data=data)
-    print(f"KIRIM OK: {r.status_code} - {r.text[:200]}")
+    print(f"KIRIM: {r.status_code} - {r.text[:400]}")
     return r
 
-# CONTOH PESAN TEST - NANTI GANTI SAMA LOGIC TOP 7 LU
-wib = datetime.now(pytz.timezone('Asia/Jakarta')).strftime("%H:%M")
-pesan = f"✅ <b>APALUU BOT TEST {wib} WIB</b>\n\nBot jalan normal min! TOKEN & CHAT_ID udah konek.\n\nNext: scan TOP 7 BORONGAN jam {wib}"
-kirim_telegram(pesan)
+wib = datetime.now(pytz.timezone('Asia/Jakarta'))
+jam = wib.strftime("%H:%M WIB")
+
+# === LOGIC TOP 7 LU DISINI ===
+# Contoh template biar ga kosong dulu
+pesan = f"""🔥 <b>TOP 7 BORONGAN APALUU - {jam}</b>
+
+✅ Bot Jalan! #107 Success 15s
+
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+6. ...
+7. ...
+
+Auto scan tiap 5 menit, ga mati lagi di 14.58!
+
+Waktu: {wib.strftime('%d-%m-%Y %H:%M:%S')}"""
+
+kirim(pesan)
