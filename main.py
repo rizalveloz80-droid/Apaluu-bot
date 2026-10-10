@@ -1,82 +1,83 @@
-import requests, os, pytz, datetime, time
+import requests
+import os
+from datetime import datetime
+import pytz
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN")
+# Ambil token dari GitHub Secrets
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID")
 
-GAIN_MIN, GAIN_MAX = 0.5, 6.0
-HL_MIN, HL_MAX = 2.0, 8.0
-VOL_MIN = 100000000
-HARGA_MAX = 15000
-BLACKLIST = ["BTC","ETH","USDT","USDC"]
-
-def cek_borongan_safe(sym):
+def kirim_tele(pesan):
+    if not BOT_TOKEN or not CHAT_ID:
+        print("TOKEN/CHAT_ID KOSONG!")
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": pesan, "parse_mode": "HTML"}
     try:
-        r = requests.get(f"https://indodax.com/api/trades/{sym.lower()}_idr", timeout=4)
-        trades = r.json().get("trades", [])[:80]
-        if len(trades) < 20: return 0, 0
-        buys = sum(1 for t in trades if t['type']=='buy')
-        buy_ratio = buys/len(trades)*100
-        now = int(time.time())
-        v15 = sum(float(t['price'])*float(t['amount']) for t in trades if now-int(t['date'])<=900)
-        v60 = sum(float(t['price'])*float(t['amount']) for t in trades if now-int(t['date'])<=3600)
-        spike = (v15*4/v60) if v60>0 else 0
-        return buy_ratio, spike
-    except:
-        return 0, 0
+        r = requests.post(url, data=data, timeout=15)
+        print(f"KIRIM: {r.status_code} - {r.text[:100]}")
+    except Exception as e:
+        print(f"Gagal kirim tele: {e}")
 
-tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()["tickers"]
-kandidat = []
-for koin, t in tickers.items():
+def scan():
+    wib = pytz.timezone("Asia/Jakarta")
+    jam = datetime.now(wib).strftime("%H:%M WIB %d-%m")
+
     try:
-        sym = koin.upper().replace("_IDR","")
-        if sym in BLACKLIST: continue
-        last, low, high, vol = float(t["last"]), float(t["low"]), float(t["high"]), float(t["vol_idr"])
-        if low==0 or last<10 or last>HARGA_MAX or vol<VOL_MIN: continue
-        naik = (last-low)/low*100
-        total = (high-low)/low*100
-        if not (GAIN_MIN<=naik<=GAIN_MAX and HL_MIN<=total<=HL_MAX): continue
-        kandidat.append((sym, naik, total, vol))
-    except: continue
+        # Ambil ticker 24h Binance
+        print("Ambil data Binance...")
+        res = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=20)
+        data = res.json()
 
-kandidat = sorted(kandidat, key=lambda x: (-x[3], x[2]))[:12]
-hasil = []
-for sym, naik, hl, vol in kandidat:
-    br, sp = cek_borongan_safe(sym)
-    skor = (vol/100000000) / (hl+1) / (naik+1)
-    hasil.append((sym, naik, hl, vol, br, sp, skor))
-    time.sleep(0.15)
+        # Filter USDT dan bukan stable
+        blacklist = ["USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD"]
+        filtered = []
+        for d in data:
+            sym = d['symbol']
+            if not sym.endswith("USDT"): continue
+            coin = sym.replace("USDT","")
+            if coin in blacklist: continue
+            try:
+                price = float(d['lastPrice'])
+                vol = float(d['quoteVolume'])
+                change = float(d['priceChangePercent'])
+                if vol < 5000000: continue # minimal 5jt USDT volume
+                if price == 0: continue
+                filtered.append((coin, vol, change, price, sym))
+            except: continue
 
-hasil = sorted(hasil, key=lambda x: -x[6])[:7]
+        # Urutkan by volume tertinggi = borongan
+        filtered.sort(key=lambda x: x[1], reverse=True)
+        top7 = filtered[:7]
 
-koin_str = ",".join([x[0] for x in hasil])
-try:
-    with open("last.txt","r") as f: last = f.read()
-except: last = ""
-if koin_str==last and hasil:
-    print("SKIP spam"); exit()
-with open("last.txt","w") as f: f.write(koin_str)
+        if not top7:
+            print("Tidak ada koin")
+            return []
 
-wib = datetime.datetime.now(pytz.timezone('Asia/Jakarta')).strftime('%H:%M')
+        hasil = []
+        for coin, vol, change, price, sym in top7:
+            hasil.append(f"• {coin} | Vol: ${vol/1000000:.1f}M | {change:+.1f}%")
 
-if not hasil:
-    pesan = f"⏳ HUNTER TOP7 {wib} WIB\nScan {len(tickers)} | Belum ada yang fresh"
+        return hasil, jam
+
+    except Exception as e:
+        print(f"Error scan: {e}")
+        return [], jam
+
+# JALANKAN
+hasil_jam = scan()
+if not hasil_jam[0]:
+    hasil, jam = [], ""
 else:
-    pesan = f"🚨 TOP 7 BORONGAN {wib} WIB\nScan {len(tickers)} | {len(hasil)} koin paling fresh siap pump:\n\n"
-    for i, (sym, naik, hl, vol, br, sp, skor) in enumerate(hasil, 1):
-        vol_jt = int(vol/1000000)
-        vstr = f"{vol_jt/1000:.1f}M" if vol_jt>=1000 else f"{vol_jt}jt"
-        if i<=3: label = "🔥🔥 POTENSI 68%"
-        elif i<=5: label = "🔥 POTENSI 40%"
-        else: label = "👀 WATCH"
-        if br>=65:
-            pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr} BUY{br:.0f}%\n"
-        else:
-            pesan += f"{i}. {label} {sym} +{naik:.1f}% H-L{hl:.1f}% V{vstr}\n"
-    pesan += f"\nFilter: Gain {GAIN_MIN}-{GAIN_MAX}% H-L {HL_MIN}-{HL_MAX}% | All Coin Hunter 24JAM\nFokus No 1-3 aja min!"
+    hasil, jam = hasil_jam
 
-def kirim(txt):
-    for i in range(0, len(txt), 3500):
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id":CHAT_ID,"text":txt[i:i+3500]}, timeout=10)
-
-kirim(pesan)
-print(f"OK TOP7 kirim {len(hasil)}")
+if hasil:
+    pesan = f"🚨 <b>TOP 7 BORONGAN {jam}</b>\n\n" + "\n".join(hasil) + "\n\nBy: Bot Auto 5min"
+    kirim_tele(pesan)
+    print(f"SELESAI KIRIM {len(hasil)} koin")
+else:
+    # Tetap kirim biar lu tau bot hidup walaupun ga ada koin
+    wib = pytz.timezone("Asia/Jakarta")
+    jam = datetime.now(wib).strftime("%H:%M WIB")
+    kirim_tele(f"🤖 Bot hidup {jam} - Scan 0, market sepi, next 5 menit lagi")
+    print("Kirim info hidup")
