@@ -1,19 +1,22 @@
-name: run-bot
+name: TOP 7 MICIN HUNTER
+
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * *' # sengaja beda 2 menit dari All Coin
   workflow_dispatch:
+
 jobs:
-  run:
+  scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      - run: pip install requests pytz
-      - run: python main.py
+      - name: Scan Micin
         env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+          FILTER_GAIN_MIN: '0.3'
+          FILTER_GAIN_MAX: '10.0'
+          FILTER_HL_MIN: '3.0'
+          FILTER_HL_MAX: '15.0'
+          FILTER_VOL_MIN: '50000000' # 50jt
+          FILTER_VOL_MAX: '800000000' # 800jt
+          TELEGRAM_TITLE: 'TOP 7 MICIN HUNTER'
+        run: python main.py
