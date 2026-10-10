@@ -1,7 +1,7 @@
 name: TOP 7 MICIN HUNTER
 on:
   schedule:
-    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * *'
+    - cron:'2-57/5 * * * *'
   workflow_dispatch:
 jobs:
   scan:
