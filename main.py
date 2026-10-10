@@ -1,65 +1,41 @@
 import os, requests
 from datetime import datetime, timezone, timedelta
-
-TOKEN=os.getenv("TELEGRAM_TOKEN")
-CHAT=os.getenv("CHAT_ID")
-WIB=datetime.now(timezone.utc)+timedelta(hours=7)
-JAM=WIB.strftime("%H:%M WIB - %d %b %Y")
-
+TOKEN=os.getenv("TELEGRAM_TOKEN"); CHAT=os.getenv("CHAT_ID")
+WIB=datetime.now(timezone.utc)+timedelta(hours=7); JAM=WIB.strftime("%H:%M WIB")
 def kirim(t):
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-    json={"chat_id":CHAT,"text":t,"parse_mode":"HTML","disable_web_page_preview":True}, timeout=20)
-
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",json={"chat_id":CHAT,"text":t,"parse_mode":"HTML"},timeout=20)
 try:
     r=requests.get("https://indodax.com/api/tickers", timeout=20).json()["tickers"]
-    micin=[]; fresh=[]; willpump=[]; alert=[]
-
+    early=[]
     for k,v in r.items():
         if "_idr" not in k: continue
         try:
-            last=float(v["last"]); low=float(v["low"]); vol=float(v["vol_idr"])
-            naik = (last-low)/low*100 if low>0 else 0
-            coin=k.upper().replace("_IDR","")
+            last=float(v["last"]); low=float(v["low"]); high=float(v["high"]); vol=float(v["vol_idr"])
+            if high==low or low==0: continue
+            # FILTER HARGA: BUANG RP1 - RP50
+            if last < 50: continue
+            if last > 8000: continue
+            if vol < 500000000: continue # vol minimal 500jt
 
-            if vol < 50000000: continue
+            naik = (last-low)/low*100
+            posisi = (last-low)/(high-low)*100
 
-            # KUMPUL DATA
-            if last < 5000: micin.append((coin,last,vol,naik))
-            if last < 100 and naik > 40 and vol > 800000000: fresh.append((coin,last,vol,naik))
-            if 10 < naik < 600 and vol > 1000000000: willpump.append((coin,last,vol,naik))
-            # ALERT >50%
-            if naik >= 50 and vol > 500000000 and last < 5000:
-                alert.append((coin,last,vol,naik))
+            # ANTI PUCUK
+            if posisi > 80: continue
+            # BARU MULAI NAIK: 4-30%, posisi 25-80%
+            if 4 <= naik <= 35 and 25 <= posisi <= 80:
+                coin=k.upper().replace("_IDR","")
+                early.append((coin,last,vol,naik,posisi))
         except: pass
 
-    # 1. KIRIM ALERT DULU KALO ADA YANG PUMP >50%
-    if alert:
-        txt_alert=f"🚨🚨 <b>PUMP ALERT {JAM} - NAIK >50%!</b> 🚨🚨\n\n"
-        for c,p,vo,na in sorted(alert,key=lambda x:x[3],reverse=True)[:5]:
-            txt_alert+=f"🔥 <b>{c}</b> - Rp{p}\n NAIK: <b>{na:.1f}%</b> | Vol: {vo/1e9:.2f} Miliar\n ⚡ SIAP TERBANG! CEK SEKARANG!\n\n"
-        kirim(txt_alert)
-
-    # 2. LAPORAN RUTIN TOP 7
-    txt=f"🚀 <b>TOP MICIN HUNTER - {JAM}</b>\n\n"
-
-    if willpump:
-        txt+=f"🔥 <b>WILL PUMP:</b>\n"
-        for i,(c,p,vo,na) in enumerate(sorted(willpump,key=lambda x:x[3],reverse=True)[:3],1):
-            txt+=f"{i}. {c} Rp{p} | +{na:.0f}% | {vo/1e9:.1f}M\n"
-        txt+="\n"
-
-    if fresh:
-        txt+=f"✨ <b>FRESH:</b>\n"
-        for i,(c,p,vo,na) in enumerate(sorted(fresh,key=lambda x:x[3],reverse=True)[:3],1):
-            txt+=f"{i}. {c} Rp{p} | +{na:.0f}% | {vo/1e9:.1f}M\n"
-        txt+="\n"
-
-    txt+=f"📊 <b>TOP 7 TRENDING:</b>\n"
-    for i,(c,p,vo,na) in enumerate(sorted(micin,key=lambda x:x[2],reverse=True)[:7],1):
-        txt+=f"{i}. {c} - Rp{p} ({na:.0f}%)\n"
-
-    txt+=f"\n⏰ Auto scan 5 menit | {JAM}"
-    kirim(txt)
-
+    if early:
+        txt=f"✅ <b>FRESH PUMP - BUKAN RECEH - {JAM}</b>\n\n"
+        txt+=f"Filter: Harga >Rp50, Vol >500jt, Belum Pucuk\n\n"
+        for c,p,vo,na,po in sorted(early,key=lambda x:(x[3]),reverse=True)[:7]:
+            txt+=f"🟢 <b>{c}</b> - Rp{p}\n +{na:.1f}% | Pos {po:.0f}% | Vol {vo/1e9:.1f}M\n\n"
+        txt+="⚡ Ini baru mulai, bukan yang Rp1-Rp2!"
+        kirim(txt)
+    else:
+        kirim(f"⏸️ <b>{JAM}</b> - Ga ada setup bagus (Rp>50). Yang naik udah pucuk / receh Rp1-2 di skip. Tunggu entry bagus!")
 except Exception as e:
-    kirim(f"⚠️ Error scan {JAM}: {e}\nBot tetap jalan!")
+    kirim(f"Error {JAM}: {e}")
