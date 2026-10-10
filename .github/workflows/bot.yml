@@ -1,21 +1,70 @@
-name: TOP 7 BORONGAN
+name: Apaluu-FINAL-65-72
+
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
 jobs:
-  bot:
+  scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - run: pip install requests pytz
-      - name: Run bot
-        run: python main.py
+      - name: Rumus Suhu Final
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          pip install requests -q
+          python -c "
+          import os, requests
+          from datetime import datetime, timezone, timedelta
+          TOKEN=os.getenv('TELEGRAM_TOKEN'); CHAT=os.getenv('CHAT_ID')
+          WIB=datetime.now(timezone.utc)+timedelta(hours=7); JAM=WIB.strftime('%H:%M WIB')
+          def kirim(t):
+              requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', json={'chat_id':CHAT,'text':t,'parse_mode':'HTML'}, timeout=30)
+          try:
+              cg=requests.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1', timeout=30).json()
+              idax=requests.get('https://indodax.com/api/tickers', timeout=20).json()['tickers']
+              idax_sym=set([k.split('_')[0].upper() for k in idax.keys()])
+
+              hasil=[]
+              for c in cg:
+                  mc=c.get('market_cap',0) or 0; vol=c.get('total_volume',0) or 0
+                  if mc<10000000 or vol<5000000: continue
+                  ratio=vol/mc*100
+                  chg=c.get('price_change_percentage_24h',0) or 0
+
+                  # 5 FAKTOR RUMUS LU
+                  trend = 25 if chg>7 else 18 if chg>2 else 8
+                  volume = 25 if ratio>=150 else 22 if ratio>=90 else 15 if ratio>=70 else 0
+                  momentum = 20 if chg>12 else 14 if chg>5 else 6
+                  rs = 15 if chg>0 else 7
+                  supply = 15 # OI & structure = default 15 kalo vol gede
+
+                  total = trend+volume+momentum+rs+supply
+
+                  # FILTER FINAL: Vol/MC >=70% DAN Skor 65-72+
+                  if ratio>=70 and total>=65:
+                      sym=c['symbol'].upper()
+                      flag='✅ INDODAX' if sym in idax_sym else ''
+                      hasil.append((sym, c['name'], c['current_price'], ratio, chg, total, flag))
+
+              hasil=sorted(hasil, key=lambda x: x[5], reverse=True)[:7]
+
+              if hasil:
+                  txt=f'🔥 <b>RUMUS SUHU FINAL {JAM}</b>\n'
+                  txt+=f'Top Long/Short 2,64 = Long condong | Short Liq > Long Liq = Squeeze\n'
+                  txt+=f'Skor: Trend25% Vol25% Mom20% RS15% Supply15%\n\n'
+                  for sym,name,price,ratio,chg,skor,flag in hasil:
+                      if skor>=80: kat='🚀 BULLISH KUAT'
+                      elif skor>=65: kat='⚡ BULLISH 65-72 (kayak OP)'
+                      else: kat='👀 WATCH'
+                      txt+=f'{kat} <b>{sym}</b> {name} \${price} {flag}\n'
+                      txt+=f'Vol/MC {ratio:.1f}% | 24h {chg:.1f}% | Skor {skor}/100\n'
+                      txt+=f'⚠️ OI naik + Long dominan = risiko balik turun\n\n'
+                  kirim(txt)
+              else:
+                  kirim(f'⏸️ {JAM} - Belum ada yang masuk Skor 65-72 + Vol/MC 70%. Tunggu kayak OP tadi.')
+          except Exception as e:
+              kirim(f'Error {JAM}: {e}')
+          "
