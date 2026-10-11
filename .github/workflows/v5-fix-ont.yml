@@ -3,65 +3,17 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
-
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install deps
-        run: pip install requests
-      - name: Run V5.1 Bullish Scanner
+      - run: pip install requests
+      - name: Run V5.1 Scanner
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python - << 'PY'
-          import requests, os, time
-          BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-          CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-          
-          def send_tele(msg):
-              url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-              requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=20)
-
-          # Ambil data Binance
-          url = "https://api.binance.com/api/v3/ticker/24hr"
-          data = requests.get(url, timeout=20).json()
-          
-          bullish = []
-          for d in data:
-              s = d['symbol']
-              if not s.endswith('USDT'): continue
-              # Filter ONT wajib masuk + koin bullish
-              change = float(d['priceChangePercent'])
-              if change > 2.5 and s != 'ONTUSDT' or s == 'ONTUSDT':
-                  # logic bullish fix ONT
-                  if s == 'ONTUSDT' or change >= 3.0:
-                      bullish.append(f"{s} ({change:.2f}%)")
-          
-          # PENTING: ONT SELALU DI IJO KALO ADA
-          ont_status = ""
-          for d in data:
-              if d['symbol'] == 'ONTUSDT':
-                  ch = float(d['priceChangePercent'])
-                  if ch > 0:
-                      ont_status = f"ONTUSDT IJO {ch:.2f}% 🚀"
-                  else:
-                      ont_status = f"ONTUSDT MERAH {ch:.2f}%"
-                  break
-
-          if not bullish and "IJO" not in ont_status:
-              msg = f"🔍 V5.1 SCAN {time.strftime('%H:%M')} - DIAM, No Bullish"
-              send_tele(msg)
-          else:
-              list_koin = "\n".join(bullish[:15])
-              msg = f"🔥 *V5.1 BULLISH TRENDING*\n{ont_status}\n\n🚀 *IJO ONLY TRENDING:*\n{list_koin}\n\n⏰ {time.strftime('%H:%M WIB')}"
-              send_tele(msg)
-          
-          print("Done sent")
-          PY
+        run: python main.py
