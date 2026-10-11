@@ -33,24 +33,31 @@ jobs:
                   c=cg_map.get(sym)
                   if not c: continue
                   chg=c.get('price_change_percentage_24h',0) or 0
-                  # KUNCI ANTI MINUS: CUMA AMBIL YANG IJO >0%!!!!
-                  if chg <= 0:
+                  # V3: CUMA 0.5% - 5% (EARLY PUMP KAYAK MAV)
+                  if chg < 0.5 or chg > 5.0:
                       continue
                   mc=c.get('market_cap',0) or 0; vol=c.get('total_volume',0) or 0
                   if mc<3000000: continue
                   ratio=vol/mc*100 if mc>0 else 0
+                  # V3: 20-70% (ANTI ASETQU 92% DI PUCUK)
+                  if ratio < 20 or ratio > 70:
+                      continue
                   last=float(d.get('last',0))
-                  skor = (25 if chg>10 else 20) + (25 if ratio>80 else 15) + 20 + 15 + 15
-                  if ratio>=30:
+                  high=float(d.get('high',0))
+                  # V3: BREAK HIGH 5m CONFIRM
+                  if last < high*0.99:
+                      continue
+                  skor = 90 if ratio>50 else 85
+                  if ratio>=20:
                       hasil.append((sym,last,ratio,chg,skor))
-              hasil=sorted(hasil, key=lambda x: x[3], reverse=True)[:6]
+              hasil=sorted(hasil, key=lambda x: x[2], reverse=True)[:5]
               if hasil:
-                  txt=f'✅ <b>INDODAX IJO ONLY - {JAM}</b>\nCuma 24h >0% (Anti CTSI/PIXEL)\n\n'
+                  txt=f'🚀 <b>V3 EARLY BREAK - {JAM}</b>\nVol/MC 20-70% + Break High\n\n'
                   for sym,last,ratio,chg,skor in hasil:
-                      txt+=f'🚀 <b>{sym}/IDR</b> Rp{last:,.0f}\nVol/MC {ratio:.1f}% | 24h +{chg:.1f}% | Skor {skor}/100\n✅ INDODAX IJO\n\n'
+                      txt+=f'✅ <b>{sym}/IDR</b> Rp{last:,.0f}\nVol/MC {ratio:.1f}% | 24h +{chg:.1f}% | Skor {skor}\nCandle: BREAK HIGH 5m ✅ ENTRY!\n\n'
                   kirim(txt)
               else:
-                  kirim(f'⏸️ {JAM} - Semua Indodax merah, bot DIAM ga ngasih sinyal biar ga minus kayak CTSI/PIXEL.')
+                  kirim(f'⏸️ {JAM} V3 - Ga ada yang Break High + Vol/MC 20-70%, bot DIAM nunggu early.')
           except Exception as e:
               kirim(f'Error {JAM}: {e}')
-          "    
+          " 
