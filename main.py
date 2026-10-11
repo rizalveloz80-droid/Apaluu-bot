@@ -2,25 +2,18 @@ import requests, os, datetime
 
 BOT = os.getenv('TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_TOKEN') or os.getenv('BOT_TOKEN')
 CHAT = os.getenv('TELEGRAM_CHAT_ID') or os.getenv('CHAT_ID') or os.getenv('TELEGRAM_CHAT')
-print(f"TOKEN ADA: {bool(BOT)} CHAT ADA: {bool(CHAT)}")
 
 def send(msg):
-    try:
-        r = requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage", data={"chat_id": CHAT, "text": msg})
-        print(f"TELEGRAM STATUS: {r.status_code}")
-    except Exception as e:
-        print(f"ERROR: {e}")
+    try: requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage", data={"chat_id": CHAT, "text": msg})
+    except: pass
 
-# === FILTER V5.4 ANTI BELI PUCUK PAS ===
 MIN_PRICE = 50
 EXCLUDE = {"BTC","HYPE","PEPE","PENGU","SOL","ETH","BNB","XRP","DOGE","SHIB","ADA","AVAX","DOT","LINK","TRX","MATIC","LTC","BCH","ETC"}
-MAX_TURUN_DARI_HIGH = 5.0
-MIN_TURUN_SELESAI_KOREKSI = 0.5 # Harus udah turun minimal 0.5% dari High, biar ga beli pas pucuk pas!
-# =======================================
 
 try:
     r = requests.get("https://indodax.com/api/tickers", timeout=15).json()
     tickers = r.get('tickers', {})
+    serok = []
     selesai = []
     trending = {}
 
@@ -28,56 +21,44 @@ try:
         if not pair.endswith('_idr'): continue
         try:
             last = float(d['last']); low = float(d['low']); high = float(d['high']); vol_idr = float(d.get('vol_idr', 0))
-            if low==0 or high==0: continue
-            if last < MIN_PRICE: continue
-
+            if low==0 or high==0 or last < MIN_PRICE: continue
             coin = pair.replace('_idr','').upper()
             if coin in EXCLUDE: continue
 
             vol_mn = vol_idr/1_000_000
             hrp = f"Rp{last:,.0f}".replace(',', '.')
-
             jarak_low = (last-low)/low*100
             turun_high = (high-last)/high*100
 
-            # FILTER 1: Kalo udah junam >5% dari High, SKIP SEMUA!
-            if turun_high > MAX_TURUN_DARI_HIGH:
-                continue
+            if turun_high > 5.0: continue # udah junam >5% skip
 
-            if coin=='ONT' and jarak_low>=1:
-                # ONT wajib lolos tapi tetap harus ga pas di pucuk
-                if turun_high >= MIN_TURUN_SELESAI_KOREKSI:
-                    selesai.insert(0, f"✅ ONT/IDR {hrp} Jarak {jarak_low:.1f}% Vol {vol_mn:.0f}Mn - WAJIB IJO")
-                continue
+            # === MODE 1: SEROK BAWAH (BARU NAIK DIKIT, UDAH TURUN DIKIT) - PALING AWAL ===
+            if 0.5 <= jarak_low <= 3.0 and 1.0 <= turun_high <= 3.5 and vol_mn > 40:
+                serok.append(f"🎯 {coin}/IDR {hrp} Jarak {jarak_low:.1f}% -{turun_high:.1f}% dr High")
 
-            # FILTER 2: SELESAI KOREKSI = Harus udah turun 0.5% - 5% dari High (JANGAN PAS DI HIGH!)
-            if 1.0 <= jarak_low <= 6.0 and vol_mn>30:
-                if MIN_TURUN_SELESAI_KOREKSI <= turun_high <= MAX_TURUN_DARI_HIGH:
-                    selesai.append(f"✅ {coin}/IDR {hrp} Jarak {jarak_low:.1f}% Turun {turun_high:.1f}% dr High")
+            # === MODE 2: SELESAI KOREKSI ===
+            if 1.0 <= jarak_low <= 6.0 and 0.5 <= turun_high <= 5.0 and vol_mn>30:
+                selesai.append(f"✅ {coin}/IDR {hrp} Jarak {jarak_low:.1f}% -{turun_high:.1f}%")
 
-            # FILTER 3: IJO ONLY = Masih deket High (boleh 0% - 5%)
-            if jarak_low>=8 and vol_mn>10:
-                if turun_high <= MAX_TURUN_DARI_HIGH:
-                    trending[coin] = (jarak_low, f"🚀 {coin}/IDR {hrp} +{jarak_low:.1f}%")
+            # === MODE 3: IJO ONLY ===
+            if jarak_low>=8 and vol_mn>15 and turun_high <= 3.0:
+                trending[coin] = (jarak_low, f"🚀 {coin}/IDR {hrp} +{jarak_low:.1f}%")
 
         except: continue
 
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
     trend_list = sorted(trending.values(), key=lambda x: x[0], reverse=True)
 
-    if not selesai and not trend_list:
-        msg = f"🔍 V5.4 SCAN {jam} - DIAM (Semua masih di pucuk pas atau udah junam)"
-    else:
-        msg = f"🔥 V5.4 ANTI-PUCUK PAS {jam}\n\n"
-        if selesai: msg += "📈 SELESAI KOREKSI (Udah turun dikit, aman entri):\n" + "\n".join(selesai[:7]) + "\n\n"
-        if trend_list: msg += "🚀 IJO ONLY:\n" + "\n".join([x[1] for x in trend_list[:7]])
+    msg = f"🔥 V5.5 SEROK BAWAH {jam}\n\n"
+    if serok: msg += f"🎯 SEROK BAWAH (Minus dikit, mau naik!):\n" + "\n".join(serok[:5]) + "\n\n"
+    if selesai: msg += f"📈 SELESAI KOREKSI:\n" + "\n".join(selesai[:5]) + "\n\n"
+    if trend_list: msg += f"🚀 IJO ONLY (Jangan kejar!):\n" + "\n".join([x[1] for x in trend_list[:3]])
 
-    print(msg)
-    if selesai or trend_list:
+    if serok or selesai:
+        print(msg)
         send(msg)
     else:
-        print("Tidak ada sinyal valid, tidak kirim")
+        print("DIAM - Ga ada serokan")
 
 except Exception as e:
-    print(f"ERROR {e}")
-    send(f"Error V5.4: {e}")
+    send(f"Error V5.5: {e}")
