@@ -1,53 +1,49 @@
-name:.github/workflows/bot.yml
-on:
-  schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch:
+# BOT #140 V3 EARLY + BREAK - ANTI KETINGGALAN
+name: BOT #140 V3 EARLY + BREAK
+version: 3.0
+exchange: indodax
+interval: 1m
 
-jobs:
-  bot:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run V3 Early Break Bot
-        run: |
-          pip install requests -q
-          python -c "
-          import os, requests
-          from datetime import datetime, timezone, timedelta
-          TOKEN=os.getenv('TELEGRAM_TOKEN'); CHAT=os.getenv('CHAT_ID')
-          WIB=datetime.now(timezone.utc)+timedelta(hours=7); JAM=WIB.strftime('%H:%M WIB')
-          def kirim(t):
-              requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', json={'chat_id':CHAT,'text':t,'parse_mode':'HTML'}, timeout=30)
-          try:
-              tick=requests.get('https://indodax.com/api/tickers', timeout=20).json()['tickers']
-              cg=requests.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=250&page=1', timeout=30).json()
-              cg_map={c['symbol'].upper(): c for c in cg}
-              hasil=[]
-              for pair, d in tick.items():
-                  if not pair.endswith('_idr'): continue
-                  sym=pair.split('_')[0].upper()
-                  c=cg_map.get(sym)
-                  if not c: continue
-                  chg=c.get('price_change_percentage_24h',0) or 0
-                  if chg < 0.5 or chg > 5.0: continue
-                  mc=c.get('market_cap',0) or 0; vol=c.get('total_volume',0) or 0
-                  if mc<3000000: continue
-                  ratio=vol/mc*100 if mc>0 else 0
-                  if ratio < 20 or ratio > 70: continue
-                  last=float(d.get('last',0)); high=float(d.get('high',0))
-                  if last < high*0.99: continue
-                  hasil.append((sym,last,ratio,chg))
-              hasil=sorted(hasil, key=lambda x: x[2], reverse=True)[:5]
-              if hasil:
-                  txt=f'🚀 <b>V3 EARLY BREAK - {JAM}</b>\nVol/MC 20-70% + Break High\n\n'
-                  for sym,last,ratio,chg in hasil:
-                      txt+=f'✅ <b>{sym}/IDR</b> Rp{last:,.0f}\nVol/MC {ratio:.1f}% | 24h +{chg:.1f}%\nCandle: BREAK HIGH 5m ✅\nENTRY CONFIRM!\n\n'
-                  kirim(txt)
-              else:
-                  kirim(f'⏸️ {JAM} V3 - Ga ada yang Break High + Vol/MC 20-70%, bot DIAM.')
-          except Exception as e:
-              kirim(f'Error {JAM}: {e}')
-          "
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}         
+# STEP 1: FILTER PUMP AWAL
+filters:
+  vol_mc_24h:
+    min: 20
+    max: 70
+  vol_mc_1h:
+    min: 5
+  price_15m:
+    min: 0.8
+    max: 2.5
+  price_24h:
+    min: 0.5
+    max: 5.0
+  score_min: 85
+  market_cap_min: 3000000
+
+# STEP 2: AUTO CANDLE CONFIRM (GABUNGAN 1,2,3)
+candle_confirm:
+  timeframe: 5m
+  logic: ANY
+  conditions:
+        - name: BREAK_HIGH_VOL
+      type: breakout
+      close_5m_gt_high_15m: true
+      volume_5m_gt: 2x SMA20
+        - name: ENGULFING
+      type: bullish_engulfing
+      close_gt_open: true
+      body_gt_prev: 1.2
+        - name: BB_BOUNCE
+      type: bb_bounce
+      prev_close_lt_mid_bb: true
+      curr_close_gt_mid_bb: true
+      volume_bullish: true
+
+# OUTPUT TELEGRAM
+telegram:
+  enabled: true
+  template: "🚀 {SYMBOL}/IDR {PRICE} {CANDLE_TYPE} VOL x{vol_mult}\nVol/MC {vol_mc}% | 15m +{p15m}% | 24h +{p24h}% | Skor {score}\nCandle: {candle_desc}\nENTRY CONFIRM!"
+
+skip_log:
+    - ASETQU 92% -> SKIP >70%
+    - ZORA +0.2% -> SKIP 15m     
