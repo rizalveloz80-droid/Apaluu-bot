@@ -1,4 +1,4 @@
-name: Apaluu-ANTI-STUCK-INDODAX
+name: Apaluu-FIX-MERAH
 
 on:
   schedule:
@@ -9,14 +9,14 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Anti Stuck
+      - name: Hanya Ijo
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
           pip install requests -q
           python -c "
-          import os, requests, random
+          import os, requests
           from datetime import datetime, timezone, timedelta
           TOKEN=os.getenv('TELEGRAM_TOKEN'); CHAT=os.getenv('CHAT_ID')
           WIB=datetime.now(timezone.utc)+timedelta(hours=7); JAM=WIB.strftime('%H:%M WIB')
@@ -26,49 +26,32 @@ jobs:
               tick=requests.get('https://indodax.com/api/tickers', timeout=20).json()['tickers']
               cg=requests.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=250&page=1', timeout=30).json()
               cg_map={c['symbol'].upper(): c for c in cg}
-
               hasil=[]
               for pair, d in tick.items():
                   if not pair.endswith('_idr'): continue
                   sym=pair.split('_')[0].upper()
                   c=cg_map.get(sym)
                   if not c: continue
-                  vol_idr=float(d.get('vol_idr',0) or 0)
-                  last=float(d.get('last',0) or 0)
-                  # FILTER UTAMA: BUANG YANG MERAH -5% KE BAWAH
                   chg=c.get('price_change_percentage_24h',0) or 0
-                  if chg < -5: # kalo -23% kayak PIXEL MAGIC langsung skip
+                  # KUNCI ANTI MINUS: CUMA AMBIL YANG IJO >0%!!!!
+                  if chg <= 0:
                       continue
                   mc=c.get('market_cap',0) or 0; vol=c.get('total_volume',0) or 0
-                  if mc<3000000 or vol<500000: continue
+                  if mc<3000000: continue
                   ratio=vol/mc*100 if mc>0 else 0
-
-                  # Skor dinamis biar ga 65 terus
-                  skor = 0
-                  skor += 25 if chg>10 else 20 if chg>3 else 10 if chg>0 else 0
-                  skor += 25 if ratio>100 else 20 if ratio>60 else 10
-                  skor += 20 if chg>5 else 10
-                  skor += 15
-                  skor += 15
-
-                  # Rumus rotasi: Vol x Chg biar ganti-ganti
-                  power = ratio * (1 + chg/100) * random.uniform(0.9, 1.1)
-
-                  if ratio>=30 and skor>=60:
-                      hasil.append((sym, last, ratio, chg, skor, power, vol_idr))
-
-              # Sort by power biar ga stuck itu-itu aja
-              hasil=sorted(hasil, key=lambda x: x[5], reverse=True)[:7]
+                  last=float(d.get('last',0))
+                  skor = (25 if chg>10 else 20) + (25 if ratio>80 else 15) + 20 + 15 + 15
+                  if ratio>=30:
+                      hasil.append((sym,last,ratio,chg,skor))
+              hasil=sorted(hasil, key=lambda x: x[3], reverse=True)[:6]
               if hasil:
-                  txt=f'🔥 <b>INDODAX ROTASI - {JAM}</b>\nFilter: Cuma + Hijau, Buang Merah <-5%\n\n'
-                  for sym,last,ratio,chg,skor,power,vol_idr in hasil:
-                      kat='🚀' if chg>10 else '⚡' if chg>0 else '👀'
-                      txt+=f'{kat} <b>{sym}/IDR</b> Rp{last:,.0f}\n'
-                      txt+=f'Vol/MC {ratio:.1f}% | 24h {chg:+.1f}% | Skor {skor}/100\n'
-                      txt+=f'Vol IDR {vol_idr:,.0f} ✅\n\n'
+                  txt=f'✅ <b>INDODAX IJO ONLY - {JAM}</b>\nCuma 24h >0% (Anti CTSI/PIXEL)\n\n'
+                  for sym,last,ratio,chg,skor in hasil:
+                      txt+=f'🚀 <b>{sym}/IDR</b> Rp{last:,.0f}\nVol/MC {ratio:.1f}% | 24h +{chg:.1f}% | Skor {skor}/100\n✅ INDODAX IJO\n\n'
                   kirim(txt)
               else:
-                  kirim(f'⏸️ {JAM} - Market Indodax merah semua <-5%, skip dulu biar ga nyangkut PIXEL/MAGIC.')
+                  kirim(f'⏸️ {JAM} - Semua Indodax merah, bot DIAM ga ngasih sinyal biar ga minus kayak CTSI/PIXEL.')
           except Exception as e:
               kirim(f'Error {JAM}: {e}')
           "
+          
