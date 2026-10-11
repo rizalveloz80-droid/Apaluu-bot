@@ -1,5 +1,4 @@
 name: V5.1 Bullish Fix ONT - 15 Menit
-
 on:
   schedule:
     - cron: '*/15 * * * *'
@@ -9,82 +8,60 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Run V5.1 Bullish
+      - name: Install deps
+        run: pip install requests
+      - name: Run V5.1 Bullish Scanner
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          pip install requests -q
-          python << 'PY'
-          import os, requests
-          from datetime import datetime, timezone, timedelta
-          TOKEN=os.getenv('TELEGRAM_TOKEN')
-          CHAT=os.getenv('CHAT_ID')
-          WIB=datetime.now(timezone.utc)+timedelta(hours=7)
-          JAM=WIB.strftime('%H:%M WIB')
+          python - << 'PY'
+          import requests, os, time
+          BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+          CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+          
+          def send_tele(msg):
+              url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+              requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=20)
 
-          def kirim(t):
-              r=requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', json={'chat_id':CHAT,'text':t,'parse_mode':'HTML'}, timeout=30)
-              print(f"Kirim: {r.status_code}")
+          # Ambil data Binance
+          url = "https://api.binance.com/api/v3/ticker/24hr"
+          data = requests.get(url, timeout=20).json()
+          
+          bullish = []
+          for d in data:
+              s = d['symbol']
+              if not s.endswith('USDT'): continue
+              # Filter ONT wajib masuk + koin bullish
+              change = float(d['priceChangePercent'])
+              if change > 2.5 and s != 'ONTUSDT' or s == 'ONTUSDT':
+                  # logic bullish fix ONT
+                  if s == 'ONTUSDT' or change >= 3.0:
+                      bullish.append(f"{s} ({change:.2f}%)")
+          
+          # PENTING: ONT SELALU DI IJO KALO ADA
+          ont_status = ""
+          for d in data:
+              if d['symbol'] == 'ONTUSDT':
+                  ch = float(d['priceChangePercent'])
+                  if ch > 0:
+                      ont_status = f"ONTUSDT IJO {ch:.2f}% 🚀"
+                  else:
+                      ont_status = f"ONTUSDT MERAH {ch:.2f}%"
+                  break
 
-          tick=requests.get('https://indodax.com/api/tickers', timeout=20).json()['tickers']
-          cg=[]
-          for page in [1,2]:
-              try:
-                  r=requests.get(f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=250&page={page}', timeout=30).json()
-                  cg.extend(r)
-              except:
-                  pass
-          cg_map={c['symbol'].upper(): c for c in cg}
-
-          bullish=[]
-          ijo=[]
-          for pair,d in tick.items():
-              if not pair.endswith('_idr'): continue
-              sym=pair.split('_')[0].upper()
-              c=cg_map.get(sym)
-              last=float(d.get('last',0)); low=float(d.get('low',0)); high=float(d.get('high',0)); vol_idr=float(d.get('vol_idr',0))
-              if last==0 or low==0: continue
-
-              if not c:
-                  if vol_idr>=300000000:
-                      naik=(last-low)/low*100 if low>0 else 0
-                      if naik>5:
-                          ijo.append((sym,last,0,naik))
-                  continue
-
-              chg=c.get('price_change_percentage_24h',0) or 0
-              mc=c.get('market_cap',0) or 0; vol=c.get('total_volume',0) or 0
-              if mc<3000000: continue
-              ratio=vol/mc*100 if mc>0 else 0
-              if ratio<15: continue
-
-              jarak_low=(last-low)/low*100
-              jarak_high=(high-last)/last*100 if last>0 else 100
-
-              if jarak_low<=10 and -5<=chg<=3 and vol_idr>=150000000 and jarak_high>5:
-                  bullish.append((sym,last,ratio,chg,jarak_low,low,vol_idr))
-              elif chg>0 and ratio>=15:
-                  ijo.append((sym,last,ratio,chg))
-
-          bullish=sorted(bullish,key=lambda x:x[4])[:7]
-          ijo=sorted(ijo,key=lambda x:x[3],reverse=True)[:7]
-          print(f"Bullish {len(bullish)} Ijo {len(ijo)} JAM {JAM}")
-          if bullish or ijo:
-              txt=f'🔥 <b>V5.1 BULLISH {JAM}</b>\n'
-              if bullish:
-                  txt+='\n<b>📈 SELESAI KOREKSI:</b>\n'
-                  for s,last,ratio,chg,jarak,low,vidr in bullish:
-                      txt+=f'✅ <b>{s}/IDR</b> Rp{last:,.0f}\nLow Rp{low:,.0f} Jarak {jarak:.1f}% Vol {vidr/1e6:.0f}Mn\nVol/MC {ratio:.1f}% 24h {chg:+.1f}%\n\n'
-              if ijo:
-                  txt+='<b>🚀 IJO ONLY TRENDING:</b>\n'
-                  for s,last,ratio,chg in ijo:
-                      txt+=f'🚀 <b>{s}/IDR</b> Rp{last:,.0f} +{chg:.1f}% Vol/MC {ratio:.1f}%\n'
-              kirim(txt)
+          if not bullish and "IJO" not in ont_status:
+              msg = f"🔍 V5.1 SCAN {time.strftime('%H:%M')} - DIAM, No Bullish"
+              send_tele(msg)
           else:
-              print(f"{JAM} DIAM")
+              list_koin = "\n".join(bullish[:15])
+              msg = f"🔥 *V5.1 BULLISH TRENDING*\n{ont_status}\n\n🚀 *IJO ONLY TRENDING:*\n{list_koin}\n\n⏰ {time.strftime('%H:%M WIB')}"
+              send_tele(msg)
+          
+          print("Done sent")
           PY
