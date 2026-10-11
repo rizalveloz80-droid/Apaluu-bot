@@ -1,36 +1,43 @@
-import os, requests
-from datetime import datetime, timezone, timedelta
-TOKEN=os.getenv("TELEGRAM_TOKEN"); CHAT=os.getenv("CHAT_ID")
-WIB=datetime.now(timezone.utc)+timedelta(hours=7); JAM=WIB.strftime("%H:%M WIB")
-def kirim(t):
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",json={"chat_id":CHAT,"text":t,"parse_mode":"HTML"},timeout=20)
+import requests, os, time
+BOT = os.getenv('TELEGRAM_BOT_TOKEN')
+CHAT = os.getenv('TELEGRAM_CHAT_ID')
+
+def send(msg):
+    try:
+        url = f"https://api.telegram.org/bot{BOT}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT, "text": msg, "parse_mode": "Markdown"}, timeout=20)
+    except Exception as e:
+        print(f"Tele Error: {e}")
+
 try:
-    data=requests.get("https://indodax.com/api/tickers", timeout=20).json()["tickers"]
-    early=[]
-    for k,v in data.items():
-        if "_idr" not in k: continue
-        try:
-            last=float(v["last"]); low=float(v["low"]); high=float(v["high"]); vol=float(v["vol_idr"])
-            if high==low or low==0: continue
-            if last < 80 or last > 8000: continue
-            if vol < 1000000000: continue # Vol naikin jadi 1 Miliar!
-
-            # ANTI BANTING: Harga harus masih nempel di HIGH minimal 98%
-            if last < high * 0.985: continue # Kalo udah turun 1.5% dari high = SKIP! (MARSCOIN 1705/1780=95% bakal ke skip!)
-
-            naik=(last-low)/low*100; posisi=(last-low)/(high-low)*100
-
-            if posisi > 65: continue # Pos harus masih di bawah 65% - SUPER EARLY!
-            if 8 <= naik <= 30:
-                early.append((k.upper().replace("_IDR",""),last,vol,naik,posisi,high))
-        except: pass
-
-    if early:
-        txt=f"✅ <b>SUPER EARLY - ANTI PUCUK - {JAM}</b>\nFilter: >Rp80, Vol >1M, Nempel High 98.5%, Pos <65%\n\n"
-        for c,p,vo,na,po,hi in sorted(early,key=lambda x:x[3],reverse=True)[:5]:
-            txt+=f"🟢 <b>{c}</b> Rp{p} (High {hi})\n +{na:.1f}% | Pos {po:.0f}% | {vo/1e9:.1f}M | MASIH NAIK!\n\n"
-        kirim(txt)
+    # Pakai header biar ga ke-block
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    r = requests.get("https://api.binance.com/api/v3/ticker/24hr", headers=headers, timeout=20)
+    data = r.json()
+    
+    # CEK KALO DI-BLOCK
+    if isinstance(data, dict):
+        print(f"Binance block response: {data}")
+        send(f"⚠️ Binance API block: {data}\nCoba lagi 15 menit")
+        exit(0)
+    
+    bull=[]; ont=""
+    for d in data:
+        s=d.get('symbol','')
+        if not s.endswith('USDT'): continue
+        ch=float(d.get('priceChangePercent',0))
+        if s=='ONTUSDT':
+            ont=f"ONTUSDT IJO {ch:.2f}% 🚀" if ch>0 else f"ONTUSDT MERAH {ch:.2f}%"
+            if ch>0: bull.append(f"{s} ({ch:.2f}%) - WAJIB IJO")
+        elif ch>=3.0:
+            bull.append(f"{s} ({ch:.2f}%)")
+    
+    if not bull:
+        send(f"🔍 V5.1 SCAN {time.strftime('%H:%M')} WIB - DIAM, ga ada bullish")
     else:
-        kirim(f"⏸️ <b>{JAM}</b> - Ga ada yang super early. Semua udah lewat high / udah dibanting kayak MARSCOIN. Jangan FOMO, tunggu yang baru!")
+        txt="\n".join(bull[:20])
+        send(f"🔥 *V5.1 BULLISH TRENDING*\n{ont}\n\n🚀 *IJO ONLY:*\n{txt}\n\n⏰ {time.strftime('%H:%M WIB')}")
+    print("Done sent OK")
 except Exception as e:
-    kirim(f"Error {JAM}: {e}")
+    print(f"Error: {e}")
+    send(f"Bot Error: {e}")
