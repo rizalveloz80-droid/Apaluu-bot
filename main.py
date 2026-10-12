@@ -1,98 +1,90 @@
-import requests, os, datetime, time
+import requests, os
+from datetime import datetime
 
-BOT = os.getenv('TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_TOKEN') or os.getenv('BOT_TOKEN')
-CHAT = os.getenv('TELEGRAM_CHAT_ID') or os.getenv('CHAT_ID') or os.getenv('TELEGRAM_CHAT')
+TELE_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-def send(msg):
+def send_tele(msg):
     try:
-        requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage", data={"chat_id": CHAT, "text": msg}, timeout=10)
-    except Exception as e:
-        print(f"Gagal send: {e}")
+        if not TELE_TOKEN or not CHAT_ID: return
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
+    except: pass
 
-def get_ema(prices, period):
-    k = 2 / (period + 1)
-    ema = prices[0]
-    for p in prices[1:]:
-        ema = p * k + ema * (1-k)
-    return ema
+def get_coingecko_vol_mc():
+    try:
+        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=idr&order=volume_desc&per_page=250&page=1&sparkline=false"
+        r = requests.get(url, timeout=15).json()
+        mapping = {}
+        for c in r:
+            sym = c.get("symbol","").upper()
+            mc = c.get("market_cap",0) or 0
+            vol = c.get("total_volume",0) or 0
+            if mc>0:
+                ratio = (vol/mc)*100
+                mapping[sym] = ratio
+        return mapping
+    except:
+        return {}
 
-try:
-    r = requests.get("https://indodax.com/api/tickers", timeout=20).json()
-    tickers = r.get('tickers', {})
+def main():
+    try:
+        r = requests.get("https://indodax.com/api/summaries", timeout=15).json()
+        tickers = r.get("tickers", {})
+    except:
+        return
 
-    all_coins = []
+    cg_ratios = get_coingecko_vol_mc()
+    now = datetime.now().strftime("%H:%M WIB")
+    serok_bawah, selesai_koreksi, entry_duluan, ijo_over = [], [], [], []
+
     for pair, d in tickers.items():
-        if not pair.endswith('_idr'): continue
+        if not pair.endswith("_idr"): continue
+        coin = pair.replace("_idr","").upper()
         try:
-            vol_mn = float(str(d.get('vol_idr','0')))/1_000_000
-            if vol_mn < 15: continue # LONGGARIN dari 35jt ke 15jt!
-            last = float(d['last'])
-            low = float(d['low'])
-            high = float(d['high'])
-            if last < 5: continue
-            coin = pair.replace('_idr','').upper()
-            if coin in {"BTC","ETH","USDT"}: continue
-            chg = ((last-low)/low*100) if low else 0
-            drop_high = ((high-last)/high*100) if high else 0
-            near_low = ((last-low)/low*100) if low else 0
-            all_coins.append((vol_mn, chg, coin, last, low, high, drop_high, near_low))
+            last = float(d.get("last",0))
+            low = float(d.get("low",0))
+            high = float(d.get("high",0))
+            vol_idr = float(d.get("vol_idr",0))
+            if last==0 or low==0 or high==0: continue
+
+            pct_low = (last - low)/low*100
+            pct_high = (last - high)/high*100
+            vol_mc_ratio = cg_ratios.get(coin, 0)
+
+            if 3.0 <= pct_low <= 9.5 and pct_high < -2:
+                if vol_mc_ratio >= 35 or vol_idr >= 35000000:
+                    sl = last*0.97
+                    tp = last*1.06
+                    tag = f"{vol_mc_ratio:.1f}%" if vol_mc_ratio>0 else f"{vol_idr/1e6:.0f}jt"
+                    entry_duluan.append(f"🚀 {coin} Rp{last:,.0f} +{pct_low:.1f}% Vol/MC:{tag}\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f} - CEGAT AWAL!")
+
+            if 0 <= pct_low <= 2.5 and -5 <= pct_high <= -0.8 and vol_idr >= 40000000:
+                sl = last*0.98
+                tp = last*1.04
+                serok_bawah.append(f"🎯 {coin} Rp{last:,.0f} {pct_high:.1f}% Vol:{vol_idr/1e6:.0f}jt\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f}")
+
+            elif 0.3 <= pct_low <= 5 and -9 <= pct_high <= -1.2 and vol_idr >= 30000000:
+                if not (0 <= pct_low <= 2.5 and vol_idr >= 40000000):
+                    sl = last*0.98
+                    tp = last*1.04
+                    selesai_koreksi.append(f"✅ {coin} Rp{last:,.0f} {pct_high:.1f}% Vol:{vol_idr/1e6:.0f}jt\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f}")
+
+            if pct_low >= 15:
+                ijo_over.append(f"🔥 {coin} Rp{last:,.0f} +{pct_low:.1f}% JANGAN KEJAR")
         except: continue
 
-    early = []
-    koreksi = []
-    bottom = []
-    trending = []
-
-    now = int(time.time())
-    from_ts = now - (60*3600)
-
-    for vol_mn, chg, coin, last, low, high, drop_high, near_low in sorted(all_coins, key=lambda x: x[0], reverse=True)[:120]:
-        try:
-            url = f"https://indodax.com/tradingview/history?symbol={coin}IDR&resolution=15&from={from_ts}&to={now}"
-            hist = requests.get(url, timeout=8).json()
-            closes = hist.get('c', [])
-            if len(closes) < 20: continue
-            ema9 = get_ema(closes[-9:], 9)
-            ema21 = get_ema(closes[-21:], 21)
-            hrp = f"Rp{last:,.0f}".replace(',', '.')
-
-            # 1. ENTRY DULUAN - LONGGARIN
-            if 1.5 <= chg <= 18 and ema9 > ema21*0.995:
-                early.append((vol_mn, f"⚡ {coin} {hrp} +{chg:.1f}% V:{vol_mn:.0f}jt"))
-
-            # 2. SELESAI KOREKSI - INI YANG LU CARI MIN!
-            if 3 <= drop_high <= 15 and chg >= 1 and vol_mn > 15:
-                koreksi.append((vol_mn, f"✅ {coin} {hrp} -{drop_high:.1f}% dari high, masih +{chg:.1f}% Vol:{vol_mn:.0f}jt - SEROK KOREKSI"))
-
-            # 3. SEROK BOTTOM - LONGGARIN BANGET
-            if near_low <= 8 and drop_high >= 3:
-                bottom.append((vol_mn, f"💎 {coin} {hrp} dekat low +{near_low:.1f}% drop -{drop_high:.1f}% V:{vol_mn:.0f}jt - BOTTOM"))
-
-            # 4. TRENDING
-            if chg >= 15:
-                trending.append((chg, f"🚀 {coin} +{chg:.0f}% {hrp}"))
-
-        except: continue
-
-    jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
-    msg = f"🤖 V10.1 LOOSE {jam}\nScan {len(all_coins)} koin Vol>15jt\n"
-
-    msg += f"\n⚡ ENTRY DULUAN (+1.5-18%): {len(early)} koin\n"
-    msg += "\n".join([x[1] for x in sorted(early, reverse=True)[:4]]) if early else "Belum ada"
-
-    msg += f"\n\n✅ SELESAI KOREKSI: {len(koreksi)} koin\n"
-    msg += "\n".join([x[1] for x in sorted(koreksi, reverse=True)[:5]]) if koreksi else "Belum ada yang koreksi"
-
-    msg += f"\n\n💎 SEROK BOTTOM: {len(bottom)} koin\n"
-    msg += "\n".join([x[1] for x in sorted(bottom, reverse=True)[:5]]) if bottom else "Belum ada bottom"
-
-    if trending:
-        msg += "\n\n🚀 UDAH TRENDING:\n" + "\n".join([x[1] for x in sorted(trending, reverse=True)[:4]])
+    msg = f"🤖 V12 HYBRID Vol/MC {now}\nRumus: Vol/MC=Vol24H/MC x100% + Vol IDR\n\n"
+    if entry_duluan: msg += f"⚡ ENTRY DULUAN Vol/MC>35% (Anti Ketinggalan ZRO 92%):\n" + "\n".join(entry_duluan[:10]) + "\n\n"
+    else: msg += "⚡ ENTRY DULUAN: 0 koin - Belum ada Vol/MC>35%\n\n"
+    if serok_bawah: msg += f"🎯 SEROK BAWAH (40jt+):\n" + "\n".join(serok_bawah[:12]) + "\n\n"
+    else: msg += "🎯 SEROK BAWAH (40jt+): 0 koin\n\n"
+    if selesai_koreksi: msg += f"📈 SELESAI KOREKSI (30jt+):\n" + "\n".join(selesai_koreksi[:12]) + "\n\n"
+    else: msg += "📈 SELESAI KOREKSI (30jt+): 0 koin\n\n"
+    if ijo_over: msg += f"🚀 IJO OVERBOUGHT JANGAN KEJAR:\n" + "\n".join(ijo_over[:10])
 
     print(msg)
-    send(msg)
+    send_tele(msg)
 
-except Exception as e:
-    err = f"Error V10.1: {e}"
-    print(err)
-    send(err)
+if __name__ == "__main__":
+    main()
