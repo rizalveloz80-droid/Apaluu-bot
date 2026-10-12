@@ -24,27 +24,26 @@ try:
         if not pair.endswith('_idr'): continue
         try:
             vol_mn = float(str(d.get('vol_idr','0')))/1_000_000
-            if vol_mn < 50: continue # Vol 50jt+ biar semua koin berpotensi masuk
+            if vol_mn < 40: continue
             last = float(d['last'])
             low = float(d['low'])
-            high = float(d['high'])
             if last < 5: continue
             coin = pair.replace('_idr','').upper()
             if coin in {"BTC","ETH","USDT","USDC"}: continue
             chg = ((last-low)/low*100) if low else 0
-            all_coins.append((chg, vol_mn, coin, last, low, high))
+            all_coins.append((chg, vol_mn, coin, last, low))
         except: continue
 
-    all_coins = sorted(all_coins, key=lambda x: x[0], reverse=True)[:40]
-
+    # JANGAN SORT DULU, BIAR YANG +3% KEDETEK!
     early = []
-    breakout = []
-    overbought = []
-
+    trending = []
     now = int(time.time())
     from_ts = now - (40*3600)
 
-    for chg, vol_mn, coin, last, low, high in all_coins:
+    # Scan 80 koin random vol gede, bukan cuma top gainer
+    for chg, vol_mn, coin, last, low in sorted(all_coins, key=lambda x: x[1], reverse=True)[:80]:
+
+        if chg < 2: continue
         try:
             url = f"https://indodax.com/tradingview/history?symbol={coin}IDR&resolution=15&from={from_ts}&to={now}"
             hist = requests.get(url, timeout=8).json()
@@ -52,40 +51,34 @@ try:
             if len(closes) < 22: continue
             ema9 = get_ema(closes[-9:], 9)
             ema21 = get_ema(closes[-21:], 21)
-            ema9_prev = get_ema(closes[-10:-1], 9)
-            ema21_prev = get_ema(closes[-22:-1], 21)
-            jarak_ema9 = ((last-ema9)/ema9*100) if ema9 else 0
+            jarak = ((ema9-ema21)/ema21*100) if ema21 else 0
             hrp = f"Rp{last:,.0f}".replace(',', '.')
 
-            # UNIVERSAL LOGIC - BERLAKU UNTUK KOIN APAPUN
-            if 3 <= chg <= 14 and ema9_prev < ema21_prev and ema9 > ema21:
-                early.append(f"⚡ {coin} {hrp} +{chg:.1f}% GOLDEN CROSS baru! V:{vol_mn:.0f}jt | ENTRY SEBELUM TRENDING")
-            elif 15 <= chg <= 29 and ema9 > ema21:
-                breakout.append(f"🔥 {coin} {hrp} +{chg:.1f}% Breakout Vol:{vol_mn:.0f}jt | IKUTI TREN, SL 4%")
-            elif chg >= 30:
-                overbought.append(f"⚠️ {coin} {hrp} +{chg:.1f}% OVERBOUGHT Jarak EMA9 +{jarak_ema9:.1f}% | JANGAN FOMO")
+            # LOGIKA FIX
+            if 2 <= chg <= 14 and ema9 > ema21 and jarak <= 3 and vol_mn > 40:
+                early.append((vol_mn, f"⚡ EARLY {coin} {hrp} +{chg:.1f}% EMA9>21 Vol:{vol_mn:.0f}jt - ENTRY SEBELUM TRENDING"))
+            elif chg >= 15:
+                trending.append((chg, f"🚀 {coin} +{chg:.0f}% {hrp} V:{vol_mn:.0f}jt"))
 
         except: continue
 
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
-    msg = f"🤖 V9.1 UNIVERSAL HUNTER {jam}\nScan {len(all_coins)} koin Vol>50jt\n"
+    msg = f"🤖 V9.2 UNIVERSAL FIX {jam}\nScan 80 koin Vol>40jt (by Volume)\n"
 
     if early:
-        msg += "\n🎯 ENTRY DULUAN (sblm trending, koin apapun):\n" + "\n".join(early[:5])
+        msg += "\n🎯 ENTRY DULUAN (koin apapun +2-14%):\n" + "\n".join([x[1] for x in sorted(early, reverse=True)[:6]])
     else:
-        msg += "\n🎯 ENTRY DULUAN: Belum ada golden cross baru"
+        msg += "\n🎯 ENTRY DULUAN: Belum ada yang +2-14% & EMA baru naik - tunggu 15 menit"
 
-    if breakout:
-        msg += "\n\n🔥 LAGI BREAKOUT (koin apapun yang lagi naik):\n" + "\n".join(breakout[:5])
+    if trending:
+        trending = sorted(trending, reverse=True)[:5]
+        msg += "\n\n🚀 UDAH TRENDING (jangan kejar, kayak WORMHOLE +103% tadi):\n" + "\n".join([x[1] for x in trending])
 
-    if overbought:
-        msg += "\n\n⚠️ UDAH TERBANG TINGGI (jangan kejar):\n" + "\n".join(overbought[:5])
-
-    if not early and not breakout and not overbought:
-        msg += "\nDIAM - Market lagi sepi, ga ada koin +3%"
+    if not early and not trending:
+        msg += "\nMarket sepi total"
 
     print(msg)
     send(msg)
 
 except Exception as e:
-    send(f"Error V9.1: {e}")
+    send(f"Error V9.2: {e}")
