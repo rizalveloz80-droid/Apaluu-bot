@@ -26,7 +26,7 @@ try:
         if not pair.endswith('_idr'): continue
         try:
             vol_mn = float(d.get('vol_idr',0))/1_000_000
-            if vol_mn < 20: continue
+            if vol_mn < 10: continue
             last = float(d['last'])
             if last < 50: continue
             coin = pair.replace('_idr','').upper()
@@ -34,7 +34,7 @@ try:
             candidates.append((vol_mn, pair, coin, float(d['low']), float(d['high']), last, vol_mn))
         except: continue
 
-    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)[:40]
+    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)[:50]
 
     serok = []
     now = int(time.time())
@@ -50,36 +50,36 @@ try:
             ema9 = get_ema(closes[-9:], 9)
             ema21 = get_ema(closes[-21:], 21)
 
-            if ema9 < ema21: continue # trend turun skip
+            if ema9 < ema21: continue
 
             jarak_low = (last-low)/low*100 if low else 0
             turun_high = (high-last)/high*100 if high else 0
 
-            if turun_high < 0.5: continue
-            if turun_high > 6: continue
-
             hrp = f"Rp{last:,.0f}".replace(',', '.')
-            sl = last * 0.98
-            tp = last * 1.04
+            sl = last * 0.97
+            tp = last * 1.05
             sl_hrp = f"Rp{sl:,.0f}".replace(',', '.')
             tp_hrp = f"Rp{tp:,.0f}".replace(',', '.')
 
-            # V7.1 INSTANT ENTRY - EMA9 di atas EMA21 + koreksi
-            if 0.5 <= jarak_low <= 8.0 and 0.8 <= turun_high <= 5.5 and vol_mn > 25:
-                serok.append(f"🎯 {coin} {hrp} EMA9 {ema9:.0f}>21 {ema21:.0f} -{turun_high:.1f}% V:{vol_mn:.0f}jt SL:{sl_hrp} TP:{tp_hrp}")
+            # V7.2 - FORCE ENTRY PALING LONGGAR
+            if 0 <= turun_high <= 8:
+                score = (1 if 0.5 <= jarak_low <= 10 else 0) + (1 if turun_high >= 0.8 else 0)
+                serok.append((score, vol_mn, f"🎯 {coin} {hrp} EMA9>{ema21:.0f} -{turun_high:.1f}% +{jarak_low:.1f}% V:{vol_mn:.0f}jt SL:{sl_hrp} TP:{tp_hrp}"))
 
         except:
             continue
 
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
-    msg = f"🤖 V7.1 INSTANT {jam}\nEMA9>EMA21 + Vol 25jt+\n\n"
+
     if serok:
-        msg += f"🎯 ENTRY HARI INI:\n" + "\n".join(serok[:8])
+        serok = sorted(serok, key=lambda x: (x[0], x[1]), reverse=True)
+        pesan = [x[2] for x in serok[:8]]
+        msg = f"🤖 V7.2 FORCE {jam}\nVol 10jt+ EMA9>21\n\n🎯 ENTRY HARI INI:\n" + "\n".join(pesan)
         print(msg)
         send(msg)
     else:
-        print("DIAM - Ga ada EMA9>21")
-        send(f"🤖 V7.1 {jam}\nDIAM - Vol 25jt ga ada yang EMA9>21")
+        print("DIAM TOTAL - Semua trend turun")
+        send(f"🤖 V7.2 {jam}\nDIAM TOTAL - Semua coin EMA9<21, jangan entry dulu, rawan nyangkut!")
 
 except Exception as e:
-    send(f"Error V7.1: {e}")
+    send(f"Error V7.2: {e}")
