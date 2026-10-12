@@ -24,61 +24,68 @@ try:
         if not pair.endswith('_idr'): continue
         try:
             vol_mn = float(str(d.get('vol_idr','0')))/1_000_000
-            if vol_mn < 30: continue
+            if vol_mn < 50: continue # Vol 50jt+ biar semua koin berpotensi masuk
             last = float(d['last'])
             low = float(d['low'])
             high = float(d['high'])
-            if last < 20: continue
+            if last < 5: continue
             coin = pair.replace('_idr','').upper()
-            if coin in {"BTC","ETH","USDT","BNB","SOL"}: continue
+            if coin in {"BTC","ETH","USDT","USDC"}: continue
             chg = ((last-low)/low*100) if low else 0
             all_coins.append((chg, vol_mn, coin, last, low, high))
         except: continue
 
-    # --- MODE EARLY ---
+    all_coins = sorted(all_coins, key=lambda x: x[0], reverse=True)[:40]
+
     early = []
+    breakout = []
+    overbought = []
+
     now = int(time.time())
-    from_ts = now - (30*3600)
+    from_ts = now - (40*3600)
 
     for chg, vol_mn, coin, last, low, high in all_coins:
-        # INI KUNCINYA MIN: sebelum trending itu chg masih 3-12%
-        if not (3 <= chg <= 12): continue
         try:
-            url = f"https://indodax.com/tradingview/history?symbol={coin}IDR&resolution=60&from={from_ts}&to={now}"
-            ch = requests.get(url, timeout=8).json()
-            closes = ch.get('c', [])
+            url = f"https://indodax.com/tradingview/history?symbol={coin}IDR&resolution=15&from={from_ts}&to={now}"
+            hist = requests.get(url, timeout=8).json()
+            closes = hist.get('c', [])
             if len(closes) < 22: continue
             ema9 = get_ema(closes[-9:], 9)
             ema21 = get_ema(closes[-21:], 21)
-            if ema9 < ema21: continue
-            jarak_ema = (ema9-ema21)/ema21*100
-            turun_high = (high-last)/high*100 if high else 0
-            # EMA baru nyilang + masih deket high
-            if 0 <= jarak_ema <= 2.5 and turun_high < 7:
-                hrp = f"Rp{last:,.0f}".replace(',', '.')
-                early.append((chg, vol_mn, f"⚡ EARLY {coin} {hrp} +{chg:.1f}% EMA baru nyilang V:{vol_mn:.0f}jt - Beli sekarang sblm trending! SL 3%"))
+            ema9_prev = get_ema(closes[-10:-1], 9)
+            ema21_prev = get_ema(closes[-22:-1], 21)
+            jarak_ema9 = ((last-ema9)/ema9*100) if ema9 else 0
+            hrp = f"Rp{last:,.0f}".replace(',', '.')
+
+            # UNIVERSAL LOGIC - BERLAKU UNTUK KOIN APAPUN
+            if 3 <= chg <= 14 and ema9_prev < ema21_prev and ema9 > ema21:
+                early.append(f"⚡ {coin} {hrp} +{chg:.1f}% GOLDEN CROSS baru! V:{vol_mn:.0f}jt | ENTRY SEBELUM TRENDING")
+            elif 15 <= chg <= 29 and ema9 > ema21:
+                breakout.append(f"🔥 {coin} {hrp} +{chg:.1f}% Breakout Vol:{vol_mn:.0f}jt | IKUTI TREN, SL 4%")
+            elif chg >= 30:
+                overbought.append(f"⚠️ {coin} {hrp} +{chg:.1f}% OVERBOUGHT Jarak EMA9 +{jarak_ema9:.1f}% | JANGAN FOMO")
+
         except: continue
 
-    # Buat perbandingan, tetep kasih tau yang udah trending biar lu ga FOMO
-    gainers = sorted([c for c in all_coins if c[0] >= 15], key=lambda x: x[0], reverse=True)[:3]
-
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
-    msg = f"🤖 V8 EARLY {jam}\nCari +3-12% sblm Trending\n"
+    msg = f"🤖 V9.1 UNIVERSAL HUNTER {jam}\nScan {len(all_coins)} koin Vol>50jt\n"
 
     if early:
-        early = sorted(early, key=lambda x: x[1], reverse=True)[:5]
-        msg += "\n⚡ ENTRY SEBELUM TRENDING (beli sekarang!):\n" + "\n".join([x[2] for x in early])
+        msg += "\n🎯 ENTRY DULUAN (sblm trending, koin apapun):\n" + "\n".join(early[:5])
     else:
-        msg += "\n⚡ EARLY: Belum ada yang siap terbang, tunggu 15 menit lagi"
+        msg += "\n🎯 ENTRY DULUAN: Belum ada golden cross baru"
 
-    if gainers:
-        msg += "\n\n🚀 UDAH TRENDING (jangan kejar):\n"
-        for chg, vol_mn, coin, last, low, high in gainers:
-            hrp = f"Rp{last:,.0f}".replace(',', '.')
-            msg += f"{coin} +{chg:.0f}% {hrp}\n"
+    if breakout:
+        msg += "\n\n🔥 LAGI BREAKOUT (koin apapun yang lagi naik):\n" + "\n".join(breakout[:5])
+
+    if overbought:
+        msg += "\n\n⚠️ UDAH TERBANG TINGGI (jangan kejar):\n" + "\n".join(overbought[:5])
+
+    if not early and not breakout and not overbought:
+        msg += "\nDIAM - Market lagi sepi, ga ada koin +3%"
 
     print(msg)
     send(msg)
 
 except Exception as e:
-    send(f"Error V8: {e}")
+    send(f"Error V9.1: {e}")
