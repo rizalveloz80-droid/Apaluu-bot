@@ -7,9 +7,13 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 def send_tele(msg):
     try:
         if not TELE_TOKEN or not CHAT_ID: return
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
-                      json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
-    except: pass
+        # Potong jadi 3500 biar ga kepanjangan
+        for i in range(0, len(msg), 3500):
+            chunk = msg[i:i+3500]
+            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                          json={"chat_id": CHAT_ID, "text": chunk}, timeout=15)
+    except Exception as e:
+        print(f"Tele error: {e}")
 
 def get_coingecko_vol_mc():
     try:
@@ -21,8 +25,7 @@ def get_coingecko_vol_mc():
             mc = c.get("market_cap",0) or 0
             vol = c.get("total_volume",0) or 0
             if mc>0:
-                ratio = (vol/mc)*100
-                mapping[sym] = ratio
+                mapping[sym] = (vol/mc)*100
         return mapping
     except:
         return {}
@@ -33,55 +36,46 @@ def main():
         tickers = r.get("tickers", {})
     except:
         return
-
-    cg_ratios = get_coingecko_vol_mc()
+    cg = get_coingecko_vol_mc()
     now = datetime.now().strftime("%H:%M WIB")
-    serok_bawah, selesai_koreksi, entry_duluan, ijo_over = [], [], [], []
+
+    entry, serok, selesai, ijo = [], [], [], []
 
     for pair, d in tickers.items():
         if not pair.endswith("_idr"): continue
         coin = pair.replace("_idr","").upper()
         try:
-            last = float(d.get("last",0))
-            low = float(d.get("low",0))
-            high = float(d.get("high",0))
-            vol_idr = float(d.get("vol_idr",0))
+            last = float(d.get("last",0)); low = float(d.get("low",0))
+            high = float(d.get("high",0)); vol_idr = float(d.get("vol_idr",0))
             if last==0 or low==0 or high==0: continue
+            pct_low = (last-low)/low*100
+            pct_high = (last-high)/high*100
+            ratio = cg.get(coin, 0)
 
-            pct_low = (last - low)/low*100
-            pct_high = (last - high)/high*100
-            vol_mc_ratio = cg_ratios.get(coin, 0)
-
+            # V12.1: ENTRY DULUAN hanya yang Vol/MC >35% biar ketat
             if 3.0 <= pct_low <= 9.5 and pct_high < -2:
-                if vol_mc_ratio >= 35 or vol_idr >= 35000000:
-                    sl = last*0.97
-                    tp = last*1.06
-                    tag = f"{vol_mc_ratio:.1f}%" if vol_mc_ratio>0 else f"{vol_idr/1e6:.0f}jt"
-                    entry_duluan.append(f"🚀 {coin} Rp{last:,.0f} +{pct_low:.1f}% Vol/MC:{tag}\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f} - CEGAT AWAL!")
+                if ratio >= 35: # HAPUS fallback 35jt biar ga kebanyakan
+                    entry.append(f"🚀 {coin} +{pct_low:.1f}% R:{ratio:.0f}% Rp{last:,.0f}")
 
             if 0 <= pct_low <= 2.5 and -5 <= pct_high <= -0.8 and vol_idr >= 40000000:
-                sl = last*0.98
-                tp = last*1.04
-                serok_bawah.append(f"🎯 {coin} Rp{last:,.0f} {pct_high:.1f}% Vol:{vol_idr/1e6:.0f}jt\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f}")
+                serok.append(f"🎯 {coin} {pct_high:.1f}% {vol_idr/1e6:.0f}jt")
 
             elif 0.3 <= pct_low <= 5 and -9 <= pct_high <= -1.2 and vol_idr >= 30000000:
                 if not (0 <= pct_low <= 2.5 and vol_idr >= 40000000):
-                    sl = last*0.98
-                    tp = last*1.04
-                    selesai_koreksi.append(f"✅ {coin} Rp{last:,.0f} {pct_high:.1f}% Vol:{vol_idr/1e6:.0f}jt\nSL:Rp{sl:,.0f} TP:Rp{tp:,.0f}")
+                    selesai.append(f"✅ {coin} {pct_high:.1f}% {vol_idr/1e6:.0f}jt")
 
             if pct_low >= 15:
-                ijo_over.append(f"🔥 {coin} Rp{last:,.0f} +{pct_low:.1f}% JANGAN KEJAR")
+                ijo.append(f"🔥 {coin} +{pct_low:.1f}%")
         except: continue
 
-    msg = f"🤖 V12 HYBRID Vol/MC {now}\nRumus: Vol/MC=Vol24H/MC x100% + Vol IDR\n\n"
-    if entry_duluan: msg += f"⚡ ENTRY DULUAN Vol/MC>35% (Anti Ketinggalan ZRO 92%):\n" + "\n".join(entry_duluan[:10]) + "\n\n"
-    else: msg += "⚡ ENTRY DULUAN: 0 koin - Belum ada Vol/MC>35%\n\n"
-    if serok_bawah: msg += f"🎯 SEROK BAWAH (40jt+):\n" + "\n".join(serok_bawah[:12]) + "\n\n"
-    else: msg += "🎯 SEROK BAWAH (40jt+): 0 koin\n\n"
-    if selesai_koreksi: msg += f"📈 SELESAI KOREKSI (30jt+):\n" + "\n".join(selesai_koreksi[:12]) + "\n\n"
-    else: msg += "📈 SELESAI KOREKSI (30jt+): 0 koin\n\n"
-    if ijo_over: msg += f"🚀 IJO OVERBOUGHT JANGAN KEJAR:\n" + "\n".join(ijo_over[:10])
+    msg = f"🤖 V12.1 HYBRID {now}\nVol/MC>35% + Vol IDR\n\n"
+    msg += f"⚡ ENTRY DULUAN (Vol/MC>35% Anti ZRO 92%): {len(entry)} koin\n"
+    msg += ("\n".join(entry[:8]) if entry else "0 - Market sepi") + "\n\n"
+    msg += f"🎯 SEROK BAWAH 40jt+: {len(serok)} koin\n"
+    msg += ("\n".join(serok[:8]) if serok else "0") + "\n\n"
+    msg += f"📈 SELESAI KOREKSI 30jt+: {len(selesai)} koin\n"
+    msg += ("\n".join(selesai[:8]) if selesai else "0") + "\n\n"
+    msg += f"🚀 IJO OVER: {len(ijo)} koin\n" + "\n".join(ijo[:5])
 
     print(msg)
     send_tele(msg)
