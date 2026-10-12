@@ -15,40 +15,35 @@ def get_ema(prices, period):
         ema = p * k + ema * (1-k)
     return ema
 
-EXCLUDE = {"BTC","SOL","ETH","BNB","XRP","DOGE","SHIB","PEPE"}
-
 try:
-    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()
+    r = requests.get("https://indodax.com/api/tickers", timeout=20).json()
     tickers = r.get('tickers', {})
 
-    list_all = []
+    all_coins = []
     for pair, d in tickers.items():
         if not pair.endswith('_idr'): continue
         try:
-            vol_mn = float(d.get('vol_idr',0))/1_000_000
-            if vol_mn < 25: continue
+            vol_mn = float(str(d.get('vol_idr','0')))/1_000_000
+            if vol_mn < 30: continue
             last = float(d['last'])
+            low = float(d['low'])
+            high = float(d['high'])
+            if last < 20: continue
             coin = pair.replace('_idr','').upper()
-            if coin in EXCLUDE: continue
-            change = float(d.get('percent',0)) if 'percent' in d else 0
-            list_all.append((vol_mn, pair, coin, float(d['low']), float(d['high']), last, vol_mn, change))
+            if coin in {"BTC","ETH","USDT","BNB","SOL"}: continue
+            chg = ((last-low)/low*100) if low else 0
+            all_coins.append((chg, vol_mn, coin, last, low, high))
         except: continue
 
-    list_all = sorted(list_all, key=lambda x: x[0], reverse=True)[:60]
-
-    serok = []
-    ijo = []
+    # --- MODE EARLY ---
+    early = []
     now = int(time.time())
-    from_ts = now - (30 * 3600)
+    from_ts = now - (30*3600)
 
-    for vol_mn, pair, coin, low, high, last, v, change in list_all:
+    for chg, vol_mn, coin, last, low, high in all_coins:
+        # INI KUNCINYA MIN: sebelum trending itu chg masih 3-12%
+        if not (3 <= chg <= 12): continue
         try:
-            # IJO OVERBOUGHT DETECTOR - MASIH ADA MIN!
-            if change >= 15:
-                hrp = f"Rp{last:,.0f}".replace(',', '.')
-                ijo.append(f"🚀 {coin} {hrp} +{change:.1f}% JANGAN KEJAR (tunggu koreksi)")
-                continue
-
             url = f"https://indodax.com/tradingview/history?symbol={coin}IDR&resolution=60&from={from_ts}&to={now}"
             ch = requests.get(url, timeout=8).json()
             closes = ch.get('c', [])
@@ -56,33 +51,34 @@ try:
             ema9 = get_ema(closes[-9:], 9)
             ema21 = get_ema(closes[-21:], 21)
             if ema9 < ema21: continue
-
-            jarak_low = (last-low)/low*100 if low else 0
+            jarak_ema = (ema9-ema21)/ema21*100
             turun_high = (high-last)/high*100 if high else 0
-            hrp = f"Rp{last:,.0f}".replace(',', '.')
-            sl = f"Rp{last*0.97:,.0f}".replace(',', '.')
-            tp = f"Rp{last*1.05:,.0f}".replace(',', '.')
-
-            if 0.5 <= jarak_low <= 10 and 0.5 <= turun_high <= 5:
-                serok.append((vol_mn, f"🎯 {coin} {hrp} -{turun_high:.1f}% V:{vol_mn:.0f}jt SL:{sl} TP:{tp}"))
-
+            # EMA baru nyilang + masih deket high
+            if 0 <= jarak_ema <= 2.5 and turun_high < 7:
+                hrp = f"Rp{last:,.0f}".replace(',', '.')
+                early.append((chg, vol_mn, f"⚡ EARLY {coin} {hrp} +{chg:.1f}% EMA baru nyilang V:{vol_mn:.0f}jt - Beli sekarang sblm trending! SL 3%"))
         except: continue
 
+    # Buat perbandingan, tetep kasih tau yang udah trending biar lu ga FOMO
+    gainers = sorted([c for c in all_coins if c[0] >= 15], key=lambda x: x[0], reverse=True)[:3]
+
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
-    msg = f"🤖 V7.4 COMBO {jam}\n"
+    msg = f"🤖 V8 EARLY {jam}\nCari +3-12% sblm Trending\n"
 
-    if serok:
-        serok = sorted(serok, key=lambda x: x[0], reverse=True)[:5]
-        msg += "\n🎯 SEROK KOREKSI:\n" + "\n".join([x[1] for x in serok])
+    if early:
+        early = sorted(early, key=lambda x: x[1], reverse=True)[:5]
+        msg += "\n⚡ ENTRY SEBELUM TRENDING (beli sekarang!):\n" + "\n".join([x[2] for x in early])
+    else:
+        msg += "\n⚡ EARLY: Belum ada yang siap terbang, tunggu 15 menit lagi"
 
-    if ijo:
-        msg += "\n\n🚀 IJO OVERBOUGHT (Masih ada min!):\n" + "\n".join(ijo[:5])
-
-    if not serok and not ijo:
-        msg += "\nDIAM TOTAL - Bear ekstrim, tunggu jam 10:00 WIB"
+    if gainers:
+        msg += "\n\n🚀 UDAH TRENDING (jangan kejar):\n"
+        for chg, vol_mn, coin, last, low, high in gainers:
+            hrp = f"Rp{last:,.0f}".replace(',', '.')
+            msg += f"{coin} +{chg:.0f}% {hrp}\n"
 
     print(msg)
     send(msg)
 
 except Exception as e:
-    send(f"Error V7.4: {e}")
+    send(f"Error V8: {e}")
