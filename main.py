@@ -34,7 +34,7 @@ try:
             candidates.append((vol_mn, pair, coin, float(d['low']), float(d['high']), last, vol_mn))
         except: continue
 
-    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)[:50]
+    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)[:60]
 
     serok = []
     now = int(time.time())
@@ -50,21 +50,20 @@ try:
             ema9 = get_ema(closes[-9:], 9)
             ema21 = get_ema(closes[-21:], 21)
 
-            if ema9 < ema21: continue
-
-            jarak_low = (last-low)/low*100 if low else 0
+            jarak_ema = ((ema9-ema21)/ema21*100) # minus = masih di bawah
             turun_high = (high-last)/high*100 if high else 0
 
             hrp = f"Rp{last:,.0f}".replace(',', '.')
             sl = last * 0.97
-            tp = last * 1.05
+            tp = last * 1.06
             sl_hrp = f"Rp{sl:,.0f}".replace(',', '.')
             tp_hrp = f"Rp{tp:,.0f}".replace(',', '.')
 
-            # V7.2 - FORCE ENTRY PALING LONGGAR
-            if 0 <= turun_high <= 8:
-                score = (1 if 0.5 <= jarak_low <= 10 else 0) + (1 if turun_high >= 0.8 else 0)
-                serok.append((score, vol_mn, f"🎯 {coin} {hrp} EMA9>{ema21:.0f} -{turun_high:.1f}% +{jarak_low:.1f}% V:{vol_mn:.0f}jt SL:{sl_hrp} TP:{tp_hrp}"))
+            # MODE BEAR MARKET: cari yang paling deket mau GC
+            # EMA9 masih di bawah tapi selisih < 1% = mau nyilang!
+            if -2.0 <= jarak_ema <= 2.0 and turun_high < 8:
+                status = "GOLDEN" if jarak_ema >=0 else f"DEKET GC {jarak_ema:.2f}%"
+                serok.append((jarak_ema, vol_mn, f"🎯 {coin} {hrp} {status} -{turun_high:.1f}% V:{vol_mn:.0f}jt SL:{sl_hrp} TP:{tp_hrp}"))
 
         except:
             continue
@@ -72,14 +71,14 @@ try:
     jam = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%H:%M WIB")
 
     if serok:
-        serok = sorted(serok, key=lambda x: (x[0], x[1]), reverse=True)
+        serok = sorted(serok, key=lambda x: x[0], reverse=True)
         pesan = [x[2] for x in serok[:8]]
-        msg = f"🤖 V7.2 FORCE {jam}\nVol 10jt+ EMA9>21\n\n🎯 ENTRY HARI INI:\n" + "\n".join(pesan)
+        msg = f"🤖 V7.3 REVERSAL {jam}\nBEAR MARKET - Cari Deket GC\n\n🎯 SIAP BALIK ARAH:\n" + "\n".join(pesan)
         print(msg)
         send(msg)
     else:
-        print("DIAM TOTAL - Semua trend turun")
-        send(f"🤖 V7.2 {jam}\nDIAM TOTAL - Semua coin EMA9<21, jangan entry dulu, rawan nyangkut!")
+        print("DIAM TOTAL - Bear ekstrim")
+        send(f"🤖 V7.3 {jam}\nDIAM TOTAL - Bear ekstrim, semua EMA jauh di bawah, tunggu jam 10:00 WIB")
 
 except Exception as e:
-    send(f"Error V7.2: {e}")
+    send(f"Error V7.3: {e}")
