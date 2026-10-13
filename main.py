@@ -21,14 +21,16 @@ def main():
                 continue
             chg=(last-p24)/p24*100
             dist=(last-low)/low*100 if low>0 else 0
-            if 1.0 <= chg <= 9.9 and vol >= 100000000 and dist > 8:
+            # LONGARIN: vol 50jt aja, dist 2% aja
+            if 1.0 <= chg <= 9.9 and vol >= 50000000 and dist > 2:
                 early.append((pair.upper(),chg,vol,dist))
-            if chg >= 10 and vol >= 100000000:
+            if chg >= 10 and vol >= 50000000:
                 trending.append((pair.upper(),chg,vol))
         except:
             continue
     early=sorted(early,key=lambda x:x[1],reverse=True)[:10]
     trending=sorted(trending,key=lambda x:x[1],reverse=True)[:5]
+
     dex_text=""
     dex_found=0
     for sym in WATCHLIST_DEX:
@@ -46,10 +48,15 @@ def main():
             time.sleep(0.4)
         except:
             continue
+
+    # KALO SEPI TETEP KIRIM TELE BIAR TAU BOT HIDUP
     if not early and not trending and dex_found==0:
-        print("Sepi - tidak ada koin lolos")
+        msg=f"V14.5 - Scan {len(tickers)} - Sepi\nMarket lagi sepi min, gak ada yg 1%+ vol 50jt"
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",data={"chat_id":CHAT_ID,"text":msg})
+        print(msg)
         return
-    msg=f"V14.4 FINAL - Scan {len(tickers)}\n\n"
+
+    msg=f"V14.5 FINAL - Scan {len(tickers)}\n\n"
     if early:
         msg+=f"EARLY dari 1% ({len(early)})\n"
         for i,(p,c,v,d) in enumerate(early,1):
