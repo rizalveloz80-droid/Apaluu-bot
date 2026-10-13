@@ -1,7 +1,7 @@
 import requests, os, time
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-WATCHLIST_DEX = ["RSR","BR","ONT","W","STRK","BONK","FLOKI"]
+WATCHLIST_DEX = ["RSR","BR","ONT","W","STRK","BONK","FLOKI","PLUME"]
 
 def main():
     data=requests.get("https://indodax.com/api/tickers",timeout=20).json()
@@ -9,6 +9,8 @@ def main():
     prices_24h=data.get('prices_24h',{})
     early=[]
     trending=[]
+    serok_mantul=[]
+
     for pair,t in tickers.items():
         if not pair.endswith('_idr'):
             continue
@@ -16,21 +18,34 @@ def main():
             vol=float(t['vol_idr'])
             last=float(t['last'])
             low=float(t['low'])
+            high=float(t['high'])
             p24=float(prices_24h.get(pair,0))
             if p24==0:
                 continue
             chg=(last-p24)/p24*100
-            dist=(last-low)/low*100 if low>0 else 0
-            # LONGARIN: vol 50jt aja, dist 2% aja
-            if 1.0 <= chg <= 9.9 and vol >= 50000000 and dist > 2:
-                early.append((pair.upper(),chg,vol,dist))
-            if chg >= 10 and vol >= 50000000:
+            dist_low=(last-low)/low*100 if low>0 else 0
+
+            # 1. EARLY dari 1% TETEP ADA
+            if 1.0 <= chg <= 9.9 and vol >= 10000000:
+                early.append((pair.upper(),chg,vol,dist_low))
+
+            # 2. TRENDING TELAT TETEP ADA
+            if chg >= 10 and vol >= 10000000:
                 trending.append((pair.upper(),chg,vol))
+
+            # 3. SEROK MANTUL COMBO - YANG KAYAK BR
+            # Minus kecil -1 sampai -8%, vol gede >300jt, udah di low 0-4% = siap mantul
+            if -8 <= chg <= -1 and vol >= 300000000 and 0 <= dist_low <= 4:
+                serok_mantul.append((pair.upper(),chg,vol,dist_low))
+
         except:
             continue
+
     early=sorted(early,key=lambda x:x[1],reverse=True)[:10]
     trending=sorted(trending,key=lambda x:x[1],reverse=True)[:5]
+    serok_mantul=sorted(serok_mantul,key=lambda x:x[2],reverse=True)[:5]
 
+    # DEX RADAR
     dex_text=""
     dex_found=0
     for sym in WATCHLIST_DEX:
@@ -45,30 +60,36 @@ def main():
             if chg5>8 or chg60>20:
                 dex_text+=f"- {sym} +{chg5}% 5m / +{chg60}% 1j [{top.get('chainId')}]\n"
                 dex_found+=1
-            time.sleep(0.4)
+            time.sleep(0.3)
         except:
             continue
 
-    # KALO SEPI TETEP KIRIM TELE BIAR TAU BOT HIDUP
-    if not early and not trending and dex_found==0:
-        msg=f"V14.5 - Scan {len(tickers)} - Sepi\nMarket lagi sepi min, gak ada yg 1%+ vol 50jt"
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",data={"chat_id":CHAT_ID,"text":msg})
-        print(msg)
-        return
+    msg=f"🎯 V14.7 COMBO (1% + MANTUL + TELAT + DEX) - Scan {len(tickers)}\n\n"
 
-    msg=f"V14.5 FINAL - Scan {len(tickers)}\n\n"
+    if serok_mantul:
+        msg+=f"💎 SEROK MANTUL {len(serok_mantul)} (Siap pantul kayak BR)\n"
+        for i,(p,c,v,d) in enumerate(serok_mantul,1):
+            msg+=f"{i}. {p} {c:.1f}% | {d:.1f}% dr LOW | {v/1e6:.0f}jt [MANTUL]\n"
+        msg+="\n"
+
     if early:
-        msg+=f"EARLY dari 1% ({len(early)})\n"
+        msg+=f"⚡ EARLY dari 1% ({len(early)})\n"
         for i,(p,c,v,d) in enumerate(early,1):
             msg+=f"{i}. {p} {c:.1f}% | {d:.0f}% dr low | {v/1e6:.0f}jt\n"
         msg+="\n"
+
     if trending:
-        msg+=f"TRENDING ({len(trending)}) >10% [TELAT]\n"
+        msg+=f"🔥 TRENDING {len(trending)} [TELAT]\n"
         for i,(p,c,v) in enumerate(trending,1):
             msg+=f"{i}. {p} {c:.1f}% | {v/1e6:.0f}jt [TELAT]\n"
         msg+="\n"
+
     if dex_found>0:
-        msg+=f"DEX RADAR {dex_found}\n"+dex_text
+        msg+=f"🚀 DEX RADAR {dex_found}\n"+dex_text+"\n"
+
+    if not early and not trending and not serok_mantul and dex_found==0:
+        msg+=f"Sepi min, gak ada setup 1% / mantul / trending jam ini"
+
     print(msg)
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",data={"chat_id":CHAT_ID,"text":msg})
 
