@@ -19,7 +19,9 @@ def main():
             vol=float(t['vol_idr'])
             last=float(t['last'])
             low=float(t['low'])
-            p24=float(prices_24h.get(pair,0))
+            # FIX BUG INI KUNCINYA - hapus underscore!
+            key_24h = pair.replace('_','') # tia_idr -> tiaidr
+            p24=float(prices_24h.get(key_24h,0))
             if p24==0:
                 continue
             chg=(last-p24)/p24*100
@@ -62,7 +64,7 @@ def main():
         except:
             continue
 
-    msg=f"🎯 V14.8 COMBO ANTI-SEPI - Scan {len(tickers)}\n\n"
+    msg=f"🎯 V14.9 FIX BUG (TIA/POL KEDETEK) - Scan {len(tickers)}\n\n"
 
     if serok_mantul:
         msg+=f"💎 SEROK MANTUL {len(serok_mantul)}\n"
@@ -71,7 +73,7 @@ def main():
         msg+="\n"
 
     if early:
-        msg+=f"⚡ EARLY 1-9.9% vol>5jt ({len(early)})\n"
+        msg+=f"⚡ EARLY 1-9.9% ({len(early)})\n"
         for i,(p,c,v,d) in enumerate(early,1):
             msg+=f"{i}. {p} {c:.1f}% | {d:.0f}% low | {v/1e6:.0f}jt\n"
         msg+="\n"
@@ -82,9 +84,8 @@ def main():
             msg+=f"{i}. {p} {c:.1f}% | {v/1e6:.0f}jt\n"
         msg+="\n"
 
-    # INI YANG BIKIN GAK SEPI LAGI
     if not early and not trending and all_1pct:
-        msg+=f"📋 SEMUA NAIK 1%+ ({len(all_1pct)}) - vol kecil\n"
+        msg+=f"📋 SEMUA NAIK 1%+ ({len(all_1pct)})\n"
         for i,(p,c,v) in enumerate(all_1pct,1):
             msg+=f"{i}. {p} {c:.1f}% | {v/1e6:.1f}jt\n"
         msg+="\n"
@@ -93,7 +94,7 @@ def main():
         msg+=f"🚀 DEX RADAR\n"+dex_text+"\n"
 
     if not early and not trending and not all_1pct and not serok_mantul:
-        msg+=f"Sepi total min, 0 koin naik 1%+ jam ini"
+        msg+=f"Sepi total min"
 
     print(msg)
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",data={"chat_id":CHAT_ID,"text":msg})
