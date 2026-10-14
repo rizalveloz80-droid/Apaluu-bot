@@ -10,51 +10,28 @@ def send(msg):
     except: pass
 
 def get_rsi_ma20_akurat(pair_idr):
-    """
-    Ambil RSI 14 & MA20 AKURAT dari TradingView Indodax
-    pair_idr contoh: magic_idr, btc_idr
-    """
     try:
-        symbol = pair_idr.replace("_", "").upper() # magic_idr -> MAGICIDR
+        symbol = pair_idr.replace("_", "").upper()
         now = int(time.time())
-        # Ambil 100 candle 15 menit terakhir (15*100 = 1500 menit = 25 jam)
         url = f"https://indodax.com/tradingview/history?symbol={symbol}&resolution=15&from={now-90000}&to={now}"
-        r = requests.get(url, timeout=12).json()
+        r = requests.get(url, timeout=8).json()
         closes = r.get('c', [])
         if not closes or len(closes) < 25:
-            return 50, 0, 0, 0
+            return None, None, None # GAGAL = fallback
 
-        # MA20 dari 20 close terakhir
         ma20 = sum(closes[-20:]) / 20
-        last_close = closes[-1]
-
         # RSI 14
         gains, losses = [], []
-        # Ambil 14 perubahan terakhir
         for i in range(len(closes)-15, len(closes)-1):
             diff = closes[i+1] - closes[i]
-            if diff > 0:
-                gains.append(diff)
-                losses.append(0)
-            else:
-                gains.append(0)
-                losses.append(abs(diff))
-
-        avg_gain = sum(gains[-14:]) / 14 if gains else 0.01
-        avg_loss = sum(losses[-14:]) / 14 if losses else 0.01
-
-        if avg_loss == 0:
-            rsi = 70
-        else:
-            rs = avg_gain / avg_loss
-            rsi = 100 - (100 / (1 + rs))
-
-        # Volume spike approximation (dari vol_idr nanti di main)
-        return round(rsi, 1), round(ma20, 2), round(last_close, 2), len(closes)
-
-    except Exception as e:
-        # print(f"RSI error {pair_idr}: {e}")
-        return 50, 0, 0, 0
+            gains.append(diff if diff>0 else 0)
+            losses.append(abs(diff) if diff<0 else 0)
+        avg_gain = sum(gains[-14:])/14 or 0.01
+        avg_loss = sum(losses[-14:])/14 or 0.01
+        rsi = 70 if avg_loss==0 else 100 - (100/(1+(avg_gain/avg_loss)))
+        return round(rsi,1), round(ma20,2), closes[-1]
+    except:
+        return None, None, None
 
 def main():
     data = requests.get("https://indodax.com/api/summaries", timeout=20).json()
@@ -73,7 +50,7 @@ def main():
             high = float(t['high'])
             key = pair.replace('_','')
             p24 = float(prices_24h.get(key, 0))
-            if p24 == 0 or low == 0 or vol < 80_000_000: continue
+            if p24 == 0 or low == 0 or vol < 70_000_000: continue
             chg = (last-p24)/p24*100
             dl = (last-low)/low*100
             dh = (high-last)/last*100 if last>0 else 0
@@ -82,9 +59,8 @@ def main():
             candidates.append((pair, coin, chg, vol, dl, dh, last))
         except: continue
 
-    # Cuma scan top 35 by volume biar gak kena rate limit TradingView
     candidates.sort(key=lambda x: x[3], reverse=True)
-    top_candidates = candidates[:35]
+    top_candidates = candidates[:80] # SCAN 80 BIAR 15 KOIN BALIK!
 
     fresh, early, ijo, trending, serok, pump_tracker = [], [], [], [], [], []
     used = set()
@@ -93,72 +69,74 @@ def main():
         pid = f"{coin}_IDR"
         if pid in used: continue
 
-        # === AMBIL RSI & MA20 AKURAT (15 MENIT CANDLE) ===
-        rsi, ma20, last_candle, cnt = get_rsi_ma20_akurat(pair)
-        is_above_ma = last > ma20 if ma20 > 0 else False
-        support = round(last * 0.985, 0)
-        resistance = round(last * 1.035, 0)
-        vol_spike = round((vol / 250_000_000) * 100, 0) # >100% = spike
+        rsi_data = get_rsi_ma20_akurat(pair)
+        if rsi_data[0] is None: # FALLBACK V24 LAMA
+            rsi, ma20, is_above = 50, last, False
+            vol_spike = 50
+        else:
+            rsi, ma20, _ = rsi_data
+            is_above = last > ma20
+            vol_spike = round((vol/250_000_000)*100,0)
 
-        # === PUMP TRACKER - SESUAI TEMPLATE BARU LU ===
-        # Kondisi 1: Volume > 1.5x rata2 (kita pake vol >=150jt + spike >60%)
-        # Kondisi 2: RSI 45-60
-        # Kondisi 3: Harga > MA20
-        if len(pump_tracker) < 5 and 45 <= rsi <= 60 and is_above_ma and vol >= 150_000_000 and vol_spike >= 60 and 0.3 <= chg <= 8:
+        support = round(last*0.985,0)
+        resistance = round(last*1.035,0)
+
+        # === V25.2 PUMP TRACKER (LONGGAR) ===
+        if len(pump_tracker) < 5 and 40 <= rsi <= 65 and is_above and vol >= 100_000_000 and vol_spike >= 40 and 0.2 <= chg <= 8:
             pump_tracker.append((pid, coin, chg, vol, rsi, ma20, last, support, resistance, vol_spike))
             used.add(pid)
-            time.sleep(0.4)
+            time.sleep(0.2)
             continue
 
-        # FRESH 0.5-3.5%
+        # === V24 LOGIC TETAP (BIAR DAPET 15 KOIN LAGI) ===
         if len(fresh) < 4 and 0.5 <= chg <= 3.5 and 1 <= dl <= 10 and 80_000_000 <= vol <= 400_000_000:
             fresh.append((pid, chg, vol, dl, rsi)); used.add(pid); continue
-
-        # EARLY 3.5-8%
         if len(early) < 4 and 3.5 < chg <= 8 and 8 <= dl <= 22 and vol >= 120_000_000:
             early.append((pid, chg, vol, dl, rsi)); used.add(pid); continue
-
-        # IJO 8-15%
         if len(ijo) < 4 and 8 < chg <= 15 and dl >= 12 and dh >= 1.5 and vol >= 150_000_000:
             ijo.append((pid, chg, vol, dl, rsi)); used.add(pid); continue
-
-        # TRENDING 15-35%
         if len(trending) < 4 and 15 < chg <= 35 and 15 <= dl <= 40 and vol >= 150_000_000:
             trending.append((pid, chg, vol, dl, rsi)); used.add(pid); continue
-
-        # SEROK GOLDEN POCKET V25.1 - FILTER RSI AKURAT BIAR GAK NYANGKUT DI 2.049!
-        if len(serok) < 4 and -6 <= chg <= -0.2 and 0 <= dl <= 2.5 and dh >= 2.5 and 100_000_000 <= vol <= 900_000_000:
-            if rsi <= 38 and not is_above_ma: # Oversold beneran + di bawah MA20
+        if len(serok) < 4 and -5 <= chg <= -0.3 and 0 <= dl <= 2.5 and dh >= 2.5 and 100_000_000 <= vol <= 900_000_000:
+            # SEROK V25.2: kalo RSI ada, harus <40, kalo fallback (50) tetep boleh
+            if rsi <= 40 or rsi_data[0] is None:
                 serok.append((pid, chg, vol, dl, dh, rsi, ma20, last)); used.add(pid); continue
+        time.sleep(0.15)
 
-        time.sleep(0.35)
-
-    # === FORMAT PESAN SESUAI TEMPLATE LU ===
-    msg = f"🎯 V25.1 AKURAT RSI+MA20 - {len(tickers)} Scan\n\n"
-
+    msg = f"🎯 V25.2 COMBO RSI+MA20 - {len(tickers)} Scan\n\n"
     if pump_tracker:
-        msg += f"🤖 INDODAX PUMP TRACKER 🤖 ({len(pump_tracker)}):\n"
-        for i, (pid, coin, chg, vol, rsi, ma20, last, sup, res, vspike) in enumerate(pump_tracker, 1):
-            msg += f"{i}. {pid}\n"
-            msg += f" • Harga: Rp {last:,.0f} • 1J: +{chg:.2f}% • Vol Spike: {vspike}% \n"
-            msg += f" • RSI: {rsi} | MA20: Rp {ma20:,.0f} | >MA20 ✅\n"
-            msg += f" 🛒 Beli di dekat: Rp {sup:,.0f} 🎯 TP: Rp {res:,.0f}\n"
-        msg += "\n*Disclaimer: deteksi bot volume pasar. uang dingin*\n\n"
-
-    if serok:
-        msg += f"💎 SEROK GOLDEN POCKET RSI<38 ({len(serok)}):\n"
-        for i, (p,c,v,dl,dh,rsi,ma,last) in enumerate(serok,1):
-            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | RSI {rsi} | MA {ma:,.0f} | Rp {last:,.0f}\n"
+        msg += f"🤖 PUMP TRACKER RSI 40-65 ({len(pump_tracker)}):\n"
+        for i,(pid, coin, chg, vol, rsi, ma20, last, sup, res, vspike) in enumerate(pump_tracker,1):
+            msg += f"{i}. {pid} {chg:.1f}% | Vol {vspike}% | RSI {rsi} | >MA20\n"
+            msg += f" • Rp {last:,.0f} 🛒 {sup:,.0f} 🎯 {res:,.0f}\n"
         msg += "\n"
-
     if fresh:
-        msg += f"🌱 FRESH ({len(fresh)}): {', '.join([x[0] for x in fresh])}\n"
+        msg += f"🌱 FRESH 0.5-3.5% ({len(fresh)}):\n"
+        for i,(p,c,v,dl,rsi) in enumerate(fresh,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | RSI {rsi} | {v/1e6:.0f}jt\n"
+        msg += "\n"
     if early:
-        msg += f"⚡ EARLY ({len(early)}): {', '.join([x[0] for x in early])}\n"
+        msg += f"⚡ EARLY 3.5-8% ({len(early)}):\n"
+        for i,(p,c,v,dl,rsi) in enumerate(early,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | RSI {rsi} | {v/1e6:.0f}jt\n"
+        msg += "\n"
+    if ijo:
+        msg += f"📈 IJO 8-15% ({len(ijo)}):\n"
+        for i,(p,c,v,dl,rsi) in enumerate(ijo,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | RSI {rsi}\n"
+        msg += "\n"
+    if trending:
+        msg += f"🚀 TRENDING 15-35% ({len(trending)}):\n"
+        for i,(p,c,v,dl,rsi) in enumerate(trending,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | RSI {rsi}\n"
+        msg += "\n"
+    if serok:
+        msg += f"💎 SEROK GOLDEN 0-2.5% ({len(serok)}):\n"
+        for i,(p,c,v,dl,dh,rsi,ma,last) in enumerate(serok,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {dh:.0f}% high | RSI {rsi} | {v/1e6:.0f}jt\n"
 
     total = len(pump_tracker)+len(fresh)+len(early)+len(ijo)+len(trending)+len(serok)
-    msg += f"\n✅ Total {total} koin | V25.1 RSI Akurat"
-
+    msg += f"\n✅ Total {total} koin unik! | V25.2 Combo"
     print(msg)
     send(msg)
 
