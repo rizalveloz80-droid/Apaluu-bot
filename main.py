@@ -44,27 +44,29 @@ def main():
         pid = f"{coin}_IDR"
         if pid in used: continue
 
-        # 1. FRESH MICIN ONLY - max 400jt biar gak RENDER 517jt
+        # 1. FRESH Micin Sideways 0.5-3.5% (80-400jt)
         if len(fresh) < 4 and 0.5 <= chg <= 3.5 and 1 <= dl <= 10 and 80_000_000 <= vol <= 400_000_000:
             fresh.append((pid, chg, vol, dl)); used.add(pid); continue
 
-        # 2. EARLY Breakout Awal
+        # 2. EARLY Breakout Awal 3.5-8%
         if len(early) < 4 and 3.5 < chg <= 8 and 8 <= dl <= 22 and vol >= 120_000_000:
             early.append((pid, chg, vol, dl)); used.add(pid); continue
 
-        # 3. IJO Breakout Valid
+        # 3. IJO Breakout Valid 8-15%
         if len(ijo) < 4 and 8 < chg <= 15 and dl >= 12 and dh >= 1.5 and vol >= 150_000_000:
             ijo.append((pid, chg, vol, dl)); used.add(pid); continue
 
-        # 4. TRENDING Viral
+        # 4. TRENDING Viral 15-35% GAS!
         if len(trending) < 4 and 15 < chg <= 35 and 15 <= dl <= 40 and vol >= 150_000_000:
             trending.append((pid, chg, vol, dl)); used.add(pid); continue
 
-        # 5. SEROK MICIN ONLY - max 900jt! Biar gak PIPPIN 3770jt ONDO 2987jt!
-        if len(serok) < 4 and -7 <= chg <= -0.5 and 0 <= dl <= 6 and 80_000_000 <= vol <= 900_000_000:
-            serok.append((pid, chg, vol, dl)); used.add(pid); continue
+        # 5. SEROK MICIN GOLDEN POCKET 0.618 - RACIKAN BARU!
+        # Fib 0.618 = dl 0-2.5% + dh >=2.5% + chg -5 to -0.3 + vol 100-900jt
+        # Ini = support kuat + ruang pantul gede!
+        if len(serok) < 4 and -5 <= chg <= -0.3 and 0 <= dl <= 2.5 and dh >= 2.5 and 100_000_000 <= vol <= 900_000_000:
+            serok.append((pid, chg, vol, dl, dh)); used.add(pid); continue
 
-    msg = f"🎯 V23 FINAL SEROK MICIN 900jt - {len(tickers)} Scan\n\n"
+    msg = f"🎯 V24 GOLDEN POCKET SEROK 0-2.5% - {len(tickers)} Scan\n\n"
 
     if fresh:
         msg += f"🌱 FRESH Micin 0.5-3.5% ({len(fresh)}):\n"
@@ -87,12 +89,12 @@ def main():
             msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
         msg += "\n"
     if serok:
-        msg += f"💎 SEROK MICIN -7 to -0.5% ({len(serok)}):\n"
-        for i,(p,c,v,dl) in enumerate(serok,1):
-            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
+        msg += f"💎 SEROK GOLDEN POCKET 0-2.5% low ({len(serok)}):\n"
+        for i,(p,c,v,dl,dh) in enumerate(serok,1):
+            msg += f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {dh:.0f}% high | {v/1e6:.0f}jt\n"
 
     total = len(fresh)+len(early)+len(ijo)+len(trending)+len(serok)
-    msg += f"\n✅ Total {total} koin unik! | Micin Only"
+    msg += f"\n✅ Total {total} koin unik! | Golden Pocket"
 
     print(msg)
     send(msg)
