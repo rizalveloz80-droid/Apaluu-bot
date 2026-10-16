@@ -7,28 +7,28 @@ def send(msg):
     except: pass
 
 def smart_candle_v265(chg, dl, dh, vol):
-    """V26.5 DUAL FILTER + ANTI-BLOCK 1000% - NANGKEP SN SEBELUM +23%"""
+    """V26.5 RANK 15 DUAL 8 EARLY + ANTI-BLOCK 1000% - LINK x1.7 GOLD"""
     sq = dl + dh
 
-    # 🚨 GAINERS MENDADAK - ZEREBRO 58% & PUFFER 108% - JANGAN KEJAR
+    # 🚨 GAINERS MENDADAK - PUFFER 109% - DI HAPUS DI RANK 15 (GAINERS_COUNT=0)
     if chg >= 40 and vol >= 100_000_000:
         return "GAINERS_MENDADAK", sq, vol/250_000_000
 
-    # 🚀 TRENDING BRONZE - SN 23,51% & ARC 42% - udah terbang
+    # 🚀 TRENDING BRONZE - MCT 26% & ICNT 30% - CUMA 2 AJA DI RANK 15
     if chg >= 22 and dl >= 15 and vol >= 150_000_000:
         return "TRENDING_BRONZE", sq, vol/250_000_000
     if chg >= 10 and dl >= 12 and dh <= 28 and vol >= 150_000_000:
         return "TRENDING_BRONZE", sq, vol/250_000_000
 
-    # DUMP - UCJL -36% - calon GOLD besok
+    # DUMP - BOME -7.7% - calon GOLD besok
     if chg <= -5 and dh >= 8 and dl <= 2.5:
         return "DUMP", sq, 0
 
-    # 💣 GOLD TIER - META 0,7% sq 4% & NOVA 1,1% sq 8% = JACKPOT +49% - TRIO LU!
+    # 💣 GOLD TIER V25.3 - LINK 0.5% sq7% x1.7 & MOODENG 0.6% sq7% x1.5 = JACKPOT
     if sq < 12 and 2 <= dl <= 9 and 0.1 <= chg <= 3.5 and 70_000_000 <= vol <= 450_000_000:
         return "V_BOUNCE_GOLD", sq, vol/250_000_000
 
-    # ⚡ SILVER TIER - BARU! - DUSK 11,3% & SN 8-12% SEBELUM JADI 23% - EARLY!
+    # ⚡ SILVER TIER V25.5 - XPL 4.9% sq13% & DRX 1.8% sq15% - EARLY BEFORE GOLD!
     if sq < 18 and 2 <= dl <= 12 and 0.1 <= chg <= 8 and 70_000_000 <= vol <= 600_000_000:
         return "V_BOUNCE_SILVER", sq, vol/250_000_000
 
@@ -64,7 +64,14 @@ def main():
             candidates.append((pair,coin,chg,vol,dl,dh,last))
         except: continue
     candidates.sort(key=lambda x:x[3], reverse=True)
-    top=candidates[:120] # dari 100 jadi 120 biar SN 241jt ke-detect!
+    top=candidates[:120]
+
+    # === SETTING BARU RANK 15 DUAL 8 EARLY ===
+    GOLD_COUNT = 5
+    SILVER_COUNT = 3 # dari 5 jadi 3
+    BRONZE_COUNT = 2 # dari 5 jadi 2
+    GAINERS_COUNT = 0 # dari 3 jadi 0 - HAPUS PUFFER 109% BIAR GA FOMO
+    SEROK_COUNT = 5
 
     gold=[]; silver=[]; bronze=[]; gainers=[]; dump_list=[]; serok=[]; used=set()
     for pair,coin,chg,vol,dl,dh,last in top:
@@ -72,46 +79,53 @@ def main():
         if pid in used: continue
         status,sq,vr = smart_candle_v265(chg,dl,dh,vol)
 
-        if status=="GAINERS_MENDADAK" and len(gainers)<3:
+        if status=="GAINERS_MENDADAK" and len(gainers)<GAINERS_COUNT:
             gainers.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
         if status=="DUMP" and len(dump_list)<3:
             dump_list.append((pid,chg,sq)); used.add(pid); continue
-        if status=="V_BOUNCE_GOLD" and len(gold)<5:
+        if status=="V_BOUNCE_GOLD" and len(gold)<GOLD_COUNT:
             gold.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="V_BOUNCE_SILVER" and len(silver)<5:
+        if status=="V_BOUNCE_SILVER" and len(silver)<SILVER_COUNT:
             silver.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="TRENDING_BRONZE" and len(bronze)<5:
+        if status=="TRENDING_BRONZE" and len(bronze)<BRONZE_COUNT:
             bronze.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if len(serok)<5 and -8<=chg<=-0.2 and 0<=dl<=2.5 and dh>=2:
+        if len(serok)<SEROK_COUNT and -8<=chg<=-0.2 and 0<=dl<=2.5 and dh>=2:
             serok.append((pid,chg,vol,dl,dh)); used.add(pid); continue
 
-    msg=f"🎯 V26.5 DUAL + ANTI-BLOCK 1000%\n\n"
+    # URUT ENAK ENTRY: GOLD x gede dulu, SILVER x gede
+    gold.sort(key=lambda x: x[5], reverse=True) # sort by x (vr)
+    silver.sort(key=lambda x: x[5], reverse=True)
+    serok.sort(key=lambda x: x[1]) # paling - dalem dulu kayak BOME -7.7%
+
+    msg=f"🎯 V26.5 RANK 15 DUAL 8 EARLY + ANTI-BLOCK 1000%\n"
+    msg+=f"5 GOLD V25.3 + 3 SILVER V25.5 = 8 EARLY\n\n"
+
+    rank_num = 1
     if gold:
-        msg+=f"💣 GOLD sq<12% JACKPOT ({len(gold)}):\n"
-        for i,(p,c,v,dl,sq,vr) in enumerate(gold,1):
-            msg+=f"{i}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | GOLD x{vr:.1f}\n"
+        msg+=f"💣 GOLD V25.3 JACKPOT ({len(gold)}):\n"
+        for p,c,v,dl,sq,vr in gold:
+            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | GOLD x{vr:.1f}\n"
+            rank_num+=1
         msg+="\n"
     if silver:
-        msg+=f"⚡ SILVER sq<18% EARLY ({len(silver)}):\n"
-        for i,(p,c,v,dl,sq,vr) in enumerate(silver,1):
-            msg+=f"{i}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | SILVER x{vr:.1f}\n"
+        msg+=f"⚡ SILVER V25.5 EARLY ({len(silver)}):\n"
+        for p,c,v,dl,sq,vr in silver:
+            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | SILVER x{vr:.1f}\n"
+            rank_num+=1
         msg+="\n"
     if bronze:
-        msg+=f"💨 BRONZE TRENDING ({len(bronze)}):\n"
-        for i,(p,c,v,dl,sq,vr) in enumerate(bronze,1):
-            msg+=f"{i}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | Vol x{vr:.1f} | {v/1e6:.0f}jt\n"
-        msg+="\n"
-    if gainers:
-        msg+=f"🚨 GAINERS JANGAN KEJAR! ({len(gainers)}):\n"
-        for i,(p,c,v,dl,sq,vr) in enumerate(gainers,1):
-            msg+=f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt | TUNGGU -30%\n"
+        msg+=f"💨 BRONZE CALON PUFFER ({len(bronze)}):\n"
+        for p,c,v,dl,sq,vr in bronze:
+            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | Vol x{vr:.1f} | {v/1e6:.0f}jt\n"
+            rank_num+=1
         msg+="\n"
     if serok:
-        msg+=f"💎 SEROK ({len(serok)}):\n"
-        for i,(p,c,v,dl,dh) in enumerate(serok,1):
-            msg+=f"{i}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
+        msg+=f"💎 SEROK BAWAH ({len(serok)}):\n"
+        for p,c,v,dl,dh in serok:
+            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
+            rank_num+=1
 
-    msg+=f"\n✅ Total {len(gold)+len(silver)+len(bronze)+len(serok)+len(gainers)} | ANTI-BLOCK 1000% (Jitter+UA+120coins)"
+    msg+=f"\n✅ Total {len(gold)+len(silver)+len(bronze)+len(serok)} RANK | 8 EARLY DUAL | ANTI-BLOCK 1000%"
     print(msg); send(msg)
 
 if __name__=="__main__": main()
