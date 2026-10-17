@@ -1,123 +1,109 @@
-# main.py V27.0 LOOSE - READY TO RUN - NO YAML ERROR
 import requests, json, os
 from datetime import datetime
 
-print("=== BOT V27.0 LOOSE START ===")
+# === TELEGRAM ===
+TELE_TOKEN = os.getenv("TELE_TOKEN") or "8675452184:AAHlWcaNYQg62ioe3p3yI1wUO5zXMyFBkVw"
+TELE_CHAT_ID = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID")
 
-# === CONFIG LOOSE LANGSUNG DI SINI (BIAR GA ERROR YAML) ===
-GOLD_COUNT = 2
-SILVER_COUNT = 3
-BRONZE_COUNT = 3
-GAINERS_COUNT = 3
-PRE_COUNT = 4
-SEROK_COUNT = 5
-
-CACHE_FILE = "price_cache.json"
-
-# Load cache lama buat chg_15m
-def load_cache():
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r") as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
-
-def save_cache(prices):
-    with open(CACHE_FILE, "w") as f:
-        json.dump(prices, f)
-
-cache = load_cache()
-old_prices = cache
-
-# Fetch tickers
-url = "https://indodax.com/api/tickers"
-r = requests.get(url, timeout=15)
-tickers = r.json()["tickers"]
-
-all_coins = []
-current_prices = {}
-
-for pair, t in tickers.items():
-    if not pair.endswith("_idr"):
-        continue
+def send_tele(text):
+    if not TELE_TOKEN or not TELE_CHAT_ID:
+        print("TELE_SKIP: TELE_CHAT_ID belum di set")
+        return
+    url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
     try:
-        last = float(t["last"])
-        low = float(t["low"])
-        high = float(t["high"])
-        vol = float(t["vol_idr"])
-        
-        # dl = jarak dari low
-        dl = (last - low) / low * 100 if low != 0 else 0
-        # sq = lebar candle
-        sq = (high - low) / last * 100 if last != 0 else 0
-        # chg 24j - ambil dari API tickers Indodax ga ada, kita bikin 0 dulu
-        # Nanti lu ganti dengan rumus chg lu yang lama kalo ada
-        chg = 0  
-        
-        # chg_15m - ambil dari cache
-        p15 = old_prices.get(pair, last)
-        if isinstance(p15, dict):
-            p15 = p15.get("last", last)
-        chg_15m = (last - p15) / p15 * 100 if p15 != 0 else 0
+        # Potong kalo kepanjangan (limit tele 4096)
+        if len(text) > 3500:
+            text = text[:3500] + "\n...potong"
+        r = requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": text}, timeout=15)
+        print(f"TELE_SENT {r.status_code} {r.text[:200]}")
+    except Exception as e:
+        print(f"TELE_ERR {e}")
 
-        all_coins.append({
-            "pair": pair,
-            "last": last,
-            "low": low,
-            "high": high,
-            "vol": vol,
-            "dl": dl,
-            "sq": sq,
-            "chg": chg,
-            "chg_15m": chg_15m
-        })
-        current_prices[pair] = last
+# === BOT V27.1 LOOSE ===
+print("=== BOT V27.1 LOOSE START ===")
+
+# Load cache chg15m
+cache = {}
+if os.path.exists("price_cache.json"):
+    try:
+        cache = json.loads(open("price_cache.json").read())
+        print(f"Cache loaded {len(cache)} coin")
+    except:
+        cache = {}
+
+try:
+    data = requests.get("https://indodax.com/api/tickers", timeout=20).json()
+    tickers = data.get("tickers", {})
+except Exception as e:
+    print(f"Fetch error {e}")
+    tickers = {}
+
+GOLD = []
+PRE = []
+DALEM = []
+
+for k,v in tickers.items():
+    try:
+        last = float(v.get("last",0))
+        low = float(v.get("low",0))
+        high = float(v.get("high",0))
+        vol = float(v.get("vol_idr",0))
+        if last==0 or low==0: continue
+        
+        dl = (last-low)/low*100 if low else 0
+        sq = (high-low)/low*100 if low else 0
+        
+        vol_jt = vol/1_000_000_000
+        # chg15m
+        prev = cache.get(k)
+        chg15m = ((last-prev)/prev*100) if prev else 0.0
+        
+        item = f"- {k.upper()} dl {dl:.2f}% sq {sq:.1f}% vol {vol_jt:.0f}jt chg15m {chg15m:+.1f}%"
+        item_short = f"{k.upper()} {chg15m:+.1f}% vol {vol_jt:.0f}jt"
+        
+        # LOOSE LOGIC (kayak di SS lu)
+        if vol_jt >= 50 and dl < 1.5 and sq < 6:
+            GOLD.append((item, item_short, vol_jt))
+        elif 10 <= vol_jt < 50 and sq < 5:
+            PRE.append((item, item_short, vol_jt))
+        elif dl < 0.8 and vol_jt >= 30:
+            DALEM.append((f"- {k.upper()} dl {dl:.2f}% vol {vol_jt:.0f}jt", item_short, vol_jt))
     except:
         continue
 
-# === FIX NO 2: SORT BY VOL BUKAN SHUFFLE ===
-all_sorted = sorted(all_coins, key=lambda x: x["vol"], reverse=True)
-top_low = all_sorted[120:350]
-top_low = sorted(top_low, key=lambda x: x["vol"], reverse=True)
+# Sort by vol
+GOLD = sorted(GOLD, key=lambda x: x[2], reverse=True)[:5]
+PRE = sorted(PRE, key=lambda x: x[2], reverse=True)[:7]
+DALEM = sorted(DALEM, key=lambda x: x[2], reverse=True)[:7]
 
-gold = []
-silver = []
-pre = []
-serok = []
+print(f"\nGOLD ({len(GOLD)}):")
+for x in GOLD: print(x[0])
+print(f"\nPRE_TRENDING ({len(PRE)}):")
+for x in PRE: print(x[0])
+print(f"\nSEROK_DALEM ({len(DALEM)}):")
+for x in DALEM: print(x[0])
 
-for c in all_sorted:
-    # GOLD: dl 0-10, sq <15
-    if 0 <= c["dl"] <= 10 and c["sq"] < 15 and c["vol"] >= 10000000:
-        # FIX NO 4: kalo chg_15m >3% anggap gold running
-        if c["chg_15m"] > 3 or True:
-            gold.append(c)
-    
-for c in top_low:
-    # PRE_TRENDING LOOSE: dl 0-6.5, sq <14, vol >=10jt (FIX NO 3 HAPUS 250JT)
-    if 0 <= c["dl"] <= 6.5 and c["sq"] < 14 and c["vol"] >= 10000000:
-        pre.append(c)
-    # SEROK_DALEM
-    if 0 <= c["dl"] <= 3.5 and c["vol"] >= 10000000:
-        serok.append(c)
-
-gold = sorted(gold, key=lambda x: x["dl"])[:GOLD_COUNT]
-pre = sorted(pre, key=lambda x: x["sq"])[:PRE_COUNT]
-serok = sorted(serok, key=lambda x: x["dl"])[:SEROK_COUNT]
-
-# === PRINT ===
-print(f"\nGOLD ({len(gold)}):")
-for c in gold:
-    print(f"- {c['pair'].upper()} dl {c['dl']:.2f}% sq {c['sq']:.1f}% vol {c['vol']/1e6:.0f}jt chg15m {c['chg_15m']:+.1f}%")
-
-print(f"\nPRE_TRENDING ({len(pre)}):")
-for c in pre:
-    print(f"- {c['pair'].upper()} dl {c['dl']:.2f}% sq {c['sq']:.1f}% vol {c['vol']/1e6:.0f}jt chg15m {c['chg_15m']:+.1f}%")
-
-print(f"\nSEROK_DALEM ({len(serok)}):")
-for c in serok:
-    print(f"- {c['pair'].upper()} dl {c['dl']:.2f}% vol {c['vol']/1e6:.0f}jt")
-
-save_cache(current_prices)
+# Save new cache
+new_cache = {}
+for k,v in tickers.items():
+    try:
+        new_cache[k] = float(v.get("last",0))
+    except: pass
+open("price_cache.json","w").write(json.dumps(new_cache))
 print("\n=== DONE - cache saved ===")
+
+# === KIRIM TELE ===
+if GOLD or PRE or DALEM:
+    tele_msg = f"⚡️ *APALUU V27.1 LOOSE* {datetime.now().strftime('%H:%M')}\nSCAN {len(tickers)} COIN\n\n"
+    if GOLD:
+        tele_msg += f"🥇 GOLD ({len(GOLD)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(GOLD)]) + "\n\n"
+    if PRE:
+        tele_msg += f"🔥 PRE_TRENDING ({len(PRE)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(PRE)]) + "\n\n"
+    if DALEM:
+        tele_msg += f"💎 SEROK_DALEM ({len(DALEM)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(DALEM)]) + "\n\n"
+    tele_msg += f"Total {len(GOLD)+len(PRE)+len(DALEM)} RANK | Vol min 10jt | LOOSE MODE"
+    
+    # Kirim tanpa markdown biar aman
+    send_tele(tele_msg.replace("*",""))
+else:
+    send_tele(f"V27.1 LOOSE {datetime.now().strftime('%H:%M')} - No signal, scan {len(tickers)}")
