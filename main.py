@@ -1,4 +1,4 @@
-# V29.5 FINAL COMBO - ANTI IP BAN BYPASS & USER-AGENT HEADERS - LAST EDIT 18 OKT 2026
+# V29.6 FINAL COMBO - BYPASS DOMAIN CADANGAN RESMI - LAST EDIT 18 OKT 2026
 import requests, os, json, time
 from datetime import datetime
 
@@ -48,30 +48,28 @@ if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE,'r') as f: cache=json.load(f)
     except: pass
 
-# HEADERS ANTI BAN: Mengelabui Cloudflare Indodax agar dikira browser Chrome asli
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
 tickers = None
-print("Mengambil data market Indodax dengan secure headers...")
+# Menggunakan DOMAIN CADANGAN RESMI Indodax (api4) untuk menghindari IP Ban Cloudflare
+url_indodax = "https://indodax.com"
 
-# Mekanisme Auto-Retry 3x jika koneksi gagal/terblokir sementara
+print(f"Membuka jalur cadangan Indodax via {url_indodax}...")
+
 for attempt in range(1, 4):
     try:
-        res = requests.get("https://indodax.com", headers=headers, timeout=15)
+        res = requests.get(url_indodax, headers=headers, timeout=15)
         tickers = res.json()["tickers"]
-        print(f"Berhasil memuat {len(tickers)} pasang aset pada percobaan ke-{attempt}.")
+        print(f"Jalur cadangan tembus! Berhasil memuat {len(tickers)} pasang aset pada percobaan ke-{attempt}.")
         break
     except Exception as e:
-        print(f"Percobaan ke-{attempt} gagal. Error: {e}")
+        print(f"Jalur cadangan ke-{attempt} gagal. Error: {e}")
         if attempt < 3:
-            time.sleep(2) # Jeda waktu sebelum mencoba kembali
+            time.sleep(2)
         else:
-            print("Seluruh percobaan gagal. Server Indodax memblokir koneksi.")
+            print("Seluruh jalur komunikasi Indodax diblokir oleh Cloudflare.")
             exit()
 
 cands=[]
@@ -122,7 +120,7 @@ silver = [c for c in cands if c["cat"] == "SILVER"][:3]
 dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V29.5 COMBO RADAR FLIGHT | {now}\n\n"
+msg = f"🛰️ V29.6 COMBO RADAR FLIGHT | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
