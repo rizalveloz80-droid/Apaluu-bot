@@ -1,3 +1,15 @@
+name: bot
+
+on:
+  schedule:
+    - cron: '*/3 * * * *' # Berjalan otomatis setiap 3 menit sekali
+  workflow_dispatch: # Supaya tombol "Run workflow" manual tetap ada
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -5,17 +17,20 @@
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+          cache: 'pip'
 
-      # === LANGKAH BARU: PASANG VPN CLOUDFLARE WARP UNTUK JEBOL BAN IP ===
-      - name: Install and Start Cloudflare WARP
-        uses: fscarmen/warp-on-actions@v1.1.0
+      - name: Install Requests Dependency
+        run: pip install requests
+
+      # === PENGAKTIFAN VPN CLOUDFLARE WARP TUNNEL ANTI-BAN ===
+      - name: Setup Cloudflare WARP Tunnel
+        uses: fscarmen/warp-on-actions@v1.2.1
         with:
-          mode: proxy # Mengaktifkan mode proxy lokal yang super aman
+          mode: proxy
 
-      # === EKSEKUSI BOT SEPERTI BIASA ===
+      # === EKSEKUSI UTAMA SCRIPT SCANNER ===
       - name: Run bot
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
-        run: |
-          python main.py
+        run: python main.py
