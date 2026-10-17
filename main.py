@@ -1,4 +1,4 @@
-# V29.6 FINAL COMBO - BYPASS DOMAIN CADANGAN RESMI - LAST EDIT 18 OKT 2026
+# V29.7 FINAL COMBO - PENGALIHAN ENDPOINT KLASIK & FITUR CURI START - LAST EDIT 18 OKT 2026
 import requests, os, json, time
 from datetime import datetime
 
@@ -53,23 +53,23 @@ headers = {
 }
 
 tickers = None
-# Menggunakan DOMAIN CADANGAN RESMI Indodax (api4) untuk menghindari IP Ban Cloudflare
-url_indodax = "https://indodax.com"
+# KEMBALI MENGGUNAKAN ENDPOINT KLASIK INDODAX YANG TERBUKTI AMAN DAN LOG LAMA ANDA BISA MENEMBUSNYA
+url_klasik = "https://indodax.com"
 
-print(f"Membuka jalur cadangan Indodax via {url_indodax}...")
+print(f"Membuka koneksi data market Indodax via {url_klasik}...")
 
 for attempt in range(1, 4):
     try:
-        res = requests.get(url_indodax, headers=headers, timeout=15)
+        res = requests.get(url_klasik, headers=headers, timeout=15)
         tickers = res.json()["tickers"]
-        print(f"Jalur cadangan tembus! Berhasil memuat {len(tickers)} pasang aset pada percobaan ke-{attempt}.")
+        print(f"Koneksi sukses! Berhasil memuat {len(tickers)} pasang aset crypto.")
         break
     except Exception as e:
-        print(f"Jalur cadangan ke-{attempt} gagal. Error: {e}")
+        print(f"Percobaan ke-{attempt} gagal. Error: {e}")
         if attempt < 3:
             time.sleep(2)
         else:
-            print("Seluruh jalur komunikasi Indodax diblokir oleh Cloudflare.")
+            print("Server Indodax membatasi request IP publik.")
             exit()
 
 cands=[]
@@ -120,7 +120,7 @@ silver = [c for c in cands if c["cat"] == "SILVER"][:3]
 dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V29.6 COMBO RADAR FLIGHT | {now}\n\n"
+msg = f"🛰️ V29.7 COMBO RADAR FLIGHT | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
