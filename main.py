@@ -1,134 +1,235 @@
-import requests, os, time, random
+import requests, os, time, random, json
+
+# ===== CONFIGURATION / TELEGRAM CREDENTIALS =====
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_TOKEN') or os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID') or os.getenv('CHAT_ID') or os.getenv('TELEGRAM_CHAT')
+HISTORY_FILE = "price_history.json"
 
 def send(msg):
-    try: requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": msg}, timeout=15)
+    """Mengirimkan pesan ringkasan ke Telegram Bot"""
+    if not TOKEN or not CHAT_ID:
+        print("⚠️ [ERROR] Telegram TOKEN atau CHAT_ID belum disetting di Environment Variables!")
+        return
+    try: 
+        requests.post(
+            f"https://telegram.org{TOKEN}/sendMessage", 
+            data={"chat_id": CHAT_ID, "text": msg}, 
+            timeout=15
+        )
+    except Exception as e: 
+        print(f"⚠️ [WARNING] Gagal mengirim pesan ke Telegram: {e}")
+
+def load_history():
+    """Memuat data harga dari eksekusi menit sebelumnya"""
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except: return {}
+    return {}
+
+def save_history(data):
+    """Menyimpan data harga saat ini untuk perbandingan di menit berikutnya"""
+    try:
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
     except: pass
 
-def smart_candle_v267(chg, dl, dh, vol):
-    """V26.7 - ANTI-STUCK + UPDATE TERUS!"""
+def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
+    """V27.0 - LIVE PUMP & BREAKOUT ENGINE"""
     sq = dl + dh
 
-    # 🔥 PRE_TRENDING V26.7 - DIPERLEBAR BIAR GA ITU-ITU AJA!
-    # DARI sq<9 jadi sq<12, dl 3.5 jadi 5.5, vol 130jt jadi 250jt, chg 2.5 jadi 4%
-    if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 4 and 10_000_000 <= vol <= 250_000_000:
+    # 🚨 DETEKSI LIVE PUMP (Koin mendadak meroket dalam 1 menit terakhir!)
+    # Sensitivitas diatur jika naik >= 2.0% dalam 1 menit dengan volume min 30jt
+    if live_pump_chg >= 2.0 and vol >= 30_000_000 and dl <= 6:
+        return "LIVE_PUMP_RUNNING", sq, live_pump_chg
+
+    # 🔥 PRE_TRENDING (Batas atas volume dihapus agar koin meledak tidak lolos)
+    if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 5 and vol >= 10_000_000:
         return "PRE_TRENDING", sq, vol/250_000_000
 
-    # 💎 SEROK DALEM -20% TETAP
+    # 💎 SEROK DALEM
     if -20 <= chg <= -0.2 and 0 <= dl <= 3.5 and 1 <= sq <= 13:
         return "SEROK_DALEM", sq, vol/250_000_000
 
-    # 💣 GOLD V25.3 - LINK sq7% x1.7
+    # 💣 GOLD V25.3
     if sq < 12 and 2 <= dl <= 9 and 0.1 <= chg <= 3.5 and 50_000_000 <= vol <= 500_000_000:
         return "V_BOUNCE_GOLD", sq, vol/250_000_000
 
-    # ⚡ SILVER V25.5 - XPL sq13%
+    # ⚡ SILVER V25.5
     if sq < 18 and 2 <= dl <= 12 and 0.1 <= chg <= 8 and 50_000_000 <= vol <= 600_000_000:
         return "V_BOUNCE_SILVER", sq, vol/250_000_000
 
-    # 🚨 GAINERS & BRONZE - DIMATIIN BIAR GA UDAH TERBANG
-    if chg >= 35 and vol >= 100_000_000:
+    # 📈 TRENDING & BRONZE BREAKOUT (Diaktifkan kembali untuk menangkap trend kuat)
+    if chg >= 25 and vol >= 100_000_000:
         return "GAINERS_MENDADAK", sq, vol/250_000_000
-    if chg >= 22 and dl >= 15 and vol >= 150_000_000:
-        return "TRENDING_BRONZE", sq, vol/250_000_000
-    if chg >= 10 and dl >= 12 and dh <= 28 and vol >= 150_000_000:
+    if chg >= 10 and dl >= 8 and vol >= 50_000_000:
         return "TRENDING_BRONZE", sq, vol/250_000_000
 
     return "NORMAL", sq, 0
 
-def main():
-    time.sleep(random.uniform(0.5, 2.5))
+def run_scanner():
+    """Fungsi inti scanning market Indodax"""
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
     try:
-        data = requests.get("https://indodax.com/api/summaries", timeout=20, headers=headers).json()
-    except:
+        data = requests.get("https://indodax.com", timeout=20, headers=headers).json()
+    except Exception as e:
+        print(f"🔄 Koneksi Indodax timeout, mencoba lagi dalam 5 detik... ({e})")
         time.sleep(5)
-        data = requests.get("https://indodax.com/api/summaries", timeout=20, headers=headers).json()
+        try:
+            data = requests.get("https://indodax.com", timeout=20, headers=headers).json()
+        except:
+            print("❌ Gagal mengambil data dari Indodax pada sesi ini.")
+            return
 
-    tickers = data['tickers']; prices_24h = data.get('prices_24h',{})
+    tickers = data.get('tickers', {})
+    prices_24h = data.get('prices_24h', {})
+    
+    # Filter koin-koin berkapitalisasi besar agar bot fokus pada altcoin potensial pump liar
     BIG_CAP = {"BTC","ETH","SOL","XRP","HYPE","BNB","DOGE","SHIB","PEPE","PENGU","USDT","USDC","AVAX","TRX","DOT","WIF","BONK"}
-    candidates=[]
-    for pair,t in tickers.items():
+    
+    history = load_history()
+    current_prices = {}
+    candidates = []
+
+    for pair, t in tickers.items():
         if not pair.endswith('_idr'): continue
         try:
-            vol=float(t['vol_idr']); last=float(t['last']); low=float(t['low']); high=float(t['high'])
-            key=pair.replace('_',''); p24=float(prices_24h.get(key,0))
-            if p24==0 or low==0 or vol<10_000_000: continue
-            chg=(last-p24)/p24*100; dl=(last-low)/low*100; dh=(high-last)/last*100 if last else 0
-            coin=pair.replace('_idr','').upper()
+            vol = float(t.get('vol_idr', 0))
+            last = float(t.get('last', 0))
+            low = float(t.get('low', 0))
+            high = float(t.get('high', 0))
+            key = pair.replace('_', '')
+            p24 = float(prices_24h.get(key, 0))
+            
+            if p24 == 0 or low == 0 or vol < 10_000_000: continue
+            
+            coin = pair.replace('_idr', '').upper()
             if coin in BIG_CAP: continue
-            candidates.append((pair,coin,chg,vol,dl,dh,last))
+
+            # Simpan harga live untuk pencatatan history JSON
+            current_prices[coin] = last
+
+            # ⏱️ PERHITUNGAN LIVE PUMP REAL-TIME (Harga Detik Ini VS Harga 1 Menit Lalu)
+            prev_price = history.get(coin, last)
+            live_pump_chg = ((last - prev_price) / prev_price * 100) if prev_price > 0 else 0
+
+            chg = (last - p24) / p24 * 100
+            dl = (last - low) / low * 100
+            dh = (high - last) / last * 100 if last else 0
+
+            candidates.append((pair, coin, chg, vol, dl, dh, last, live_pump_chg))
         except: continue
 
-    # ===== V26.7 FIX ANTI-STUCK =====
-    candidates.sort(key=lambda x:x[3], reverse=True) # sort vol gede
-    top_high = candidates[:120] # 120 vol gede buat GOLD SILVER
-    top_low = candidates[120:350] # 230 vol kecil buat PRE & SEROK - TIA KMNO 34jt di sini!
-    random.shuffle(top_low) # SHUFFLE BIAR GA GLIDR HUMANITY TERUS!
-    top = top_high + top_low # TOTAL SCAN 350!
+    # Perbarui file JSON lokal dengan harga teranyar
+    save_history(current_prices)
 
-    GOLD_COUNT = 5
+    # Urutkan berdasarkan Volume Pasar Terbesar (Mencegah koin bagus tersembunyi akibat shuffle)
+    candidates.sort(key=lambda x: x[3], reverse=True)
+    top = candidates[:350] 
+
+    # Penjatahan Maksimal Sinyal Per Kategori Pesan
+    LIVE_COUNT = 3
+    GOLD_COUNT = 3
     SILVER_COUNT = 3
     PRE_TRENDING_COUNT = 2
-    SEROK_DALEM_COUNT = 5
-    BRONZE_COUNT = 0
-    GAINERS_COUNT = 0
+    SEROK_DALEM_COUNT = 2
+    BRONZE_COUNT = 2
 
-    gold=[]; silver=[]; pre_trending=[]; bronze=[]; gainers=[]; serok=[]; used=set()
-    for pair,coin,chg,vol,dl,dh,last in top:
-        pid=f"{coin}_IDR"
+    live_pump=[], gold=[], silver=[], pre_trending=[], bronze=[], serok=[]; used=set()
+
+    for pair, coin, chg, vol, dl, dh, last, live_pump_chg in top:
+        pid = f"{coin}_IDR"
         if pid in used: continue
-        status,sq,vr = smart_candle_v267(chg,dl,dh,vol)
+        
+        status, sq, vr = smart_candle_v270(chg, dl, dh, vol, live_pump_chg)
 
-        if status=="GAINERS_MENDADAK" and len(gainers)<GAINERS_COUNT:
-            gainers.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="V_BOUNCE_GOLD" and len(gold)<GOLD_COUNT:
-            gold.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="V_BOUNCE_SILVER" and len(silver)<SILVER_COUNT:
-            silver.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="PRE_TRENDING" and len(pre_trending)<PRE_TRENDING_COUNT:
-            pre_trending.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="TRENDING_BRONZE" and len(bronze)<BRONZE_COUNT:
-            bronze.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
-        if status=="SEROK_DALEM" and len(serok)<SEROK_DALEM_COUNT:
-            serok.append((pid,chg,vol,dl,sq,vr)); used.add(pid); continue
+        if status == "LIVE_PUMP_RUNNING" and len(live_pump) < LIVE_COUNT:
+            live_pump.append((pid, chg, vol, dl, live_pump_chg)); used.add(pid); continue
+        if status == "V_BOUNCE_GOLD" and len(gold) < GOLD_COUNT:
+            gold.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
+        if status == "V_BOUNCE_SILVER" and len(silver) < SILVER_COUNT:
+            silver.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
+        if status == "PRE_TRENDING" and len(pre_trending) < PRE_TRENDING_COUNT:
+            pre_trending.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
+        if status == "TRENDING_BRONZE" and len(bronze) < BRONZE_COUNT:
+            bronze.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
+        if status == "SEROK_DALEM" and len(serok) < SEROK_DALEM_COUNT:
+            serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
+    # Sorting hasil tampilan akhir telegram
+    live_pump.sort(key=lambda x: x[4], reverse=True) # Urutkan dari live pump tertinggi
     gold.sort(key=lambda x: x[5], reverse=True)
-    silver.sort(key=lambda x: x[5], reverse=True)
-    pre_trending.sort(key=lambda x: x[2], reverse=True) # V26.7 - SORT BY VOL GEDE, BUKAN CHG DALEM!
+    silver.sort(key=lambda x: x[2], reverse=True)
+    pre_trending.sort(key=lambda x: x[2], reverse=True)
     serok.sort(key=lambda x: x[1])
 
-    msg=f"🎯 V26.7 RANK 15 DUAL ANTI-STUCK\n"
-    msg+=f"ANTI-BLOCK 1000% | Scan 350 coins | Vol min 10jt | Shuffle ON\n\n"
+    # ===== STRUKTUR FORMAT PESAN TELEGRAM =====
+    msg = f"🎯 V27.0 RANK PUMP REAL-TIME DETECTION\n"
+    msg += f"Scan 350 coins | Tracker Live JSON | Interval 60s\n\n"
 
     rank_num = 1
+    if live_pump:
+        msg += f"🚨 LIVE PUMP RUNNING 1 MENIT LALU ({len(live_pump)}):\n"
+        for p, c, v, dl, lp_chg in live_pump:
+            msg += f"{rank_num}. ⚡ {p} Melesat +{lp_chg:.1f}%! (24H: {c:.1f}%) | Vol {v/1e6:.0f}jt\n"
+            rank_num += 1
+        msg += "\n"
     if gold:
-        msg+=f"💣 GOLD V25.3 JACKPOT ({len(gold)}):\n"
-        for p,c,v,dl,sq,vr in gold:
-            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | GOLD x{vr:.1f}\n"
-            rank_num+=1
-        msg+="\n"
+        msg += f"💣 GOLD V25.3 JACKPOT ({len(gold)}):\n"
+        for p, c, v, dl, sq, vr in gold:
+            msg += f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | x{vr:.1f}\n"
+            rank_num += 1
+        msg += "\n"
     if silver:
-        msg+=f"⚡ SILVER V25.5 EARLY ({len(silver)}):\n"
-        for p,c,v,dl,sq,vr in silver:
-            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | SILVER x{vr:.1f}\n"
-            rank_num+=1
-        msg+="\n"
+        msg += f"⚡ SILVER V25.5 ({len(silver)}):\n"
+        for p, c, v, dl, sq, vr in silver:
+            msg += f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
+            rank_num += 1
+        msg += "\n"
     if pre_trending:
-        msg+=f"🔥 PRE_TRENDING CALON TIA KMNO ({len(pre_trending)}):\n"
-        for p,c,v,dl,sq,vr in pre_trending:
-            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | CALON +25%! SHUFFLE!\n"
-            rank_num+=1
-        msg+="\n"
+        msg += f"🔥 PRE_TRENDING ANTISIPASI ({len(pre_trending)}):\n"
+        for p, c, v, dl, sq, vr in pre_trending:
+            msg += f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | Vol {v/1e6:.0f}jt\n"
+            rank_num += 1
+        msg += "\n"
+    if bronze:
+        msg += f"📈 BRONZE BREAKOUT ({len(bronze)}):\n"
+        for p, c, v, dl, sq, vr in bronze:
+            msg += f"{rank_num}. {p} +{c:.1f}% | Terbang! Vol {v/1e6:.0f}jt\n"
+            rank_num += 1
+        msg += "\n"
     if serok:
-        msg+=f"💎 SEROK DALEM -20% ({len(serok)}):\n"
-        for p,c,v,dl,sq,vr in serok:
-            msg+=f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | sq {sq:.0f}% | {v/1e6:.0f}jt | DALEM!\n"
-            rank_num+=1
+        msg += f"💎 SEROK DALEM DISKON ({len(serok)}):\n"
+        for p, c, v, dl, sq, vr in serok:
+            msg += f"{rank_num}. {p} {c:.1f}% | {dl:.0f}% low | {v/1e6:.0f}jt\n"
+            rank_num += 1
 
-    msg+=f"\n✅ Total {len(gold)+len(silver)+len(pre_trending)+len(serok)} RANK | 8 EARLY + 7 BAWAH | SCAN 350 SHUFFLE!"
-    print(msg); send(msg)
+    total_rank = len(live_pump) + len(gold) + len(silver) + len(pre_trending) + len(bronze) + len(serok)
+    msg += f"\n✅ Total {total_rank} Sinyal Valid | Scan Berhasil."
+    
+    print(f"[{time.strftime('%H:%M:%S')}] Mengirim data sinyal terbaru ke Telegram...")
+    print(msg)
+    send(msg)
 
-if __name__=="__main__": main()
+def main():
+    print("🚀 Bot V27.0 Live Pump Detection Berhasil Dijalankan!")
+    print("Sistem memantau pergerakan pasar Indodax setiap 60 detik secara real-time.")
+    print("Tekan Ctrl + C pada terminal/CMD untuk menghentikan bot.\n")
+    
+    # Eksekusi acak singkat pertama kali dijalankan agar inisialisasi natural
+    time.sleep(random.uniform(0.5, 2.0))
+    
+    while True:
+        start_time = time.time()
+        run_scanner()
+        
+        # Koreksi waktu jeda agar siklus scan stabil presisi mendekati per 60 detik
+        elapsed_time = time.time() - start_time
+        sleep_duration = max(1, 60 - elapsed_time)
+        
+        time.sleep(sleep_duration)
+
+if __name__ == "__main__":
+    main()
