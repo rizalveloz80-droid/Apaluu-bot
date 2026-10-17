@@ -1,4 +1,4 @@
-# V29.1 COMBO - ALTCOIN MURNI & EARLY RADAR - LAST EDIT 18 OKT 2026
+# V29.3 FINAL COMBO - REPARASI TOTAL & PROTEKSI RADAR - LAST EDIT 18 OKT 2026
 import requests, os, json
 from datetime import datetime
 
@@ -10,7 +10,7 @@ TELE_CHAT_ID = os.getenv("TELE_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 
 def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT_ID: return
-    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+    try: requests.post(f"https://telegram.org{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
     except: pass
 
 def smart_combo(chg, chg_vol_1m, dl, dh, vol):
@@ -39,7 +39,7 @@ def smart_combo(chg, chg_vol_1m, dl, dh, vol):
     if 0 <= dl <= 10 and sq < 16 and -1.5 <= chg <= 6 and vol >= 15000000: return "SILVER", sq
     # PRE - DIUBAH MENGIKUTI STRATEGI CURI START VOLUME TEBAL
     if 0 <= dl <= 2.5 and sq < 9 and -2 <= chg <= 2.5 and vol >= 100000000: return "PRE", sq
-    # DALEM BOTTOM PAS (Ditingkatkan dengan pantulan volume awal)
+    # DALEM BOTTOM PAS
     if -25 <= chg <= -2.2 and 0 <= dl <= 1.5 and sq < 20 and vol >= 20000000: return "DALEM", sq
     
     return "NORMAL", sq
@@ -50,7 +50,7 @@ if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE,'r') as f: cache=json.load(f)
     except: pass
 
-try: tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json()["tickers"]
+try: tickers = requests.get("https://indodax.com", timeout=15).json()["tickers"]
 except: exit()
 
 cands=[]
@@ -67,7 +67,6 @@ for pair, data in tickers.items():
         
         # Ambil data terstruktur dari cache menit lalu
         prev_data = cache.get(pair, {"price": last, "vol": vol})
-        # Handle jika cache lama masih bertipe float harga saja
         if isinstance(prev_data, dict):
             prev_price = prev_data.get("price", last)
             prev_vol = prev_data.get("vol", vol)
@@ -81,49 +80,55 @@ for pair, data in tickers.items():
         
         cat, sq = smart_combo(chg, chg_vol_1m, dl, dh, vol)
         if cat != "NORMAL" and cat != "SKIP": 
-            cands.append((pair.upper().replace("_IDR", ""), chg, dl, sq, vol, cat, chg_vol_1m))
+            # Menggunakan format Dictionary agar data tidak tertukar saat pembacaan
+            cands.append({
+                "pair": pair.upper().replace("_IDR", ""),
+                "chg": chg,
+                "dl": dl,
+                "sq": sq,
+                "vol": vol,
+                "cat": cat,
+                "chg_vol": chg_vol_1m
+            })
             
-        # Simpan struktur baru ke cache harian
         new_cache[pair] = {"price": last, "vol": vol}
     except: continue
 
 with open(CACHE_FILE,'w') as f: json.dump(new_cache, f)
 
-# Urutkan kandidat berdasarkan lonjakan volume menit terbaru
-cands.sort(key=lambda x: x[6], reverse=True)
+# Urutkan kandidat berdasarkan lonjakan volume menit terbaru (chg_vol)
+cands.sort(key=lambda x: x["chg_vol"], reverse=True)
 
-top = cands[:500]
-curi_start = [c for c in top if c[5]=="CURI_START"][:5]
-gold = [c for c in top if c[5]=="GOLD"][:3]
-silver = [c for c in top if c[5]=="SILVER"][:3]
-pre = [c for c in top if c[5]=="PRE"][:2]
-dalem = [c for c in top if c[5]=="DALEM"][:3]
+curi_start = [c for c in cands if c["cat"] == "CURI_START"][:5]
+gold = [c for c in cands if c["cat"] == "GOLD"][:3]
+silver = [c for c in cands if c["cat"] == "SILVER"][:3]
+dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V29.1 COMBO EARLY RADAR | {now}\n\n"
+msg = f"🛰️ V29.3 GABUNGAN RADAR | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
     for i, c in enumerate(curi_start, 1): 
-        msg += f"{i}. {c[0]} | +{c[1]:.2f}% | Vol1m: +{c[6]:.0f}% | Total:{int(c[4]/1000000)}jt\n"
+        msg += f"{i}. {c['pair']} | +{c['chg']:.2f}% | Vol1m: +{c['chg_vol']:.0f}% | Vol: {int(c['vol']/1000000)}jt\n"
     msg += "\n"
 
 if gold:
     msg += f"👑 GOLD JACKPOT ({len(gold)}):\n"
     for i, c in enumerate(gold, 1): 
-        msg += f"{i}. {c[0]} {c[1]:.1f}% | Low {int(c[2])}% | sq{int(c[3])}%\n"
+        msg += f"{i}. {c['pair']} | +{c['chg']:.1f}% | Low {int(c['dl'])}% | sq {int(c['sq'])}% | Vol: {int(c['vol']/1000000)}jt\n"
     msg += "\n"
 
 if silver:
     msg += f"🥈 SILVER ({len(silver)}):\n"
     for i, c in enumerate(silver, 1): 
-        msg += f"{i}. {c[0]} {c[1]:.1f}% | Low {int(c[2])}%\n"
+        msg += f"{i}. {c['pair']} | +{c['chg']:.1f}% | Low {int(c['dl'])}%\n"
     msg += "\n"
 
 if dalem:
     msg += f"🛡️ DALEM / BOTTOM ({len(dalem)}):\n"
     for i, c in enumerate(dalem, 1): 
-        msg += f"{i}. {c[0]} {c[1]:.1f}% | BOTTOM MANTUL\n"
+        msg += f"{i}. {c['pair']} | {c['chg']:.1f}% | BOTTOM MANTUL\n"
     msg += "\n"
 
 total_valid = len(curi_start + gold + silver + dalem)
@@ -132,4 +137,4 @@ if total_valid > 0:
     print(msg)
     send_tele(msg)
 else:
-    print(f"[{now}] Hasil scan bersih, tidak ada sinyal akumulasi kilat harian.")
+    print(f"[{now}] Hasil scan bersih, belum ada pergerakan volume kilat.")
