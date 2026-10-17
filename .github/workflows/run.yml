@@ -17,18 +17,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          cache: 'pip'
 
       - name: Install Requests Dependency
         run: pip install requests
 
-      # === PENGAKTIFAN VPN CLOUDFLARE WARP TUNNEL ANTI-BAN ===
+      # === FIX VERSI WARP: MENGGUNAKAN VERSI UTAMA YANG PASTI TERSEDIA ===
       - name: Setup Cloudflare WARP Tunnel
-        uses: fscarmen/warp-on-actions@v1.2.1
+        uses: fscarmen/warp-on-actions@main
         with:
           mode: proxy
 
-      # === EKSEKUSI UTAMA SCRIPT SCANNER ===
+      # === EKSEKUSI SCRIPT SCANNER ===
       - name: Run bot
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
