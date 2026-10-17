@@ -5,7 +5,7 @@ GOLD_COUNT = 5
 SILVER_COUNT = 3
 PRE_COUNT = 2
 DALEM_COUNT = 5
-BLACKLIST = ["usdt_idr","usdc_idr","btc_idr","xaut_idr","paxg_idr"]
+BLACKLIST = ["usdt_idr","usdc_idr","btc_idr","xaut_idr","paxg_idr","eth_idr"]
 CACHE_FILE = "price_cache.json"
 
 TELE_TOKEN = os.getenv("TELE_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN")
@@ -19,19 +19,21 @@ def send_tele(msg):
     except Exception as e:
         print("TELE_ERR " + str(e))
 
-def smart_candle(chg, dl, dh, vol):
+def smart_candle_v28(chg, dl, dh, vol):
     sq = dl + dh
-    if sq < 12 and 2 <= dl <= 9 and -2 <= chg <= 5 and 10000000 <= vol <= 600000000:
+    if 0 <= dl <= 8 and sq < 12 and -2 <= chg <= 5 and vol >= 10000000:
         return "GOLD", sq
-    if sq < 18 and 2 <= dl <= 12 and -2 <= chg <= 8 and 10000000 <= vol <= 800000000:
+    if 0 <= dl <= 10 and sq < 18 and -2 <= chg <= 8 and vol >= 10000000:
         return "SILVER", sq
-    if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 5 and vol >= 10000000:
+    if 0 <= dl <= 3 and sq < 8 and -5 <= chg <= 3 and vol >= 10000000:
         return "PRE", sq
-    if chg <= 0 and dl <= 4 and vol >= 10000000:
+    if -25 <= chg <= -2.5 and 0 <= dl <= 2.5 and sq < 15 and dh < 12 and vol >= 30000000:
         return "DALEM", sq
+    if -25 <= chg <= -1.5 and 0 <= dl <= 4 and sq < 25 and vol >= 10000000:
+        return "DALEM_LOOSE", sq
     return "NORMAL", sq
 
-print("APALUU V27.7 COMEBACK " + datetime.now().strftime('%H:%M'))
+print("APALUU V27.8 SUPER BOTTOM " + datetime.now().strftime('%H:%M'))
 
 cache = {}
 if os.path.exists(CACHE_FILE):
@@ -42,7 +44,6 @@ if os.path.exists(CACHE_FILE):
         pass
 
 tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json()["tickers"]
-print("SCAN " + str(len(tickers)))
 
 candidates = []
 for pair, data in tickers.items():
@@ -59,15 +60,15 @@ for pair, data in tickers.items():
         dh = ((high - last) / last) * 100
         prev = cache.get(pair, last)
         chg = ((last - prev) / prev * 100) if prev else 0
-        cat, sq = smart_candle(chg, dl, dh, vol)
+        cat, sq = smart_candle_v28(chg, dl, dh, vol)
         if cat != "NORMAL":
-            candidates.append((pair.upper(), chg, dl, sq, vol, cat))
+            candidates.append((pair.upper(), chg, dl, sq, vol, cat, dh))
         cache[pair] = last
     except:
         continue
 
 candidates.sort(key=lambda x: x[4], reverse=True)
-top = candidates[:350]
+top = candidates[:400]
 
 with open(CACHE_FILE,'w') as f:
     json.dump(cache,f)
@@ -75,47 +76,39 @@ with open(CACHE_FILE,'w') as f:
 gold = [c for c in top if c[5] == "GOLD"][:GOLD_COUNT]
 silver = [c for c in top if c[5] == "SILVER"][:SILVER_COUNT]
 pre = [c for c in top if c[5] == "PRE"][:PRE_COUNT]
-dalem = [c for c in top if c[5] == "DALEM"][:DALEM_COUNT]
+dalem_pas = [c for c in top if c[5] == "DALEM"][:DALEM_COUNT]
+if len(dalem_pas) == 0:
+    dalem_pas = [c for c in top if c[5] == "DALEM_LOOSE"][:DALEM_COUNT]
+    is_loose = True
+else:
+    is_loose = False
 
 now = datetime.now().strftime('%H:%M')
-msg = "V27.7 COMEBACK | " + now + " | 15 DUAL 8 EARLY + 7 BAWAH | NO USDT/BTC | VOL SORT\n\n"
+msg = "V27.8 SUPER BOTTOM | " + now + " | NO USDT/BTC | VOL SORT | TIK PAS\n\n"
 
 if gold:
-    msg += "GOLD V25.3 JACKPOT (" + str(len(gold)) + "):\n"
+    msg += "GOLD JACKPOT (" + str(len(gold)) + "):\n"
     for i,c in enumerate(gold,1):
-        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt | GOLD\n"
+        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt\n"
     msg += "\n"
 if silver:
-    msg += "SILVER V25.5 EARLY (" + str(len(silver)) + "):\n"
+    msg += "SILVER EARLY (" + str(len(silver)) + "):\n"
     for i,c in enumerate(silver, len(gold)+1):
-        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt | SILVER\n"
+        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt\n"
     msg += "\n"
 if pre:
-    msg += "PRE_TRENDING CALON TIA KMNO (" + str(len(pre)) + "):\n"
+    msg += "PRE_TRENDING (" + str(len(pre)) + "):\n"
     for i,c in enumerate(pre, len(gold+silver)+1):
-        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt | CALON +25%!\n"
+        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt | CALON!\n"
     msg += "\n"
-if dalem:
-    msg += "SEROK DALEM -20% (" + str(len(dalem)) + "):\n"
-    for i,c in enumerate(dalem, len(gold+silver+pre)+1):
-        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | " + str(int(c[4]/1000000)) + "jt | DALEM!\n"
+if dalem_pas:
+    label = "DALEM BOTTOM PAS" if not is_loose else "DALEM LOOSE"
+    msg += label + " (" + str(len(dalem_pas)) + "):\n"
+    for i,c in enumerate(dalem_pas, len(gold+silver+pre)+1):
+        msg += str(i) + ". " + c[0] + " " + str(round(c[1],1)) + "% | " + str(int(c[2])) + "% low | sq " + str(int(c[3])) + "% | dh " + str(int(c[6])) + "% | " + str(int(c[4]/1000000)) + "jt | BOTTOM!\n"
     msg += "\n"
 
-if len(gold+silver+pre+dalem) == 0:
-    msg += "MARKET SEPI - TOP VOL:\n"
-    allp = []
-    for pair, data in tickers.items():
-        if not pair.lower().endswith("_idr"): continue
-        if pair.lower() in BLACKLIST: continue
-        try:
-            allp.append((pair.upper(), float(data["vol_idr"])))
-        except:
-            continue
-    allp.sort(key=lambda x: x[1], reverse=True)
-    for i,p in enumerate(allp[:5],1):
-        msg += str(i) + ". " + p[0] + " vol " + str(int(p[1]/1000000)) + "jt\n"
-
-msg += "\nTotal " + str(len(gold+silver+pre+dalem)) + " RANK | 8 EARLY + 7 BAWAH | NANGKEP DARI BAWAH!"
+msg += "Total " + str(len(gold+silver+pre+dalem_pas)) + " RANK | SCAN " + str(len(tickers)) + " | TIK BOTTOM"
 
 print(msg)
 send_tele(msg)
