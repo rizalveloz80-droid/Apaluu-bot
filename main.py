@@ -39,12 +39,11 @@ def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
     """V27.0 - LIVE PUMP & BREAKOUT ENGINE"""
     sq = dl + dh
 
-    # 🚨 DETEKSI LIVE PUMP (Koin mendadak meroket dalam 1 menit terakhir!)
-    # Sensitivitas diatur jika naik >= 2.0% dalam 1 menit dengan volume min 30jt
-    if live_pump_chg >= 2.0 and vol >= 30_000_000 and dl <= 6:
+    # 🚨 DETEKSI LIVE PUMP (Koin mendadak meroket dalam beberapa menit terakhir!)
+    if live_pump_chg >= 2.5 and vol >= 30_000_000 and dl <= 6:
         return "LIVE_PUMP_RUNNING", sq, live_pump_chg
 
-    # 🔥 PRE_TRENDING (Batas atas volume dihapus agar koin meledak tidak lolos)
+    # 🔥 PRE_TRENDING
     if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 5 and vol >= 10_000_000:
         return "PRE_TRENDING", sq, vol/250_000_000
 
@@ -60,7 +59,7 @@ def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
     if sq < 18 and 2 <= dl <= 12 and 0.1 <= chg <= 8 and 50_000_000 <= vol <= 600_000_000:
         return "V_BOUNCE_SILVER", sq, vol/250_000_000
 
-    # 📈 TRENDING & BRONZE BREAKOUT (Diaktifkan kembali untuk menangkap trend kuat)
+    # 📈 TRENDING & BRONZE BREAKOUT
     if chg >= 25 and vol >= 100_000_000:
         return "GAINERS_MENDADAK", sq, vol/250_000_000
     if chg >= 10 and dl >= 8 and vol >= 50_000_000:
@@ -86,7 +85,6 @@ def run_scanner():
     tickers = data.get('tickers', {})
     prices_24h = data.get('prices_24h', {})
     
-    # Filter koin-koin berkapitalisasi besar agar bot fokus pada altcoin potensial pump liar
     BIG_CAP = {"BTC","ETH","SOL","XRP","HYPE","BNB","DOGE","SHIB","PEPE","PENGU","USDT","USDC","AVAX","TRX","DOT","WIF","BONK"}
     
     history = load_history()
@@ -108,10 +106,9 @@ def run_scanner():
             coin = pair.replace('_idr', '').upper()
             if coin in BIG_CAP: continue
 
-            # Simpan harga live untuk pencatatan history JSON
             current_prices[coin] = last
 
-            # ⏱️ PERHITUNGAN LIVE PUMP REAL-TIME (Harga Detik Ini VS Harga 1 Menit Lalu)
+            # PERHITUNGAN LIVE PUMP REAL-TIME (Harga Sekarang VS Sesi GitHub Actions Sebelumnya)
             prev_price = history.get(coin, last)
             live_pump_chg = ((last - prev_price) / prev_price * 100) if prev_price > 0 else 0
 
@@ -122,14 +119,11 @@ def run_scanner():
             candidates.append((pair, coin, chg, vol, dl, dh, last, live_pump_chg))
         except: continue
 
-    # Perbarui file JSON lokal dengan harga teranyar
     save_history(current_prices)
 
-    # Urutkan berdasarkan Volume Pasar Terbesar (Mencegah koin bagus tersembunyi akibat shuffle)
-    candidates.sort(key=lambda x: x[3], reverse=True)
+    candidates.sort(key=lambda x: x, reverse=True)
     top = candidates[:350] 
 
-    # Penjatahan Maksimal Sinyal Per Kategori Pesan
     LIVE_COUNT = 3
     GOLD_COUNT = 3
     SILVER_COUNT = 3
@@ -158,20 +152,18 @@ def run_scanner():
         if status == "SEROK_DALEM" and len(serok) < SEROK_DALEM_COUNT:
             serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
-    # Sorting hasil tampilan akhir telegram
-    live_pump.sort(key=lambda x: x[4], reverse=True) # Urutkan dari live pump tertinggi
-    gold.sort(key=lambda x: x[5], reverse=True)
-    silver.sort(key=lambda x: x[2], reverse=True)
-    pre_trending.sort(key=lambda x: x[2], reverse=True)
-    serok.sort(key=lambda x: x[1])
+    live_pump.sort(key=lambda x: x, reverse=True)
+    gold.sort(key=lambda x: x, reverse=True)
+    silver.sort(key=lambda x: x, reverse=True)
+    pre_trending.sort(key=lambda x: x, reverse=True)
+    serok.sort(key=lambda x: x)
 
-    # ===== STRUKTUR FORMAT PESAN TELEGRAM =====
     msg = f"🎯 V27.0 RANK PUMP REAL-TIME DETECTION\n"
-    msg += f"Scan 350 coins | Tracker Live JSON | Interval 60s\n\n"
+    msg += f"Scan 350 coins | Tracker Live JSON | GitHub Mode\n\n"
 
     rank_num = 1
     if live_pump:
-        msg += f"🚨 LIVE PUMP RUNNING 1 MENIT LALU ({len(live_pump)}):\n"
+        msg += f"🚨 LIVE PUMP RUNNING LALU ({len(live_pump)}):\n"
         for p, c, v, dl, lp_chg in live_pump:
             msg += f"{rank_num}. ⚡ {p} Melesat +{lp_chg:.1f}%! (24H: {c:.1f}%) | Vol {v/1e6:.0f}jt\n"
             rank_num += 1
@@ -209,27 +201,14 @@ def run_scanner():
     total_rank = len(live_pump) + len(gold) + len(silver) + len(pre_trending) + len(bronze) + len(serok)
     msg += f"\n✅ Total {total_rank} Sinyal Valid | Scan Berhasil."
     
-    print(f"[{time.strftime('%H:%M:%S')}] Mengirim data sinyal terbaru ke Telegram...")
     print(msg)
     send(msg)
 
 def main():
-    print("🚀 Bot V27.0 Live Pump Detection Berhasil Dijalankan!")
-    print("Sistem memantau pergerakan pasar Indodax setiap 60 detik secara real-time.")
-    print("Tekan Ctrl + C pada terminal/CMD untuk menghentikan bot.\n")
-    
-    # Eksekusi acak singkat pertama kali dijalankan agar inisialisasi natural
+    print("🚀 Bot V27.0 GitHub Actions Mode Mulai...")
     time.sleep(random.uniform(0.5, 2.0))
-    
-    while True:
-        start_time = time.time()
-        run_scanner()
-        
-        # Koreksi waktu jeda agar siklus scan stabil presisi mendekati per 60 detik
-        elapsed_time = time.time() - start_time
-        sleep_duration = max(1, 60 - elapsed_time)
-        
-        time.sleep(sleep_duration)
+    run_scanner()
+    print("✅ Sesi eksekusi selesai.")
 
 if __name__ == "__main__":
     main()
