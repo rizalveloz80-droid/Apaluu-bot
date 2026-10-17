@@ -1,4 +1,4 @@
-# V30.1 FINAL - ALTCOIN MURNI VIA WARP TUNNEL - LAST EDIT 18 OKT 2026
+# V30.2 FINAL - RE-LOAD CACHE WARP TUNNEL - LAST EDIT 18 OKT 2026
 import requests, os, json
 from datetime import datetime
 
@@ -28,9 +28,10 @@ cache = {}
 if os.path.exists(CACHE_FILE):
     try:
         with open(CACHE_FILE,'r') as f: cache=json.load(f)
-    except: pass
+    except: 
+        print("Cache rusak, otomatis di-reset ulang oleh sistem.")
+        cache = {}
 
-# Konfigurasi Tunneling Proxy WARP otomatis (menggunakan port default 4000)
 proxies_warp = {
     "http": "http://127.0.0.1:4000",
     "https": "http://127.0.0.1:4000"
@@ -64,13 +65,11 @@ for pair, data in tickers.items():
         dl = ((last - low) / last) * 100
         dh = ((high - last) / last) * 100
         
-        prev_data = cache.get(pair, {"price": last, "vol": vol})
-        if isinstance(prev_data, dict):
-            prev_price = prev_data.get("price", last)
-            prev_vol = prev_data.get("vol", vol)
-        else:
-            prev_price = prev_data
-            prev_vol = vol
+        # Penanganan tipe cache campuran aman
+        prev_price, prev_vol = last, vol
+        if pair in cache and isinstance(cache[pair], dict):
+            prev_price = cache[pair].get("price", last)
+            prev_vol = cache[pair].get("vol", vol)
             
         chg = ((last - prev_price) / prev_price * 100) if prev_price else 0
         chg_vol_1m = ((vol - prev_vol) / prev_vol * 100) if prev_vol else 0
@@ -98,7 +97,7 @@ silver = [c for c in cands if c["cat"] == "SILVER"][:3]
 dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V30.1 WARP RADAR SECURE | {now}\n\n"
+msg = f"🛰️ V30.2 WARP RADAR SECURE | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
