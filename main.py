@@ -1,4 +1,4 @@
-# V29.7 FINAL COMBO - PENGALIHAN ENDPOINT KLASIK & FITUR CURI START - LAST EDIT 18 OKT 2026
+# V29.8 FINAL COMBO - BYPASS APIS SUMMARIES ULTRA SAFE - LAST EDIT 18 OKT 2026
 import requests, os, json, time
 from datetime import datetime
 
@@ -49,40 +49,48 @@ if os.path.exists(CACHE_FILE):
     except: pass
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 }
 
-tickers = None
-# KEMBALI MENGGUNAKAN ENDPOINT KLASIK INDODAX YANG TERBUKTI AMAN DAN LOG LAMA ANDA BISA MENEMBUSNYA
-url_klasik = "https://indodax.com"
+# JALUR ALTERNATIF UTAMA: Menggunakan data rangkuman pasar yang keamanannya lebih longgar
+url_summaries = "https://indodax.com"
+data_market = None
 
-print(f"Membuka koneksi data market Indodax via {url_klasik}...")
+print(f"Menembus pasar Indodax via jalur summaries {url_summaries}...")
 
 for attempt in range(1, 4):
     try:
-        res = requests.get(url_klasik, headers=headers, timeout=15)
-        tickers = res.json()["tickers"]
-        print(f"Koneksi sukses! Berhasil memuat {len(tickers)} pasang aset crypto.")
+        res = requests.get(url_summaries, headers=headers, timeout=15)
+        data_market = res.json()
+        print(f"Jalur summaries tembus! Berhasil memuat data market pada percobaan ke-{attempt}.")
         break
     except Exception as e:
-        print(f"Percobaan ke-{attempt} gagal. Error: {e}")
+        print(f"Percobaan jalur summaries ke-{attempt} gagal. Error: {e}")
         if attempt < 3:
             time.sleep(2)
         else:
-            print("Server Indodax membatasi request IP publik.")
+            print("Seluruh jalur akses Indodax diblokir oleh Cloudflare.")
             exit()
 
-cands=[]
+cands = []
 new_cache = {}
+
+# Parsing data berdasarkan struktur JSON ticker summaries indodax
+tickers = data_market.get("tickers", {})
 
 for pair, data in tickers.items():
     if not pair.lower().endswith("_idr"): continue
     if pair.lower() in BLACKLIST: continue
     try:
-        last=float(data["last"]); low=float(data["low"]); high=float(data["high"]); vol=float(data["vol_idr"])
-        if last==0: continue
+        last = float(data.get("last", 0))
+        low = float(data.get("low", 0))
+        high = float(data.get("high", 0))
+        # summaries menggunakan string/float vol_idr langsung
+        vol = float(data.get("vol_idr", 0))
+        if last == 0: continue
         
-        dl=((last-low)/last)*100; dh=((high-last)/last)*100
+        dl = ((last - low) / last) * 100
+        dh = ((high - last) / last) * 100
         
         prev_data = cache.get(pair, {"price": last, "vol": vol})
         if isinstance(prev_data, dict):
@@ -120,7 +128,7 @@ silver = [c for c in cands if c["cat"] == "SILVER"][:3]
 dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V29.7 COMBO RADAR FLIGHT | {now}\n\n"
+msg = f"🛰️ V29.8 SUMMARIES RADAR | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
