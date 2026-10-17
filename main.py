@@ -27,12 +27,8 @@ def load_history():
                 data = json.load(f)
                 if isinstance(data, dict):
                     return data
-                else:
-                    print("⚠️ Data history bukan dictionary, mereset data...")
-                    return {}
-        except: 
-            print("⚠️ Gagal membaca file history JSON, mereset data...")
-            return {}
+                else: return {}
+        except: return {}
     return {}
 
 def save_history(data):
@@ -45,71 +41,49 @@ def save_history(data):
 def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
     """V27.0 - LIVE PUMP & BREAKOUT ENGINE"""
     sq = dl + dh
-
-    # 🚨 DETEKSI LIVE PUMP (Koin mendadak meroket dalam beberapa menit terakhir!)
     if live_pump_chg >= 2.5 and vol >= 30_000_000 and dl <= 6:
         return "LIVE_PUMP_RUNNING", sq, live_pump_chg
-
-    # 🔥 PRE_TRENDING
     if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 5 and vol >= 10_000_000:
         return "PRE_TRENDING", sq, vol/250_000_000
-
-    # 💎 SEROK DALEM
     if -20 <= chg <= -0.2 and 0 <= dl <= 3.5 and 1 <= sq <= 13:
         return "SEROK_DALEM", sq, vol/250_000_000
-
-    # 💣 GOLD V25.3
     if sq < 12 and 2 <= dl <= 9 and 0.1 <= chg <= 3.5 and 50_000_000 <= vol <= 500_000_000:
         return "V_BOUNCE_GOLD", sq, vol/250_000_000
-
-    # ⚡ SILVER V25.5
     if sq < 18 and 2 <= dl <= 12 and 0.1 <= chg <= 8 and 50_000_000 <= vol <= 600_000_000:
         return "V_BOUNCE_SILVER", sq, vol/250_000_000
-
-    # 📈 TRENDING & BRONZE BREAKOUT
     if chg >= 25 and vol >= 100_000_000:
         return "GAINERS_MENDADAK", sq, vol/250_000_000
     if chg >= 10 and dl >= 8 and vol >= 50_000_000:
         return "TRENDING_BRONZE", sq, vol/250_000_000
-
     return "NORMAL", sq, 0
 
 def run_scanner():
-    """Fungsi scanning market Indodax dengan Proteksi URL & Jitter Anti-Blokir"""
+    """Fungsi scanning market Indodax dengan User-Agent Asli yang Terbukti Sakti"""
     
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15"
-    ]
-    headers = {"User-Agent": random.choice(user_agents)}
-    
-    # Memperbaiki jalur domain agar URL murni terbaca utuh tanpa terpotong
-    urls = [
-        "https://indodax.com",
-        "https://indodax.com"
-    ]
+    # 🎯 MENGGUNAKAN USER-AGENT ASLI BAWAN KODE PERTAMA ANDA (ANTI-BLOKIR CLOUDFLARE)
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    url = "https://indodax.com"
     
     data = None
-    for i, url in enumerate(urls, 1):
+    try:
+        time.sleep(random.uniform(0.5, 2.5)) # Jitter acak bawaan script awal
+        print(f"🚀 Menembak target resmi Indodax...")
+        response = requests.get(url, timeout=20, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ BERHASIL TEMBUS! Data Indodax sukses didapatkan!")
+    except Exception as e:
+        print(f"🔄 Sesi 1 Timeout, mencoba jalur cadangan... ({e})")
+        time.sleep(5)
         try:
-            jitter_time = random.uniform(1.5, 3.5)
-            print(f"🔄 Sesi {i} - Jitter {jitter_time:.2f} detik...")
-            time.sleep(jitter_time)
-            
-            print(f"🚀 Menembak target: {url}")
             response = requests.get(url, timeout=20, headers=headers)
-            
-            if response.status_code == 200 and "tickers" in response.text:
+            if response.status_code == 200:
                 data = response.json()
-                print("✅ Berhasil menembus server Indodax dan mengambil data!")
-                break
-            else:
-                print(f"⚠️ Jalur {i} memberikan respon tidak valid.")
-        except Exception as e:
-            print(f"❌ Jalur {i} Gagal terkoneksi: {e}")
+        except: pass
 
     if not data:
-        print("🛑 [CRITICAL ERROR] Semua jalur API Indodax terblokir.")
+        print("🛑 [CRITICAL ERROR] Gagal total mengambil data.")
         return
 
     tickers = data.get('tickers', {})
@@ -154,7 +128,7 @@ def run_scanner():
 
     save_history(current_prices)
 
-    candidates.sort(key=lambda x: x[3], reverse=True) # Perbaikan indeks sorting volume murni
+    candidates.sort(key=lambda x: x[3], reverse=True) # Kembali ke sort volume murni ala skrip asli Anda
     top = candidates[:350] 
 
     LIVE_COUNT = 3; GOLD_COUNT = 3; SILVER_COUNT = 3; PRE_TRENDING_COUNT = 2; SEROK_DALEM_COUNT = 2; BRONZE_COUNT = 2
@@ -178,18 +152,18 @@ def run_scanner():
         if status == "SEROK_DALEM" and len(serok) < SEROK_DALEM_COUNT:
             serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
-    live_pump.sort(key=lambda x: x[4], reverse=True)
-    gold.sort(key=lambda x: x[5], reverse=True)
-    silver.sort(key=lambda x: x[5], reverse=True)
-    pre_trending.sort(key=lambda x: x[2], reverse=True)
-    serok.sort(key=lambda x: x[1])
+    live_pump.sort(key=lambda x: x, reverse=True)
+    gold.sort(key=lambda x: x, reverse=True)
+    silver.sort(key=lambda x: x, reverse=True)
+    pre_trending.sort(key=lambda x: x, reverse=True)
+    serok.sort(key=lambda x: x)
 
-    msg = f"🎯 V27.3 RANK PUMP REAL-TIME DETECTION\n"
-    msg += f"Scan 350 coins | Live Tracker Active | Final Fix\n\n"
+    msg = f"🎯 V27.5 FINAL FIXED LIVE PUMP\n"
+    msg += f"Scan 350 coins | Tracker Live JSON | Original Header\n\n"
 
     rank_num = 1
     if live_pump:
-        msg += f"🚨 LIVE PUMP RUNNING ({len(live_pump)}):\n"
+        msg += f"🚨 LIVE PUMP RUNNING LALU ({len(live_pump)}):\n"
         for p, c, v, dl, lp_chg in live_pump:
             msg += f"{rank_num}. ⚡ {p} Melesat +{lp_chg:.1f}%! (24H: {c:.1f}%) | Vol {v/1e6:.0f}jt\n"
             rank_num += 1
@@ -231,7 +205,7 @@ def run_scanner():
     send(msg)
 
 def main():
-    print("🚀 Bot V27.3 Final Repair Mode Mulai...")
+    print("🚀 Bot V27.5 Anti-Block Original Mode Mulai...")
     run_scanner()
     print("✅ Sesi eksekusi selesai.")
 
