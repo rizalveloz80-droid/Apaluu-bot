@@ -69,18 +69,31 @@ def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
 
 def run_scanner():
     """Fungsi inti scanning market Indodax"""
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
-    try:
-        data = requests.get("https://indodax.com", timeout=20, headers=headers).json()
-    except Exception as e:
-        print(f"🔄 Koneksi Indodax timeout, mencoba lagi dalam 5 detik... ({e})")
-        time.sleep(5)
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    
+    # 💡 V27.1 URL ALTERNATIF: Menggunakan jalur cermin GitHub/API Indodax agar lolos blokir luar negeri
+    urls = [
+        "https://github.io",
+        "https://indodax.com",
+        "https://indodax.com"
+    ]
+    
+    data = None
+    for url in urls:
         try:
-            data = requests.get("https://indodax.com", timeout=20, headers=headers).json()
-        except:
-            print("❌ Gagal mengambil data dari Indodax pada sesi ini.")
-            return
+            print(f"🔄 Mencoba mengambil data dari: {url}")
+            response = requests.get(url, timeout=15, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                print("✅ Berhasil terhubung ke server Indodax!")
+                break
+        except Exception as e:
+            print(f"⚠️ Gagal terhubung ke {url}: {e}")
+            time.sleep(2)
+
+    if not data:
+        print("❌ Semua jalur API Indodax diblokir atau timeout pada sesi ini.")
+        return
 
     tickers = data.get('tickers', {})
     prices_24h = data.get('prices_24h', {})
@@ -88,7 +101,7 @@ def run_scanner():
     BIG_CAP = {"BTC","ETH","SOL","XRP","HYPE","BNB","DOGE","SHIB","PEPE","PENGU","USDT","USDC","AVAX","TRX","DOT","WIF","BONK"}
     
     history = load_history()
-    is_first_run = len(history) == 0  # Cek apakah ini pertama kali file JSON dibuat
+    is_first_run = len(history) == 0
     
     current_prices = {}
     candidates = []
@@ -110,8 +123,6 @@ def run_scanner():
 
             current_prices[coin] = last
 
-            # PERHITUNGAN LIVE PUMP REAL-TIME
-            # 💡 FIX FIRST RUN: Jika data pertama kali kosong, buat simulasi pump kecil agar bot langsung mengirim data
             if is_first_run:
                 prev_price = last * 0.98 if random.random() > 0.8 else last
             else:
@@ -128,7 +139,7 @@ def run_scanner():
 
     save_history(current_prices)
 
-    candidates.sort(key=lambda x: x[3], reverse=True) # Urutkan berdasarkan volume
+    candidates.sort(key=lambda x: x[3], reverse=True)
     top = candidates[:350] 
 
     LIVE_COUNT = 3
@@ -160,13 +171,13 @@ def run_scanner():
             serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
     live_pump.sort(key=lambda x: x[4], reverse=True)
-    gold.sort(key=lambda x: x[4], reverse=True)
-    silver.sort(key=lambda x: x[4], reverse=True)
-    pre_trending.sort(key=lambda x: x[4], reverse=True)
+    gold.sort(key=lambda x: x[1], reverse=True)
+    silver.sort(key=lambda x: x[1], reverse=True)
+    pre_trending.sort(key=lambda x: x[3], reverse=True)
     serok.sort(key=lambda x: x[1])
 
-    msg = f"🎯 V27.0 RANK PUMP REAL-TIME DETECTION\n"
-    msg += f"Scan 350 coins | Tracker Live JSON | GitHub Mode\n\n"
+    msg = f"🎯 V27.1 RANK PUMP REAL-TIME DETECTION\n"
+    msg += f"Scan 350 coins | Tracker Live JSON | Bypass Active\n\n"
 
     rank_num = 1
     if live_pump:
@@ -212,7 +223,7 @@ def run_scanner():
     send(msg)
 
 def main():
-    print("🚀 Bot V27.0 GitHub Actions Mode Mulai...")
+    print("🚀 Bot V27.1 Bypass Mode Mulai...")
     time.sleep(random.uniform(0.5, 2.0))
     run_scanner()
     print("✅ Sesi eksekusi selesai.")
