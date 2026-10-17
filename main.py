@@ -1,5 +1,5 @@
-# V30.0 FINAL COMBO - PUBLIC PROXY AUTO-BYPASS - LAST EDIT 18 OKT 2026
-import requests, os, json, time, re
+# V30.1 FINAL - ALTCOIN MURNI VIA WARP TUNNEL - LAST EDIT 18 OKT 2026
+import requests, os, json
 from datetime import datetime
 
 # Filter koin besar yang sudah Anda DCA + Stablecoin
@@ -24,52 +24,28 @@ def smart_combo(chg, chg_vol_1m, dl, dh, vol):
     if -25 <= chg <= -2.2 and 0 <= dl <= 1.5 and sq < 20 and vol >= 20000000: return "DALEM", sq
     return "NORMAL", sq
 
-def get_free_proxies():
-    print("Mendapatkan list proxy publik baru...")
-    try:
-        res = requests.get("https://proxyscrape.com", timeout=10)
-        proxies = re.findall(r'[0-9]+(?:\.[0-9]+){3}:[0-9]+', res.text)
-        return proxies if proxies else []
-    except:
-        return []
-
 cache = {}
 if os.path.exists(CACHE_FILE):
     try:
         with open(CACHE_FILE,'r') as f: cache=json.load(f)
     except: pass
 
+# Konfigurasi Tunneling Proxy WARP otomatis (menggunakan port default 4000)
+proxies_warp = {
+    "http": "http://127.0.0.1:4000",
+    "https": "http://127.0.0.1:4000"
+}
+
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
-url_summaries = "https://indodax.com"
-data_market = None
 
-proxy_list = get_free_proxies()
-print(f"Berhasil mengumpulkan {len(proxy_list)} kandidat proxy.")
-
-# Lakukan rotasi proxy sampai menemukan satu IP yang berhasil tembus Cloudflare Indodax
-koneksi_sukses = False
-for proxy in proxy_list[:25]: # Batasi tes 25 proxy teratas untuk menghemat waktu workflow
-    print(f"Mencoba menembus Cloudflare via Proxy: {proxy}")
-    try:
-        proxies_dict = {"http": f"http://{proxy}", "https": f"http://{proxy}"}
-        res = requests.get(url_summaries, headers=headers, proxies=proxies_dict, timeout=6)
-        if res.status_code == 200 and "tickers" in res.json():
-            data_market = res.json()
-            koneksi_sukses = True
-            print(f"🎉 SUKSES! Tembus menggunakan proxy {proxy}")
-            break
-    except:
-        continue
-
-# Jika seluruh proxy gagal, lakukan koneksi direct hoki-hokan
-if not koneksi_sukses:
-    print("Seluruh proxy sibuk, mencoba koneksi langsung ke server Indodax...")
-    try:
-        res = requests.get(url_summaries, headers=headers, timeout=10)
-        data_market = res.json()
-    except Exception as e:
-        print(f"Blokade total aktif. Error: {e}")
-        exit()
+print("Menembus Cloudflare Indodax via Cloudflare WARP Tunnel...")
+try:
+    res = requests.get("https://indodax.com", headers=headers, proxies=proxies_warp, timeout=15)
+    data_market = res.json()
+    print("Gerbang API Berhasil Terbuka Lembut!")
+except Exception as e:
+    print(f"Gagal bypass. Error: {e}")
+    exit()
 
 cands = []
 new_cache = {}
@@ -122,7 +98,7 @@ silver = [c for c in cands if c["cat"] == "SILVER"][:3]
 dalem = [c for c in cands if c["cat"] == "DALEM"][:3]
 
 now = datetime.now().strftime('%H:%M')
-msg = f"🛰️ V30.0 BYPASS PROXY FLIGHT | {now}\n\n"
+msg = f"🛰️ V30.1 WARP RADAR SECURE | {now}\n\n"
 
 if curi_start:
     msg += f"🔥 CURI START FLY ({len(curi_start)}):\n"
@@ -137,6 +113,6 @@ if dalem:
     for i, c in enumerate(dalem, 1): msg += f"{i}. {c['pair']} | {c['chg']:.1f}% | BOTTOM MANTUL\n"
     msg += "\n"
 
-msg += f"SCAN {len(tickers)} | DCA CLEAN | RADAR PROTECTED"
+msg += f"SCAN {len(tickers)} | DCA CLEAN | RADAR ACTIVE"
 print(msg)
 send_tele(msg)
