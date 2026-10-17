@@ -1,109 +1,79 @@
-import requests, json, os
+import requests, os, json
 from datetime import datetime
 
-# === TELEGRAM ===
-TELE_TOKEN = os.getenv("TELE_TOKEN") or "8675452184:AAHlWcaNYQg62ioe3p3yI1wUO5zXMyFBkVw"
-TELE_CHAT_ID = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID")
+# ====== V27.4 FINAL SIMPLE - ANTI PUSING ======
+EARLY_COUNT = 5
+PRE_COUNT = 5
+DALEM_COUNT = 3
+BLACKLIST = ["USDT_IDR","USDC_IDR","BTC_IDR","XAUT_IDR","PAXG_IDR","USDC","USDT"]
+CACHE_FILE = "price_cache.json"
 
-def send_tele(text):
-    if not TELE_TOKEN or not TELE_CHAT_ID:
-        print("TELE_SKIP: TELE_CHAT_ID belum di set")
-        return
-    url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+TELE_TOKEN = os.getenv("TELE_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+TELE_CHAT_ID = os.getenv("TELE_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+
+def send_tele(msg):
     try:
-        # Potong kalo kepanjangan (limit tele 4096)
-        if len(text) > 3500:
-            text = text[:3500] + "\n...potong"
-        r = requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": text}, timeout=15)
-        print(f"TELE_SENT {r.status_code} {r.text[:200]}")
+        url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+        r = requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=10)
+        print(f"TELE_SENT {r.status_code}")
     except Exception as e:
         print(f"TELE_ERR {e}")
 
-# === BOT V27.1 LOOSE ===
-print("=== BOT V27.1 LOOSE START ===")
+def smart_candle(chg, dl, dh, vol):
+    sq = dl + dh
+    if 0 <= dl <= 5.5 and sq < 12 and -20 <= chg <= 5 and vol >= 10_000_000:
+        return "PRE_TRENDING", sq
+    if sq < 18 and 2 <= dl <= 12 and 0.1 <= chg <= 8 and vol >= 50_000_000:
+        return "EARLY", sq
+    if chg <= -1.0 and dl <= 4 and vol >= 50_000_000:
+        return "DALEM", sq
+    return "NORMAL", sq
 
-# Load cache chg15m
+print(f"⚡ V27.4 SIMPLE {datetime.now().strftime('%H:%M')}")
 cache = {}
-if os.path.exists("price_cache.json"):
+if os.path.exists(CACHE_FILE):
     try:
-        cache = json.loads(open("price_cache.json").read())
-        print(f"Cache loaded {len(cache)} coin")
-    except:
-        cache = {}
-
-try:
-    data = requests.get("https://indodax.com/api/tickers", timeout=20).json()
-    tickers = data.get("tickers", {})
-except Exception as e:
-    print(f"Fetch error {e}")
-    tickers = {}
-
-GOLD = []
-PRE = []
-DALEM = []
-
-for k,v in tickers.items():
-    try:
-        last = float(v.get("last",0))
-        low = float(v.get("low",0))
-        high = float(v.get("high",0))
-        vol = float(v.get("vol_idr",0))
-        if last==0 or low==0: continue
-        
-        dl = (last-low)/low*100 if low else 0
-        sq = (high-low)/low*100 if low else 0
-        
-        vol_jt = vol/1_000_000_000
-        # chg15m
-        prev = cache.get(k)
-        chg15m = ((last-prev)/prev*100) if prev else 0.0
-        
-        item = f"- {k.upper()} dl {dl:.2f}% sq {sq:.1f}% vol {vol_jt:.0f}jt chg15m {chg15m:+.1f}%"
-        item_short = f"{k.upper()} {chg15m:+.1f}% vol {vol_jt:.0f}jt"
-        
-        # LOOSE LOGIC (kayak di SS lu)
-        if vol_jt >= 50 and dl < 1.5 and sq < 6:
-            GOLD.append((item, item_short, vol_jt))
-        elif 10 <= vol_jt < 50 and sq < 5:
-            PRE.append((item, item_short, vol_jt))
-        elif dl < 0.8 and vol_jt >= 30:
-            DALEM.append((f"- {k.upper()} dl {dl:.2f}% vol {vol_jt:.0f}jt", item_short, vol_jt))
-    except:
-        continue
-
-# Sort by vol
-GOLD = sorted(GOLD, key=lambda x: x[2], reverse=True)[:5]
-PRE = sorted(PRE, key=lambda x: x[2], reverse=True)[:7]
-DALEM = sorted(DALEM, key=lambda x: x[2], reverse=True)[:7]
-
-print(f"\nGOLD ({len(GOLD)}):")
-for x in GOLD: print(x[0])
-print(f"\nPRE_TRENDING ({len(PRE)}):")
-for x in PRE: print(x[0])
-print(f"\nSEROK_DALEM ({len(DALEM)}):")
-for x in DALEM: print(x[0])
-
-# Save new cache
-new_cache = {}
-for k,v in tickers.items():
-    try:
-        new_cache[k] = float(v.get("last",0))
+        with open(CACHE_FILE,'r') as f: cache=json.load(f)
     except: pass
-open("price_cache.json","w").write(json.dumps(new_cache))
-print("\n=== DONE - cache saved ===")
 
-# === KIRIM TELE ===
-if GOLD or PRE or DALEM:
-    tele_msg = f"⚡️ *APALUU V27.1 LOOSE* {datetime.now().strftime('%H:%M')}\nSCAN {len(tickers)} COIN\n\n"
-    if GOLD:
-        tele_msg += f"🥇 GOLD ({len(GOLD)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(GOLD)]) + "\n\n"
-    if PRE:
-        tele_msg += f"🔥 PRE_TRENDING ({len(PRE)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(PRE)]) + "\n\n"
-    if DALEM:
-        tele_msg += f"💎 SEROK_DALEM ({len(DALEM)}):\n" + "\n".join([f"{i+1}. {x[1]}" for i,x in enumerate(DALEM)]) + "\n\n"
-    tele_msg += f"Total {len(GOLD)+len(PRE)+len(DALEM)} RANK | Vol min 10jt | LOOSE MODE"
-    
-    # Kirim tanpa markdown biar aman
-    send_tele(tele_msg.replace("*",""))
-else:
-    send_tele(f"V27.1 LOOSE {datetime.now().strftime('%H:%M')} - No signal, scan {len(tickers)}")
+tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json()["tickers"]
+candidates = []
+for pair, data in tickers.items():
+    if not pair.endswith("_IDR") or pair in BLACKLIST: continue
+    try:
+        last=float(data["last"]); low=float(data["low"]); high=float(data["high"]); vol=float(data["vol_idr"])
+        if last==0: continue
+        dl=((last-low)/last)*100; dh=((high-last)/last)*100
+        prev=cache.get(pair,last); chg=((last-prev)/prev*100) if prev else 0
+        cat,sq = smart_candle(chg,dl,dh,vol)
+        if cat!="NORMAL":
+            candidates.append((pair,chg,dl,sq,vol,cat))
+        cache[pair]=last
+    except: continue
+
+candidates.sort(key=lambda x: x[4], reverse=True)
+top=candidates[:350]
+with open(CACHE_FILE,'w') as f: json.dump(cache,f)
+
+early=[c for c in top if c[5]=="EARLY"][:EARLY_COUNT]
+pre=[c for c in top if c[5]=="PRE_TRENDING"][:PRE_COUNT]
+dalem=[c for c in top if c[5]=="DALEM"][:DALEM_COUNT]
+
+msg=f"🎯 V27.4 SIMPLE | {datetime.now().strftime('%H:%M')} | NO USDT/BTC | VOL SORT\n\n"
+if early:
+    msg+=f"⚡ EARLY SEBELUM TERBANG ({len(early)}):\n"
+    for i,c in enumerate(early,1):
+        msg+=f"{i}. {c[0]} {c[1]:.1f}% | {c[2]:.0f}% low | sq {c[3]:.0f}% | {c[4]/1e9:.0f}jt\n"
+    msg+="\n"
+if pre:
+    msg+=f"🔥 PRE_TRENDING - SEBELUM TRENDING INDODAX ({len(pre)}):\n"
+    for i,c in enumerate(pre,1):
+        msg+=f"{i}. {c[0]} {c[1]:.1f}% | {c[2]:.0f}% low | sq {c[3]:.0f}% | {c[4]/1e9:.0f}jt | CALON NAIK!\n"
+    msg+="\n"
+if dalem:
+    msg+=f"💎 SEROK DALEM ({len(dalem)}):\n"
+    for i,c in enumerate(dalem,1):
+        msg+=f"{i}. {c[0]} {c[1]:.1f}% | {c[2]:.0f}% low | {c[4]/1e9:.0f}jt | DALEM!\n"
+
+print(msg)
+send_tele(msg)
