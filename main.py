@@ -20,12 +20,19 @@ def send(msg):
         print(f"⚠️ [WARNING] Gagal mengirim pesan ke Telegram: {e}")
 
 def load_history():
-    """Memuat data harga dari eksekusi menit sebelumnya"""
+    """Memuat data harga dari eksekusi menit sebelumnya dengan proteksi data rusak"""
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r') as f:
-                return json.load(f)
-        except: return {}
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+                else:
+                    print("⚠️ Data history bukan dictionary, mereset data...")
+                    return {}
+        except: 
+            print("⚠️ Gagal membaca file history JSON, mereset data...")
+            return {}
     return {}
 
 def save_history(data):
@@ -70,53 +77,39 @@ def smart_candle_v270(chg, dl, dh, vol, live_pump_chg):
 def run_scanner():
     """Fungsi scanning market Indodax dengan Proteksi URL & Jitter Anti-Blokir"""
     
-    # 🕵️ DIKASIH USER-AGENT ACAK BIAR TIDAK DIDETEKSI SEBAGAI SERVER GITHUB
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15"
     ]
     headers = {"User-Agent": random.choice(user_agents)}
     
-    # 🔒 PROTEKSI URL: Menggunakan penggabungan teks dinamis agar tidak terpotong otomatis oleh GitHub
-    base_domain_1 = "indodax.github.io"
-    base_domain_2 = "://indodax.com"
-    base_domain_3 = "indodax.com"
-    endpoint_path = "api/summaries"
-    
+    # Memperbaiki jalur domain agar URL murni terbaca utuh tanpa terpotong
     urls = [
-        f"https://{base_domain_1}/{endpoint_path}",
-        f"https://{base_domain_2}/{endpoint_path}",
-        f"https://{base_domain_3}/{endpoint_path}"
+        "https://indodax.com",
+        "https://indodax.com"
     ]
     
     data = None
     for i, url in enumerate(urls, 1):
         try:
-            # ⏳ ANTI-BLOKIR JITTER: Memberikan jeda waktu acak sebelum menembak server
-            jitter_time = random.uniform(1.5, 4.5)
-            print(f"🔄 Sesi {i} - Memberikan Jitter {jitter_time:.2f} detik...")
+            jitter_time = random.uniform(1.5, 3.5)
+            print(f"🔄 Sesi {i} - Jitter {jitter_time:.2f} detik...")
             time.sleep(jitter_time)
             
             print(f"🚀 Menembak target: {url}")
             response = requests.get(url, timeout=20, headers=headers)
             
-            if response.status_code == 200:
-                # Pastikan respon berupa JSON utuh, bukan halaman web HTML kosong
-                if "tickers" in response.text:
-                    data = response.json()
-                    print("✅ Berhasil menembus server Indodax dan mengambil data!")
-                    break
-                else:
-                    print("⚠️ Respon berhasil terkoneksi, namun isinya diblokir Cloudflare.")
+            if response.status_code == 200 and "tickers" in response.text:
+                data = response.json()
+                print("✅ Berhasil menembus server Indodax dan mengambil data!")
+                break
             else:
-                print(f"⚠️ Server merespon dengan status error: {response.status_code}")
-                
+                print(f"⚠️ Jalur {i} memberikan respon tidak valid.")
         except Exception as e:
             print(f"❌ Jalur {i} Gagal terkoneksi: {e}")
 
     if not data:
-        print("🛑 [CRITICAL ERROR] Semua jalur cermin API Indodax terblokir pada sesi ini.")
+        print("🛑 [CRITICAL ERROR] Semua jalur API Indodax terblokir.")
         return
 
     tickers = data.get('tickers', {})
@@ -161,7 +154,7 @@ def run_scanner():
 
     save_history(current_prices)
 
-    candidates.sort(key=lambda x: x, reverse=True)
+    candidates.sort(key=lambda x: x[3], reverse=True) # Perbaikan indeks sorting volume murni
     top = candidates[:350] 
 
     LIVE_COUNT = 3; GOLD_COUNT = 3; SILVER_COUNT = 3; PRE_TRENDING_COUNT = 2; SEROK_DALEM_COUNT = 2; BRONZE_COUNT = 2
@@ -185,18 +178,18 @@ def run_scanner():
         if status == "SEROK_DALEM" and len(serok) < SEROK_DALEM_COUNT:
             serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
-    live_pump.sort(key=lambda x: x, reverse=True)
-    gold.sort(key=lambda x: x, reverse=True)
-    silver.sort(key=lambda x: x, reverse=True)
-    pre_trending.sort(key=lambda x: x, reverse=True)
-    serok.sort(key=lambda x: x)
+    live_pump.sort(key=lambda x: x[4], reverse=True)
+    gold.sort(key=lambda x: x[5], reverse=True)
+    silver.sort(key=lambda x: x[5], reverse=True)
+    pre_trending.sort(key=lambda x: x[2], reverse=True)
+    serok.sort(key=lambda x: x[1])
 
-    msg = f"🎯 V27.2 JITTER ANTI-BLOCK PASS\n"
-    msg += f"Scan 350 coins | Live Tracker Active | Bypass Ok\n\n"
+    msg = f"🎯 V27.3 RANK PUMP REAL-TIME DETECTION\n"
+    msg += f"Scan 350 coins | Live Tracker Active | Final Fix\n\n"
 
     rank_num = 1
     if live_pump:
-        msg += f"🚨 LIVE PUMP RUNNING LALU ({len(live_pump)}):\n"
+        msg += f"🚨 LIVE PUMP RUNNING ({len(live_pump)}):\n"
         for p, c, v, dl, lp_chg in live_pump:
             msg += f"{rank_num}. ⚡ {p} Melesat +{lp_chg:.1f}%! (24H: {c:.1f}%) | Vol {v/1e6:.0f}jt\n"
             rank_num += 1
@@ -238,7 +231,7 @@ def run_scanner():
     send(msg)
 
 def main():
-    print("🚀 Bot V27.2 Jitter Bypass Mode Mulai...")
+    print("🚀 Bot V27.3 Final Repair Mode Mulai...")
     run_scanner()
     print("✅ Sesi eksekusi selesai.")
 
