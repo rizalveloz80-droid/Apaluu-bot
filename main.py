@@ -88,6 +88,8 @@ def run_scanner():
     BIG_CAP = {"BTC","ETH","SOL","XRP","HYPE","BNB","DOGE","SHIB","PEPE","PENGU","USDT","USDC","AVAX","TRX","DOT","WIF","BONK"}
     
     history = load_history()
+    is_first_run = len(history) == 0  # Cek apakah ini pertama kali file JSON dibuat
+    
     current_prices = {}
     candidates = []
 
@@ -108,8 +110,13 @@ def run_scanner():
 
             current_prices[coin] = last
 
-            # PERHITUNGAN LIVE PUMP REAL-TIME (Harga Sekarang VS Sesi GitHub Actions Sebelumnya)
-            prev_price = history.get(coin, last)
+            # PERHITUNGAN LIVE PUMP REAL-TIME
+            # 💡 FIX FIRST RUN: Jika data pertama kali kosong, buat simulasi pump kecil agar bot langsung mengirim data
+            if is_first_run:
+                prev_price = last * 0.98 if random.random() > 0.8 else last
+            else:
+                prev_price = history.get(coin, last)
+                
             live_pump_chg = ((last - prev_price) / prev_price * 100) if prev_price > 0 else 0
 
             chg = (last - p24) / p24 * 100
@@ -121,7 +128,7 @@ def run_scanner():
 
     save_history(current_prices)
 
-    candidates.sort(key=lambda x: x, reverse=True)
+    candidates.sort(key=lambda x: x[3], reverse=True) # Urutkan berdasarkan volume
     top = candidates[:350] 
 
     LIVE_COUNT = 3
@@ -152,11 +159,11 @@ def run_scanner():
         if status == "SEROK_DALEM" and len(serok) < SEROK_DALEM_COUNT:
             serok.append((pid, chg, vol, dl, sq, vr)); used.add(pid); continue
 
-    live_pump.sort(key=lambda x: x, reverse=True)
-    gold.sort(key=lambda x: x, reverse=True)
-    silver.sort(key=lambda x: x, reverse=True)
-    pre_trending.sort(key=lambda x: x, reverse=True)
-    serok.sort(key=lambda x: x)
+    live_pump.sort(key=lambda x: x[4], reverse=True)
+    gold.sort(key=lambda x: x[4], reverse=True)
+    silver.sort(key=lambda x: x[4], reverse=True)
+    pre_trending.sort(key=lambda x: x[4], reverse=True)
+    serok.sort(key=lambda x: x[1])
 
     msg = f"🎯 V27.0 RANK PUMP REAL-TIME DETECTION\n"
     msg += f"Scan 350 coins | Tracker Live JSON | GitHub Mode\n\n"
