@@ -1,8 +1,7 @@
 import requests, os, json, time
 from datetime import datetime
 
-GOLD_COUNT=5; SILVER_COUNT=3; EARLY_COUNT=2; DALEM_COUNT=5; RUNNING_COUNT=2
-BLACKLIST=["usdt_idr","usdc_idr","xaut_idr","paxg_idr","idrt_idr","ouros_idr","inr_idr","eur_idr","btc_idr","eth_idr","xrp_idr","sol_idr","hype_idr","sui_idr","bnb_idr","indr_idr","neorpnew_idr"]
+GOLD_COUNT=4; RUNNING_COUNT=2; TRENDING_COUNT=3; SILVER_COUNT=2; DALEM_COUNT=3
 CACHE_FILE="price_cache.json"
 
 TELE_TOKEN=os.getenv("TELE_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -13,28 +12,43 @@ def send_tele(msg):
     try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
     except: pass
 
-def smart(chg, dl, dh, vol, last):
+def get_active_pairs():
+    # AMBIL LIST AKTIF RESMI DARI INDODAX - INI KUNCINYA!
+    try:
+        r=requests.get("https://indodax.com/api/pairs", timeout=10).json()
+        # pairs return list of string "btc_idr", "eth_idr" etc
+        active=set([p.lower() for p in r])
+        return active
+    except:
+        return None
+
+def smart(chg, dl, dh, vol, last, high, low):
     sq=dl+dh
     if last < 20: return "SKIP_MURAH",sq
-    if chg <= -15: return "SKIP",sq
-
-    # RUMUS LIVE KAYAK HBAR + TSLAX TADI!
-    # 1. RUNNING - lagi jalan 3-20% + masih 4-10% low
-    if 2.5 <= chg <= 20 and 0 <= dl <= 10 and sq < 20 and vol >= 15000000:
+    if high == low: return "DEAD",sq
+    if vol < 15000000: return "DEAD",sq
+    if chg <= -20: return "SKIP",sq
+    # TRENDING buat XR +51% GTC +25%
+    if chg >= 4 and 5 <= dl <= 85 and vol >= 100000000 and sq < 95:
+        return "TRENDING",sq
+    if 2.0 <= chg <= 20 and 0 <= dl <= 10 and sq < 20 and vol >= 15000000:
         return "RUNNING",sq
-    # 2. GOLD LIVE - SAMA KAYAK RUNNING TAPI BELUM JALAN! 0-4% low sq 0-7% chg -1 s/d 3.8%
     if -1.0 <= chg <= 3.8 and 0 <= dl <= 4 and sq < 7 and vol >= 20000000:
         return "GOLD",sq
-    # 3. SILVER LIVE - udah agak naik 4-8% low tapi masih sq kecil
     if -1.0 <= chg <= 4.5 and 2 <= dl <= 8 and sq < 16 and vol >= 15000000:
         return "SILVER",sq
-    # 4. EARLY - vol kecil 15-150jt 0-2% low
     if -1.5 <= chg <= 2.5 and 0 <= dl <= 2.5 and sq < 8 and 15000000 <= vol <= 150000000:
         return "EARLY",sq
-    # 5. DALEM LIVE - harga terkini lagi di bottom
-    if -8 <= chg <= -2.0 and 0 <= dl <= 4 and sq < 20 and vol >= 15000000:
+    if -10 <= chg <= -2.0 and 0 <= dl <= 4 and sq < 20 and vol >= 15000000:
         return "DALEM",sq
     return "NORMAL",sq
+
+# 1. AMBIL WHITELIST AKTIF
+active_pairs = get_active_pairs()
+if active_pairs:
+    print(f"ACTIVE PAIRS: {len(active_pairs)} from Indodax")
+else:
+    print("PAIRS GAGAL, PAKAI SEMUA")
 
 cache={}
 if os.path.exists(CACHE_FILE):
@@ -54,55 +68,49 @@ cands=[]; now_ts=datetime.now().timestamp()
 for pair,data in tickers.items():
     pl=pair.lower()
     if not pl.endswith("_idr"): continue
-    if pl in BLACKLIST: continue
+    # FILTER PALING AMAN: CUMA YANG ADA DI active_pairs RESMI INDODAX!
+    if active_pairs and pl not in active_pairs:
+        continue  # GID, COL, OKUSD, LYFEL, DFG, INDR, NEORPNEW AUTO KE-SKIP DISINI!
     try:
         last=float(data["last"]); low=float(data["low"]); high=float(data["high"]); vol=float(data["vol_idr"])
         if last==0: continue
         dl=((last-low)/last)*100; dh=((high-last)/last)*100
         prev=cache.get(pair,{}).get("price",last) if isinstance(cache.get(pair),dict) else cache.get(pair,last)
         chg=((last-prev)/prev*100) if prev else 0
-        cat,sq=smart(chg,dl,dh,vol,last)
-        if cat not in ["NORMAL","SKIP_MURAH","SKIP"]:
+        cat,sq=smart(chg,dl,dh,vol,last,high,low)
+        if cat not in ["NORMAL","SKIP_MURAH","SKIP","DEAD"]:
             cands.append((pair.upper(),chg,dl,sq,vol,cat,last))
         cache[pair]={"price":last,"ts":now_ts}
     except: continue
 
 with open(CACHE_FILE,'w') as f: json.dump(cache,f)
 
-# SORT: RUNNING dulu, baru sq terkecil biar selalu update!
-cands.sort(key=lambda x: (0 if x[5]=="RUNNING" else 1 if x[5]=="GOLD" else 2, x[3], x[2]))
+cands.sort(key=lambda x: (0 if x[5]=="TRENDING" else 1 if x[5]=="RUNNING" else 2 if x[5]=="GOLD" else 3, -x[4] if x[5]=="TRENDING" else x[3]))
 
-gold=[c for c in cands if c[5]=="GOLD"][:GOLD_COUNT]
-early=[c for c in cands if c[5]=="EARLY"][:EARLY_COUNT]
+trending=[c for c in cands if c[5]=="TRENDING"][:TRENDING_COUNT]
 running=[c for c in cands if c[5]=="RUNNING"][:RUNNING_COUNT]
+gold=[c for c in cands if c[5]=="GOLD"][:GOLD_COUNT]
 silver=[c for c in cands if c[5]=="SILVER"][:SILVER_COUNT]
 dalem=[c for c in cands if c[5]=="DALEM"][:DALEM_COUNT]
 
 now=datetime.now().strftime('%H:%M')
-msg=f"V28.8 LIVE HBAR RUMUS | {now}\n"
-if running: msg+=f"🚀 RUNNING:{len(running)} "
-msg+=f"GOLD:{len(gold)} SILVER:{len(silver)} DALEM:{len(dalem)} SCAN {len(tickers)}\n\n"
+msg=f"V29.1 WHITELIST INDODAX | {now}\n"
+msg+=f"SCAN {len(tickers)} ACTIVE {len(active_pairs) if active_pairs else 0} | TREND:{len(trending)} RUN:{len(running)} GOLD:{len(gold)}\n\n"
 
+if trending:
+    msg+=f"🔥 TRENDING ({len(trending)}):\n"
+    for c in trending: msg+=f"-> {c[0]} {c[1]:+.1f}% {int(c[2])}% low {int(c[4]/1000000)}jt!\n"
+    msg+="\n"
 if running:
-    msg+=f"🚀 RUNNING LIVE (2):\n"
-    for c in running: msg+=f"-> {c[0]} {c[1]:+.1f}% {int(c[2])}% low sq{int(c[3])}% {int(c[4]/1000000)}jt GAS!\n"
+    msg+=f"🚀 RUNNING ({len(running)}):\n"
+    for c in running: msg+=f"-> {c[0]} {c[1]:+.1f}% {int(c[2])}% low sq{int(c[3])}% GAS!\n"
     msg+="\n"
 if gold:
-    msg+=f"GOLD LIVE (5):\n"
-    for c in gold: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low sq{int(c[3])}% {int(c[4]/1000000)}jt\n"
+    msg+=f"GOLD LIVE ({len(gold)}):\n"
+    for c in gold: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low sq{int(c[3])}%\n"
     msg+="\n"
-if silver:
-    msg+=f"SILVER LIVE (3):\n"
-    for c in silver: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low sq{int(c[3])}% LIVE\n"
-    msg+="\n"
-if dalem:
-    msg+=f"DALEM LIVE (5):\n"
-    for c in dalem: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low BOTTOM\n"
-    msg+="\n"
-if early:
-    msg+=f"EARLY ({len(early)}):\n"
-    for c in early: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low\n"
-    msg+="\n"
+if silver: msg+=f"SILVER ({len(silver)}): {', '.join([f'{s[0]} {s[1]:+.1f}%' for s in silver])}\n\n"
+if dalem: msg+=f"DALEM ({len(dalem)}): {', '.join([f'{s[0]} {s[1]:+.1f}%' for s in dalem])}\n\n"
 
 print(msg)
 send_tele(msg)
