@@ -1,7 +1,7 @@
 name: Apaluu V27 Loose
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 jobs:
   bot:
