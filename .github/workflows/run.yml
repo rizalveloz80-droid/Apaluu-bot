@@ -3,11 +3,11 @@ name: bot
 on:
   schedule:
     - cron: '*/3 * * * *' # Berjalan otomatis setiap 3 menit sekali
-  workflow_dispatch: # Supaya tombol "Run workflow" manual tetap ada
+  workflow_dispatch: # Tombol pemicu manual
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
@@ -21,11 +21,12 @@ jobs:
       - name: Install Requests Dependency
         run: pip install requests
 
-      # === FIX VERSI WARP: MENGGUNAKAN VERSI UTAMA YANG PASTI TERSEDIA ===
+      # === VERSI AMAN: MENGGUNAKAN TAG RILIS v1.4 YANG PASTI ADA DI REPO ===
       - name: Setup Cloudflare WARP Tunnel
-        uses: fscarmen/warp-on-actions@main
+        uses: fscarmen/warp-on-actions@v1.4
         with:
-          mode: proxy
+          stack: dual
+          mode: client
 
       # === EKSEKUSI SCRIPT SCANNER ===
       - name: Run bot
