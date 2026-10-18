@@ -1,25 +1,23 @@
-name: Apaluu V27 Loose
+name: bot
+
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+        - cron: '*/5 * * * *'  # <-- INI KUNCINYA! 5 MENIT SEKALI!
+  workflow_dispatch:       # biar bisa pencet Run bot manual
+
 jobs:
-  bot:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Load price cache
-        uses: actions/cache@v3
-        with:
-          path: price_cache.json
-          key: price-cache-v27
-          restore-keys: price-cache-
-      - uses: actions/setup-python@v4
+            - uses: actions/checkout@v3
+            - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - run: pip install -r requirements.txt
-      - name: Run bot
+            - name: Install requests
+        run: pip install requests
+            - name: Run bot
         env:
-          TELE_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELE_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
+          TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
         run: python main.py
