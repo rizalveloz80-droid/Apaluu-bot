@@ -1,14 +1,10 @@
-import requests, os, json, time
+import requests, os
 from datetime import datetime
-
-GOLD_COUNT=5; RUNNING_COUNT=3; TRENDING_COUNT=3; SILVER_COUNT=3; DALEM_COUNT=3
-CACHE_FILE="price_cache.json"
 
 FORCE_BLACKLIST = set([
     "usdt_idr","usdc_idr","idrt_idr","usde_idr","xaut_idr","paxg_idr","ouros_idr",
-    "btc_idr","eth_idr","xrp_idr","sol_idr","bnb_idr","hype_idr","sui_idr",
-    "gid_idr","col_idr","okusd_idr","lyfel_idr","dfg_idr","inr_idr","eur_idr",
-    "indr_idr","neorpnew_idr","soon_idr","avas_idr"
+    "btc_idr","eth_idr","xrp_idr","sol_idr","bnb_idr","gid_idr","col_idr",
+    "okusd_idr","lyfel_idr","dfg_idr","inr_idr","eur_idr","indr_idr","neorpnew_idr"
 ])
 
 TELE_TOKEN=os.getenv("TELE_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -27,48 +23,22 @@ def get_active_pairs():
         return None
     except: return None
 
-def smart(chg, dl, dh, vol, last, high, low, is_first_run):
+def smart(last, low, high, vol):
+    dl=((last-low)/last*100) if last else 0
+    dh=((high-last)/last*100) if last else 0
     sq=dl+dh
-    if last < 20: return "SKIP",sq
-    if high == low: return "DEAD",sq
-    if vol < 15000000: return "DEAD",sq
-    if chg <= -25: return "SKIP",sq
-    if is_first_run:
-        if dl >= 10 and vol >= 80000000: return "TRENDING",sq
-        if dl <= 5 and sq < 8: return "GOLD",sq
-    if chg >= 3.5 and 5 <= dl <= 85 and vol >= 80000000: return "TRENDING",sq
-    if 1.5 <= chg <= 20 and 0 <= dl <= 10 and sq < 20 and vol >= 15000000: return "RUNNING",sq
-    if -2 <= chg <= 4 and 0 <= dl <= 5 and sq < 8 and vol >= 15000000: return "GOLD",sq
-    if -2 <= chg <= 5 and 2 <= dl <= 10 and sq < 18 and vol >= 15000000: return "SILVER",sq
-    if -12 <= chg <= -1.5 and 0 <= dl <= 5 and sq < 22 and vol >= 15000000: return "DALEM",sq
-    return "NORMAL",sq
+    rng=((high-low)/low*100) if low else 0
+    if last < 10 or high==low or vol < 3000000: return "DEAD",sq,dl,rng
+    # UNIVERSAL - BUAT SEMUA KOIN TRENDING!
+    if vol >= 1000000000: return "SUPER",sq,dl,rng  # >1Bn kayak XR
+    if dl >= 4 and vol >= 30000000 and rng >= 8: return "TRENDING",sq,dl,rng  # 30jt aja!
+    if dl <= 8 and sq < 15 and vol >= 5000000: return "RUNNING",sq,dl,rng
+    if dl <= 4 and sq < 8 and vol >= 5000000: return "GOLD",sq,dl,rng
+    if dl <= 10 and sq < 15: return "SILVER",sq,dl,rng
+    return "NORMAL",sq,dl,rng
 
-active_pairs = get_active_pairs()
-now_ts = datetime.now().timestamp()
-
-# CACHE AUTO RESET - GA USAH HAPUS MANUAL!
-cache={}; is_first_run=True
-if os.path.exists(CACHE_FILE):
-    try:
-        with open(CACHE_FILE,'r') as f: cache=json.load(f)
-        # cek umur cache, kalo >1 jam reset biar ga kosong kayak SS lu
-        try:
-            oldest = min([v.get("ts",0) for v in cache.values() if isinstance(v,dict)], default=now_ts)
-            if now_ts - oldest > 3600: 
-                print("RESET CACHE >1 JAM")
-                cache={}
-            else:
-                if len(cache) > 20: is_first_run=False
-        except: is_first_run=False
-    except: cache={}
-
-tickers=None
-for _ in range(3):
-    try:
-        tickers=requests.get("https://indodax.com/api/tickers", timeout=20).json()["tickers"]
-        break
-    except: time.sleep(2)
-if not tickers: exit()
+active_pairs=get_active_pairs()
+tickers=requests.get("https://indodax.com/api/tickers", timeout=20).json()["tickers"]
 
 cands=[]
 for pair,data in tickers.items():
@@ -78,45 +48,43 @@ for pair,data in tickers.items():
     if active_pairs and pl not in active_pairs: continue
     try:
         last=float(data["last"]); low=float(data["low"]); high=float(data["high"]); vol=float(data["vol_idr"])
-        if last==0: continue
-        dl=((last-low)/last)*100; dh=((high-last)/last)*100
-        prev_obj=cache.get(pair); prev=prev_obj.get("price",last) if isinstance(prev_obj,dict) else prev_obj
-        if prev is None: prev=last
-        chg=((last-prev)/prev*100) if prev else 0
-        cat,sq=smart(chg,dl,dh,vol,last,high,low,is_first_run)
-        if cat not in ["NORMAL","SKIP","DEAD"]:
-            cands.append((pair.upper(),chg,dl,sq,vol,cat,last))
-        cache[pair]={"price":last,"ts":now_ts}
+        cat,sq,dl,rng=smart(last,low,high,vol)
+        if cat!="NORMAL" and cat!="DEAD":
+            cands.append((pair.upper(),dl,sq,vol,cat,last,rng))
     except: continue
 
-with open(CACHE_FILE,'w') as f: json.dump(cache,f)
+cands.sort(key=lambda x: (-x[3] if x[4] in ["SUPER","TRENDING"] else x[2]))
 
-cands.sort(key=lambda x: (0 if x[5]=="TRENDING" else 1 if x[5]=="RUNNING" else 2, -x[4] if x[5]=="TRENDING" else x[3]))
-
-trending=[c for c in cands if c[5]=="TRENDING"][:TRENDING_COUNT]
-running=[c for c in cands if c[5]=="RUNNING"][:RUNNING_COUNT]
-gold=[c for c in cands if c[5]=="GOLD"][:GOLD_COUNT]
-silver=[c for c in cands if c[5]=="SILVER"][:SILVER_COUNT]
-dalem=[c for c in cands if c[5]=="DALEM"][:DALEM_COUNT]
+super_t=[c for c in cands if c[4]=="SUPER"][:2]
+trend=[c for c in cands if c[4]=="TRENDING"][:6]
+run=[c for c in cands if c[4]=="RUNNING"][:4]
+gold=[c for c in cands if c[4]=="GOLD"][:4]
+silver=[c for c in cands if c[4]=="SILVER"][:3]
 
 now=datetime.now().strftime('%H:%M')
-msg=f"V29.4 AUTO RESET | {now}\nSCAN {len(tickers)} WL {len(active_pairs) if active_pairs else 0}\n\n"
-if trending:
-    msg+=f"🔥 TRENDING ({len(trending)}):\n"
-    for c in trending: msg+=f"-> {c[0]} {c[1]:+.1f}% {int(c[4]/1000000)}jt!\n"
+msg=f"V30.1 UNIVERSAL ALL COIN | {now}\nSCAN {len(tickers)} WL {len(active_pairs) if active_pairs else 0}\n\n"
+
+if super_t:
+    msg+=f"🚨 SUPER VOL >1Bn ({len(super_t)}):\n"
+    for c in super_t: msg+=f"-> {c[0]} {int(c[1])}% low Vol {int(c[3]/1000000000*10)/10}Bn!\n"
     msg+="\n"
-if running:
-    msg+=f"🚀 RUNNING ({len(running)}):\n"
-    for c in running: msg+=f"-> {c[0]} {c[1]:+.1f}% sq{int(c[3])}% GAS!\n"
+if trend:
+    msg+=f"🔥 TRENDING ALL COIN ({len(trend)}):\n"
+    for c in trend: msg+=f"-> {c[0]} {int(c[1])}% low Vol {int(c[3]/1000000)}jt Range {int(c[6])}% \n"
+    msg+="\n"
+if run:
+    msg+=f"🚀 RUNNING ({len(run)}):\n"
+    for c in run: msg+=f"-> {c[0]} {int(c[1])}% low sq{int(c[2])}% {int(c[3]/1000000)}jt\n"
     msg+="\n"
 if gold:
-    msg+=f"GOLD LIVE ({len(gold)}):\n"
-    for c in gold: msg+=f"{c[0]} {c[1]:+.1f}% {int(c[2])}% low\n"
-    msg+="\n"
-if silver: msg+=f"SILVER: {', '.join([f'{s[0]}' for s in silver])}\n\n"
-if dalem: msg+=f"DALEM: {', '.join([f'{s[0]}' for s in dalem])}\n\n"
-if not trending and not running and not gold:
-    msg+=f"SCANNING... TUNGGU 15 MENIT LAGI\n"
+    msg+=f"GOLD ({len(gold)}): {', '.join([f'{c[0]} {int(c[1])}% low' for c in gold])}\n\n"
+if silver:
+    msg+=f"SILVER ({len(silver)}): {', '.join([f'{c[0]}' for c in silver])}\n\n"
+
+if not trend and not super_t:
+    msg+=f"TOP VOL HARI INI:\n"
+    top=sorted(cands, key=lambda x: -x[3])[:5]
+    for c in top: msg+=f"{c[0]} Vol {int(c[3]/1000000)}jt {int(c[1])}% low\n"
 
 print(msg)
 send_tele(msg)
