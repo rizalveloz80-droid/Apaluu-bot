@@ -46,7 +46,7 @@ for pair, d in tickers.items():
 
         # === V51 FIX ANTI JEBAKAN SN -24% ===
         if last < low*0.85 or last > high*1.15: continue
-        if last < high*0.75: continue  # Kalo dump 25% dari high kayak SN, SKIP!
+        if last < high*0.80: continue  # Kalo dump 25% dari high kayak SN, SKIP!
         # Kalo ada field change, filter -10%
         try:
             ch = float(d.get('change', 0))
