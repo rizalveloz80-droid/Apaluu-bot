@@ -42,18 +42,9 @@ for pair, d in tickers.items():
         if low == 0: continue
         if last < 20: continue
         if vol < 200_000_000: continue
-        if vol > 15_000_000_000: continue  # V51 - 15 Bn biar ZEREBRO masuk
+        if vol > 15_000_000_000: continue  # V47.5 - FIX 15 Bn BIAR ZEREBRO MASUK!
 
-        # === V51 FIX ANTI JEBAKAN SN -24% ===
         if last < low*0.85 or last > high*1.15: continue
-        if last < high*0.80: continue  # Kalo dump 25% dari high kayak SN, SKIP!
-        # Kalo ada field change, filter -10%
-        try:
-            ch = float(d.get('change', 0))
-            if ch < -10: continue
-        except:
-            pass
-        # === END FIX ===
 
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
@@ -62,58 +53,47 @@ for pair, d in tickers.items():
         if pct_low < 8: continue
         if pct_low > 60: continue
         result.append({
-            'pair': pair,
-            'last': last,
-            'vol': vol,
-            'pct_low': pct_low,
-            'pct_high': pct_high
+            'pair': pair, 'last': last, 'vol': vol,
+            'pct_low': pct_low, 'pct_high': pct_high
         })
     except:
         continue
 
 def fmt_vol(v):
-    if v >= 1_000_000_000:
-        return f"{v/1_000_000_000:.2f} Bn"
-    else:
-        return f"{v/1_000_000:.0f} Mn"
+    return f"{v/1_000_000_000:.2f} Bn" if v >= 1_000_000_000 else f"{v/1_000_000:.0f} Mn"
 
-# V51 SORT SISA TERGEDE = PALING AMAN DI ATAS!
+# V47.5 SORT VOL GEDE TETEP KAYA V47!
 running = [x for x in result if 8 <= x['pct_low'] <= 22 and x['pct_high'] >= 5]
-running = sorted(running, key=lambda x: x['pct_high'], reverse=True)[:7]
+running = sorted(running, key=lambda x: x['vol'], reverse=True)[:7]
 
 mid = [x for x in result if 22 < x['pct_low'] <= 35 and x['pct_high'] >= 5]
-mid = sorted(mid, key=lambda x: x['pct_high'], reverse=True)[:7]
+mid = sorted(mid, key=lambda x: x['vol'], reverse=True)[:7]
 
 challenge = [x for x in result if 35 < x['pct_low'] <= 60 and x['pct_high'] >= 3]
-challenge = sorted(challenge, key=lambda x: x['pct_high'], reverse=True)[:5]
+challenge = sorted(challenge, key=lambda x: x['vol'], reverse=True)[:5]
 
-msg = f"V51 ANTI-DUMP {now} | {len(result)} coin\n\n"
-
+msg = f"V47.5 {now} | {len(result)} coin\n\n"
 if running:
-    msg += "🌱 RUNNING 8-22% (No 1 = sisa gede = aman):\n"
+    msg += "🌱 RUNNING 8-22%:\n"
     for i, c in enumerate(running, 1):
         name = c['pair'].replace('_idr','').upper()
         msg += f"{i}. {name} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
     msg += "\n"
-
 if mid:
-    msg += "🚀 MID 22-35% (No 1 = sisa gede):\n"
+    msg += "🚀 MID 22-35%:\n"
     for i, c in enumerate(mid, 1):
         name = c['pair'].replace('_idr','').upper()
         msg += f"{i}. {name} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
     msg += "\n"
-
 if challenge:
     msg += "🔥 CHALLENGE 35-60%:\n"
     for i, c in enumerate(challenge, 1):
         name = c['pair'].replace('_idr','').upper()
         msg += f"{i}. {name} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%!\n"
     msg += "\n"
-
 if not running and not mid and not challenge:
-    msg += "💤 SEPI - Ga ada yang lolos!\n"
-
-msg += "💡 V51: SN -24% auto ke-filter! No 1 = aman!"
+    msg += "💤 SEPI\n"
+msg += "💡 V47.5: V47 + ZEREBRO fix!"
 
 print(msg)
 send_tele(msg)
