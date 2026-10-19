@@ -31,66 +31,42 @@ for pair, d in tickers.items():
     try:
         last = float(d['last']); low = float(d['low']); high = float(d['high']); vol = float(d.get('vol_idr', 0))
         if low == 0 or last < 20: continue
-        if vol < 150_000_000: continue  # V47.3 turunin 150Mn biar SN masuk
+        if vol < 100_000_000: continue  # V48 turunin 100Mn biar POND masuk!
         if vol > 6_000_000_000: continue
         if last < low*0.85 or last > high*1.15: continue
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
         if range_pct > 70 or pct_low < 8: continue
-        result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high})
+        # HITUNG SCORE BUAT SORTING 10 BEST
+        score = pct_high*0.7 + (vol/1_000_000_000)*30
+        result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high, 'score': score})
     except:
         continue
 
 def fmt_vol(v):
     return f"{v/1_000_000_000:.2f} Bn" if v >= 1_000_000_000 else f"{v/1_000_000:.0f} Mn"
 
-running_aman = sorted([x for x in result if 8 <= x['pct_low'] <= 22 and x['pct_high'] >= 10], key=lambda x: x['pct_high'], reverse=True)[:6]
-running_warn = sorted([x for x in result if 8 <= x['pct_low'] <= 22 and 2 <= x['pct_high'] < 10], key=lambda x: x['vol'], reverse=True)[:6]
-mid_aman = sorted([x for x in result if 22 < x['pct_low'] <= 35 and x['pct_high'] >= 10], key=lambda x: x['pct_high'], reverse=True)[:6]
-mid_warn = sorted([x for x in result if 22 < x['pct_low'] <= 35 and 2 <= x['pct_high'] < 10], key=lambda x: x['vol'], reverse=True)[:6]
-challenge = sorted([x for x in result if 35 < x['pct_low'] <= 70 and x['pct_high'] >= 1], key=lambda x: x['vol'], reverse=True)[:6]
-hampir_high = sorted([x for x in result if x['pct_low'] >= 8 and 0 <= x['pct_high'] < 2], key=lambda x: x['pct_low'], reverse=True)[:6]
+# V48 GOLDEN - CUMA 8-15% SISA >15% - 10 BEST ONLY!
+golden_best = sorted(
+    [x for x in result if 8 <= x['pct_low'] <= 15 and x['pct_high'] >= 15], 
+    key=lambda x: x['score'], reverse=True
+)[:10]
 
-msg = f"V47.3 BEST 47 {now} | {len(result)} coin\n\n"
+msg = f"V48 GOLDEN 8-15% {now} | {len(result)} scan -> {len(golden_best)} BEST\n\n"
 
-if running_aman:
-    msg += "🌱 8-22% SISA >10%:\n"
-    for c in running_aman:
+if golden_best:
+    msg += "🌱 8-15% SISA >15% - 10 BEST:\n"
+    for c in golden_best:
         msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
-
-if running_warn:
-    msg += "⚠️ 8-22% SISA 2-10%:\n"
-    for c in running_warn:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
-
-if mid_aman:
-    msg += "🚀 22-35% SISA >10%:\n"
-    for c in mid_aman:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
-
-if mid_warn:
-    msg += "🔶 22-35% SISA 2-10%:\n"
-    for c in mid_warn:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
-
-if challenge:
-    msg += "🔥 35-70% SISA 1%+:\n"
-    for c in challenge:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
-
-if hampir_high:
-    msg += "✅ SISA <2%:\n"
-    for c in hampir_high:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-
-if not any([running_aman, running_warn, mid_aman, mid_warn, challenge, hampir_high]):
-    msg += "KOSONG\n"
+else:
+    msg += "KOSONG - ga ada yang 8-15% sisa >15%\n"
+    # Fallback: kasih yang 8-15% sisa >10% biar ga kosong banget
+    fallback = sorted([x for x in result if 8 <= x['pct_low'] <= 15 and x['pct_high'] >= 10], key=lambda x: x['score'], reverse=True)[:10]
+    if fallback:
+        msg += "\nFALLBACK 8-15% SISA >10%:\n"
+        for c in fallback:
+            msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
 
 print(msg)
 send_tele(msg)
