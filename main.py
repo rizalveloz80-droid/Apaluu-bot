@@ -31,13 +31,13 @@ for pair, d in tickers.items():
     try:
         last = float(d['last']); low = float(d['low']); high = float(d['high']); vol = float(d.get('vol_idr', 0))
         if low == 0 or last < 20: continue
-        if vol < 100_000_000: continue  # V48.1 100Mn biar POND masuk
-        if vol > 6_000_000_000: continue
+        if vol < 100_000_000: continue
+        if vol > 10_000_000_000: continue
         if last < low*0.85 or last > high*1.15: continue
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
-        if range_pct > 70 or pct_low < 8: continue
+        if range_pct > 90 or pct_low < 7: continue
         score = pct_high*0.7 + (vol/1_000_000_000)*30
         result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high, 'score': score})
     except:
@@ -46,20 +46,25 @@ for pair, d in tickers.items():
 def fmt_vol(v):
     return f"{v/1_000_000_000:.2f} Bn" if v >= 1_000_000_000 else f"{v/1_000_000:.0f} Mn"
 
-# V48.1 GOLDEN - 8-15% SISA >10% - 10 BEST ONLY!
-golden_best = sorted(
-    [x for x in result if 8 <= x['pct_low'] <= 15 and x['pct_high'] >= 10], 
-    key=lambda x: x['score'], reverse=True
-)[:10]
+# V49 FINAL LOCK
+golden = sorted([x for x in result if 8 <= x['pct_low'] <= 16 and x['pct_high'] >= 10], key=lambda x: x['score'], reverse=True)[:7]
+trending = sorted([x for x in result if 16 < x['pct_low'] <= 35 and x['pct_high'] >= 3], key=lambda x: x['vol'], reverse=True)[:5]
 
-msg = f"V48.1 GOLDEN 8-15% {now} | {len(result)} scan -> {len(golden_best)} BEST\n\n"
+msg = f"V49 LOCK {now} | {len(result)} scan\n\n"
 
-if golden_best:
-    msg += "🌱 8-15% SISA >10% - 10 BEST:\n"
-    for c in golden_best:
+if golden:
+    msg += "🌱 GOLDEN 8-16% SISA >10%:\n"
+    for c in golden:
         msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-else:
-    msg += "KOSONG - ga ada 8-15% sisa >10%\n"
+    msg += "\n"
+
+if trending:
+    msg += "🔥 TRENDING 16-35% SISA >3%:\n"
+    for c in trending:
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
+
+if not golden and not trending:
+    msg += "KOSONG - MARKET SEPI\n"
 
 print(msg)
 send_tele(msg)
