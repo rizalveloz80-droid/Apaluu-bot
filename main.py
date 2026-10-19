@@ -1,13 +1,12 @@
 import requests, os
 from datetime import datetime, timedelta
 
-# TELEGRAM - SUPPORT 2 NAMA ENV
 TELE_TOKEN = os.getenv('TELE_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('TELEGRAM_CHAT_ID')
 
 def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT_ID:
-        print("❌ TOKEN/CHAT_ID KOSONG! CEK SECRETS!")
+        print("❌ TOKEN/CHAT_ID KOSONG!")
         return
     url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
     try:
@@ -20,8 +19,7 @@ def get_tickers():
     try:
         r = requests.get("https://indodax.com/api/tickers", timeout=15).json()
         return r.get('tickers', {})
-    except Exception as e:
-        print(f"❌ TICKERS ERROR {e}")
+    except:
         return {}
 
 BLACKLIST = {
@@ -44,8 +42,19 @@ for pair, d in tickers.items():
         if low == 0: continue
         if last < 20: continue
         if vol < 200_000_000: continue
-        if vol > 15_000_000_000: continue  # V50 - 15 Bn biar ZEREBRO masuk!
+        if vol > 15_000_000_000: continue  # V51 - 15 Bn biar ZEREBRO masuk
+
+        # === V51 FIX ANTI JEBAKAN SN -24% ===
         if last < low*0.85 or last > high*1.15: continue
+        if last < high*0.75: continue  # Kalo dump 25% dari high kayak SN, SKIP!
+        # Kalo ada field change, filter -10%
+        try:
+            ch = float(d.get('change', 0))
+            if ch < -10: continue
+        except:
+            pass
+        # === END FIX ===
+
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
@@ -68,7 +77,7 @@ def fmt_vol(v):
     else:
         return f"{v/1_000_000:.0f} Mn"
 
-# V50 SORT BY SISA TERGEDE = PALING AMAN DI ATAS!
+# V51 SORT SISA TERGEDE = PALING AMAN DI ATAS!
 running = [x for x in result if 8 <= x['pct_low'] <= 22 and x['pct_high'] >= 5]
 running = sorted(running, key=lambda x: x['pct_high'], reverse=True)[:7]
 
@@ -78,7 +87,7 @@ mid = sorted(mid, key=lambda x: x['pct_high'], reverse=True)[:7]
 challenge = [x for x in result if 35 < x['pct_low'] <= 60 and x['pct_high'] >= 3]
 challenge = sorted(challenge, key=lambda x: x['pct_high'], reverse=True)[:5]
 
-msg = f"V50 SORT SISA {now} | {len(result)} coin\n\n"
+msg = f"V51 ANTI-DUMP {now} | {len(result)} coin\n\n"
 
 if running:
     msg += "🌱 RUNNING 8-22% (No 1 = sisa gede = aman):\n"
@@ -95,16 +104,16 @@ if mid:
     msg += "\n"
 
 if challenge:
-    msg += "🔥 CHALLENGE 35-60% (No 1 = sisa gede):\n"
+    msg += "🔥 CHALLENGE 35-60%:\n"
     for i, c in enumerate(challenge, 1):
         name = c['pair'].replace('_idr','').upper()
         msg += f"{i}. {name} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%!\n"
     msg += "\n"
 
 if not running and not mid and not challenge:
-    msg += "💤 SEPI - Ga ada yang lolos 8-60%\n"
+    msg += "💤 SEPI - Ga ada yang lolos!\n"
 
-msg += "💡 No 1 = sisa terbesar = paling aman entry!"
+msg += "💡 V51: SN -24% auto ke-filter! No 1 = aman!"
 
 print(msg)
 send_tele(msg)
