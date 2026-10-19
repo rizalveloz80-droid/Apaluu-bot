@@ -1,6 +1,5 @@
 import requests, os
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
@@ -26,7 +25,7 @@ BLACKLIST = {
 }
 
 tickers = get_tickers()
-wib = pytz.timezone('Asia/Jakarta')
+wib = timezone(timedelta(hours=7))
 now = datetime.now(wib).strftime("%H:%M")
 result = []
 
@@ -77,7 +76,6 @@ def fmt_vol(v):
     else:
         return f"{v/1_000_000:.0f} Mn"
 
-# V47.1 BOTTOM FIX - SISA DITURUNIN BIAR GA HILANG!
 running = [x for x in result if 8 <= x['pct_low'] <= 22 and x['pct_high'] >= 2]
 running = sorted(running, key=lambda x: x['vol'], reverse=True)[:6]
 
