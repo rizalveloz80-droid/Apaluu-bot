@@ -32,43 +32,42 @@ for pair, d in tickers.items():
     try:
         last = float(d['last']); low = float(d['low']); high = float(d['high'])
         vol = float(d.get('vol_idr',0))
-        # MN ONLY! TENDANG YANG Bn! (<1Bn aja!)
-        if vol >= 1_000_000_000: continue
-        if vol < 150_000_000: continue
-        if low==0 or last<10: continue
+        if low==0 or last<10: continue # tendang koin 11 rupiah kayak UNMD!
         if last < low*0.9 or last > high*1.1: continue
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
-        if range_pct > 60: continue
+        if range_pct > 45: continue # tendang koin liar 44% kayak UNMD!
         result.append({'pair':pair,'vol':vol,'pct_low':pct_low,'pct_high':pct_high})
     except: continue
 
 def fmt_vol(v):
-    return f"{v/1_000_000:.0f} Mn"
+    return f"{v/1_000_000_000:.2f}Bn" if v>=1_000_000_000 else f"{v/1_000_000:.0f}jt"
 
-running = [x for x in result if 10 <= x['pct_low'] <= 27 and 12 <= x['pct_high']]
-running = sorted(running, key=lambda x: x['pct_low'], reverse=True)[:8]
+# V42 RUNNING - VOL 350jt-900jt SISA 12-35% - BIAR GA KAYAK GTC DOWNTREND & MRS SISA 3%!
+running = [x for x in result if 10 <= x['pct_low'] <= 25 and 350_000_000 <= x['vol'] <= 900_000_000 and 12 <= x['pct_high'] <= 35]
+running = sorted(running, key=lambda x: x['vol'], reverse=True)[:6]
 
-challenge = [x for x in result if 27 < x['pct_low'] <= 60 and x['pct_high'] >= 5]
-challenge = sorted(challenge, key=lambda x: x['vol'], reverse=True)[:8]
+# V42 CHALLENGE - VOL >1Bn SISA >10% - KHUSUS TANTANGAN! CUMA KOIN MELEDAK KAYAK ICNT!
+challenge = [x for x in result if 25 < x['pct_low'] <= 55 and x['vol'] >= 1_000_000_000 and x['pct_high'] >= 10]
+challenge = sorted(challenge, key=lambda x: x['vol'], reverse=True)[:4]
 
-msg = f"V43 MN ONLY {now} | {len(result)} coin Mn bersih (tanpa Bn)\n\n"
+msg = f"V42 TANTANGAN {now} | {len(result)} coin bersih\n\n"
 
 if running:
-    msg += "🚀 RUNNING 10-27% MN (150-999 Mn):\n"
+    msg += "🚀 RUNNING SCALP 10-25% VOL 350-900jt SISA 12%+:\n"
     for c in running:
         msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
     msg += "\n"
 else:
-    msg += "🚀 RUNNING MN: KOSONG!\n\n"
+    msg += "🚀 RUNNING: KOSONG - GA ADA YANG FRESH! LIBUR DULU MIN!\n\n"
 
 if challenge:
-    msg += "🔥 CHALLENGE 27-60% MN (TANTANGAN KAYA ONL!):\n"
+    msg += "🔥 CHALLENGE 25-55% VOL >1Bn (HIGH RISK!):\n"
     for c in challenge:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% - HIGH RISK!\n"
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% - GAS 20% MODAL!\n"
 else:
-    msg += "🔥 CHALLENGE MN: KOSONG!\n"
+    msg += "🔥 CHALLENGE: KOSONG - BELUM ADA YANG MELEDAK!\n"
 
 print(msg)
 send_tele(msg)
