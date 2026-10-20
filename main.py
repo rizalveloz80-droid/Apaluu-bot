@@ -32,25 +32,33 @@ for pair, d in tickers.items():
         last = float(d['last']); low = float(d['low']); high = float(d['high']); vol = float(d.get('vol_idr', 0))
         if low == 0 or last < 20: continue
         if vol < 100_000_000: continue
-        if vol > 10_000_000_000: continue
+        if vol > 15_000_000_000: continue
         if last < low*0.85 or last > high*1.15: continue
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
-        if range_pct > 90 or pct_low < 7: continue
-        score = pct_high*0.7 + (vol/1_000_000_000)*30
-        result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high, 'score': score})
+        if range_pct > 120 or pct_low < 8: continue
+        result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high})
     except:
         continue
 
 def fmt_vol(v):
     return f"{v/1_000_000_000:.2f} Bn" if v >= 1_000_000_000 else f"{v/1_000_000:.0f} Mn"
 
-# V49 FINAL LOCK
-golden = sorted([x for x in result if 8 <= x['pct_low'] <= 16 and x['pct_high'] >= 10], key=lambda x: x['score'], reverse=True)[:7]
-trending = sorted([x for x in result if 16 < x['pct_low'] <= 35 and x['pct_high'] >= 3], key=lambda x: x['vol'], reverse=True)[:5]
+# V50 - RESISTANCE LOGIC!
+# Lu mau running yang belum ketinggalan = sisa gede!
+running = sorted([x for x in result if 10 <= x['pct_low'] <= 25 and 150_000_000 <= x['vol'] <= 800_000_000 and x['pct_high'] >= 15], key=lambda x: x['pct_high'], reverse=True)[:5]
+golden = sorted([x for x in result if 8 <= x['pct_low'] <= 16 and x['pct_high'] >= 10], key=lambda x: x['pct_high'], reverse=True)[:6]
+trending_ok = sorted([x for x in result if 16 < x['pct_low'] <= 35 and x['pct_high'] >= 10], key=lambda x: x['vol'], reverse=True)[:5]
+pucuk = sorted([x for x in result if x['pct_low'] > 35], key=lambda x: x['pct_low'], reverse=True)[:5]
 
-msg = f"V49 LOCK {now} | {len(result)} scan\n\n"
+msg = f"V50 RESISTANCE {now} | {len(result)} scan\n\n"
+
+if running:
+    msg += "🚀 RUNNING 10-25% VOL KECIL (150-800jt) SISA >15%:\n"
+    for c in running:
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% Vol {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
+    msg += "\n"
 
 if golden:
     msg += "🌱 GOLDEN 8-16% SISA >10%:\n"
@@ -58,13 +66,19 @@ if golden:
         msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
     msg += "\n"
 
-if trending:
-    msg += "🔥 TRENDING 16-35% SISA >3%:\n"
-    for c in trending:
+if trending_ok:
+    msg += "🔥 TRENDING 16-35% SISA >10% (masih ada resistance):\n"
+    for c in trending_ok:
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
+    msg += "\n"
+
+if pucuk:
+    msg += "⚠️ PUCUK >35% JANGAN ENTRY (udah mentok):\n"
+    for c in pucuk:
         msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
 
-if not golden and not trending:
-    msg += "KOSONG - MARKET SEPI\n"
+if not running and not golden and not trending_ok:
+    msg += "KOSONG - semua udah pucuk / sisa tipis\n"
 
 print(msg)
 send_tele(msg)
