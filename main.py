@@ -31,8 +31,8 @@ for pair, d in tickers.items():
         if vol<100_000_000 or vol>10_000_000_000: continue
         
         pct_low = (last-low)/low*100
-        pct_high = (high-last)/last*100  # SISA = JARAK KE RESISTANCE!
-        range_pct = (high-low)/low*100   # RANGE = SEBERAPA GEDE PUMP HARI INI!
+        pct_high = (high-last)/last*100
+        range_pct = (high-low)/low*100
         mid = (high+low)/2
         
         if range_pct>100 or pct_low<3: continue
@@ -42,23 +42,18 @@ for pair, d in tickers.items():
 def fmt_vol(v):
     return f"{v/1e9:.2f} Bn" if v>=1e9 else f"{v/1e6:.0f} Mn"
 
-# ===== V54 FINAL LOCK FOREVER - FILTER RESISTANCE + SEMUA PELAJARAN! =====
-# RULE FINAL GA GANTI LAGI!
-
-# 1. POND LESSON: mid*0.90 jangan 0.98!
-# 2. DRX LESSON: range <=45 & sisa <=45! range 82% = PUCUK!
-# 3. ANOA LESSON: chg >=0! chg -1,43% = LAGI DUMP!
-# 4. RESISTANCE LESSON: sisa >=15%! sisa 11% = UDAH DI RESISTANCE 217!
+# ===== V54 FINAL LOCK FOREVER - COPY FULL INI! =====
+# FIX: DRX range 82% hilang, ANOA chg -1,43% hilang, ALTLAYER sisa 8% di resistance ke-filter!
 
 akan = sorted([
     x for x in result 
-    if 3 <= x['pct_low'] <= 12              # Calon STIK 49
-    and 8 <= x['range_pct'] <= 35           # FIX RESISTANCE! Max 35%! ANOA 15% lolos, DRX 82% HILANG!
-    and 15 <= x['pct_high'] <= 40           # FIX RESISTANCE! Minimal 15% dari High! Punya ruang naik! ANOA 11% HILANG! POND 15% LOLOS!
-    and 0 <= x['chg'] <= 15                 # FIX ANOA! Chg negatif = dump = buang!
+    if 3 <= x['pct_low'] <= 12
+    and 8 <= x['range_pct'] <= 35
+    and 15 <= x['pct_high'] <= 40
+    and 0 <= x['chg'] <= 15
     and 120_000_000 <= x['vol'] <= 2_500_000_000
-    and x['last'] >= x['mid']*0.90          # POND LESSON! 0.90!
-    and x['last'] < x['high']*0.92          # FIX RESISTANCE BARU! Harus di bawah 92% High! Kalo >92% High = udah di resistance!
+    and x['last'] >= x['mid']*0.90
+    and x['last'] < x['high']*0.92
 ], key=lambda x: x['pct_high'], reverse=True)[:2]
 
 akan_pairs = set([x['pair'] for x in akan])
@@ -66,8 +61,8 @@ akan_pairs = set([x['pair'] for x in akan])
 lagi = sorted([
     x for x in result
     if 12 < x['pct_low'] <= 25
-    and x['range_pct'] <= 40                # FIX DRX! Range gede = udah pump!
-    and 12 <= x['pct_high'] <= 40          # FIX RESISTANCE! Sisa jangan kegedean (high basi) & jangan kekecilan (udah di resistance)
+    and x['range_pct'] <= 40
+    and 12 <= x['pct_high'] <= 40
     and 0 <= x['chg'] <= 25
     and x['pair'] not in akan_pairs
     and x['last'] < x['high']*0.93
@@ -102,6 +97,7 @@ if udah:
     msg += "🔥 UDAH 25-38% (1 KOIN):\n"
     for c in udah:
         msg += f"-> {c['pair'].upper()[:-4]} {c['pct_low']:.0f}% sisa {c['pct_high']:.0f}%\n"
+    msg += "\n"
 
 if not akan and not lagi and not udah:
     msg += "KOSONG - SEMUA DI RESISTANCE / PUCUK - JANGAN ENTRY!\n"
