@@ -6,15 +6,28 @@ TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
 def send_tele(msg):
     try:
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
-    except: pass
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+    except Exception:
+        pass
 
 def get_tickers():
     try:
         return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers', {})
-    except: return {}
+    except Exception:
+        return {}
 
-BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','bnb_idr'}
+def fnum(v, default=0.0):
+    try:
+        v = str(v).replace(',', '').strip()
+        if not v:
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr',
+             'xrp_idr','sol_idr','doge_idr','bnb_idr'}
 
 tickers = get_tickers()
 wib = timezone(timedelta(hours=7))
@@ -22,85 +35,108 @@ now = datetime.now(wib).strftime("%H:%M")
 result = []
 
 for pair, d in tickers.items():
-    if not pair.endswith('_idr'): continue
-    if pair in BLACKLIST: continue
-    try:
-        last = float(d['last']); low = float(d['low']); high = float(d['high'])
-        vol = float(d.get('vol_idr', 0)); chg = float(d.get('change', 0))
-        if low==0 or last<20: continue
-        if vol<100_000_000 or vol>10_000_000_000: continue
-        
-        pct_low = (last-low)/low*100
-        pct_high = (high-last)/last*100
-        range_pct = (high-low)/low*100
-        mid = (high+low)/2
-        
-        if range_pct>100 or pct_low<3: continue
-        result.append({'pair':pair,'vol':vol,'pct_low':pct_low,'pct_high':pct_high,'chg':chg,'range_pct':range_pct,'mid':mid,'last':last,'high':high})
-    except: continue
+    if not pair.endswith('_idr') or pair in BLACKLIST:
+        continue
+    last = fnum(d.get('last'))
+    low  = fnum(d.get('low'))
+    high = fnum(d.get('high'))
+    vol  = fnum(d.get('vol_idr'))
+    chg  = fnum(d.get('change'))
+
+    if low <= 0 or last < 20:
+        continue
+    if vol < 30_000_000 or vol > 10_000_000_000:
+        continue
+
+    pct_low  = (last - low) / low * 100      # udah naik berapa dari low
+    pct_high = (high - last) / last * 100    # sisa ruang ke high
+    range_pct = (high - low) / low * 100
+    mid = (high + low) / 2
+
+    result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low,
+                   'pct_high': pct_high, 'chg': chg, 'range_pct': range_pct,
+                   'mid': mid, 'last': last, 'high': high})
 
 def fmt_vol(v):
-    return f"{v/1e9:.2f} Bn" if v>=1e9 else f"{v/1e6:.0f} Mn"
+    return f"{v/1e9:.2f} Bn" if v >= 1e9 else f"{v/1e6:.0f} Mn"
 
-# ===== V54 FINAL LOCK FOREVER - COPY FULL INI! =====
-# FIX: DRX range 82% hilang, ANOA chg -1,43% hilang, ALTLAYER sisa 8% di resistance ke-filter!
+# ===== DETEKSI DINI (baru mulai gerak) =====
+pemula = sorted([
+    x for x in result
+    if 1.5 <= x['pct_low'] <= 5
+    and x['range_pct'] <= 45
+    and 25 <= x['pct_high'] <= 70
+    and x['chg'] >= -1
+    and x['vol'] >= 100_000_000
+], key=lambda x: x['pct_low'], reverse=True)[:3]
+
+pemula_pairs = {x['pair'] for x in pemula}
 
 akan = sorted([
-    x for x in result 
-    if 3 <= x['pct_low'] <= 12
-    and 8 <= x['range_pct'] <= 35
-    and 15 <= x['pct_high'] <= 40
-    and 0 <= x['chg'] <= 15
-    and 120_000_000 <= x['vol'] <= 2_500_000_000
-    and x['last'] >= x['mid']*0.90
-    and x['last'] < x['high']*0.92
-], key=lambda x: x['pct_high'], reverse=True)[:2]
+    x for x in result
+    if 5 < x['pct_low'] <= 12
+    and x['range_pct'] <= 55
+    and 15 <= x['pct_high'] <= 60
+    and x['chg'] >= -2
+    and x['pair'] not in pemula_pairs
+    and x['vol'] >= 300_000_000
+], key=lambda x: x['pct_high'], reverse=True)[:3]
 
-akan_pairs = set([x['pair'] for x in akan])
+akan_pairs = pemula_pairs | {x['pair'] for x in akan}
 
 lagi = sorted([
     x for x in result
     if 12 < x['pct_low'] <= 25
-    and x['range_pct'] <= 40
-    and 12 <= x['pct_high'] <= 40
-    and 0 <= x['chg'] <= 25
+    and x['range_pct'] <= 60
+    and 10 <= x['pct_high'] <= 50
+    and x['chg'] >= -2
     and x['pair'] not in akan_pairs
-    and x['last'] < x['high']*0.93
-], key=lambda x: x['vol'], reverse=True)[:2]
+    and x['vol'] >= 250_000_000
+], key=lambda x: x['vol'], reverse=True)[:3]
 
-lagi_pairs = akan_pairs.union(set([x['pair'] for x in lagi]))
+lagi_pairs = akan_pairs | {x['pair'] for x in lagi}
 
 udah = sorted([
     x for x in result
-    if 25 < x['pct_low'] <= 38
-    and x['range_pct'] <= 45
-    and 5 <= x['pct_high'] <= 35
-    and x['chg'] >= 0
+    if 25 < x['pct_low'] <= 45
+    and x['range_pct'] <= 70
+    and x['pct_high'] >= 8
+    and x['chg'] >= -2
     and x['pair'] not in lagi_pairs
-], key=lambda x: x['vol'], reverse=True)[:1]
+    and x['vol'] >= 300_000_000
+], key=lambda x: x['vol'], reverse=True)[:2]
 
-msg = f"V54 FINAL RESISTANCE {now} | {len(result)} scan\n\n"
+msg = f"SCAN DINI {now} WIB | {len(result)} koin\n\n"
+
+if pemula:
+    msg += "🌱 PEMULA 1.5-5% (deteksi paling awal!):\n"
+    for c in pemula:
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.1f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
+    msg += "\n"
 
 if akan:
-    msg += "🎯 AKAN 3-12% (2 KOIN - ADA RUANG 15% KE RESISTANCE):\n"
+    msg += "🎯 AKAN 5-12%:\n"
     for c in akan:
-        msg += f"-> {c['pair'].upper()[:-4]} {c['pct_low']:.0f}% Vol {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% range {c['range_pct']:.0f}% chg {c['chg']:.0f}%\n"
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
     msg += "\n"
 
 if lagi:
-    msg += "🚀 LAGI 12-25% (2 KOIN):\n"
+    msg += "🚀 LAGI 12-25%:\n"
     for c in lagi:
-        msg += f"-> {c['pair'].upper()[:-4]} {c['pct_low']:.0f}% Vol {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% range {c['range_pct']:.0f}%\n"
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
     msg += "\n"
 
 if udah:
-    msg += "🔥 UDAH 25-38% (1 KOIN):\n"
+    msg += "🔥 UDAH 25-45%:\n"
     for c in udah:
-        msg += f"-> {c['pair'].upper()[:-4]} {c['pct_low']:.0f}% sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
 
-if not akan and not lagi and not udah:
-    msg += "KOSONG - SEMUA DI RESISTANCE / PUCUK - JANGAN ENTRY!\n"
+if not (pemula or akan or lagi or udah):
+    msg += "KOSONG - market tenang sekarang, jangan maksa entry.\n"
 
 print(msg)
 send_tele(msg)
