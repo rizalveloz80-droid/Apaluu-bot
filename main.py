@@ -15,11 +15,10 @@ def get_tickers():
         return r.get('tickers', {})
     except: return {}
 
-# BLACKLIST V17-V25 - LEBIH SEDIKIT! GA TERLALU BANYAK TENDANG!
 BLACKLIST = {
     'usdt_idr','usdc_idr','dai_idr','busd_idr',
-    'btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','bnb_idr',
-    'ern_idr','show_idr'
+    'btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','ada_idr','bnb_idr','trx_idr',
+    'ern_idr','show_idr','hype_idr','pippin_idr','pepe_idr','sui_idr','fartcoin_idr','cake_idr','anoa_idr','ondo_idr'
 }
 
 tickers = get_tickers()
@@ -32,58 +31,47 @@ for pair, d in tickers.items():
     try:
         last = float(d['last']); low = float(d['low']); high = float(d['high'])
         vol = float(d.get('vol_idr',0))
-        # V17-V25 STYLE - LONGGAR TAPI MASIH AMAN!
+        # V46 FIX ANTI KOIN 11!
         if low==0: continue
-        if last < 20: continue  # V17 dulu 20, bukan 100! Jadi UNMD 11 ketendang, tapi 25 masih masuk!
-        if vol < 200_000_000: continue  # V20 dulu 200Mn minimal
-        if vol > 6_000_000_000: continue  # Tendang yang udah 6Bn+ aja kayak ZEREBRO
-        if last < low*0.85 or last > high*1.15: continue  # Lebih longgar
+        if last < 100: continue  # TENDANG KOIN RECEH 11, 15, 20, 30, 50, 90!
+        if vol >= 1_000_000_000: continue  # TENDANG Bn!
+        if vol < 150_000_000: continue     # TENDANG <150Mn sepi!
+        if last < low*0.9 or last > high*1.1: continue
         pct_low = (last - low)/low*100
         pct_high = (high - last)/last*100 if last>0 else 0
         range_pct = (high - low)/low*100
-        if range_pct > 70: continue  # V25 dulu 70%, bukan 60%
-        if pct_low < 8: continue  # Minimal 8% kayak V17
+        if range_pct > 60: continue
         result.append({'pair':pair,'last':last,'vol':vol,'pct_low':pct_low,'pct_high':pct_high})
     except: continue
 
 def fmt_vol(v):
-    if v>=1_000_000_000: return f"{v/1_000_000_000:.2f} Bn"
-    else: return f"{v/1_000_000:.0f} Mn"
+    return f"{v/1_000_000:.0f} Mn"
 
-# V17-V25 BEST TIER - 3 KATEGORI!
-# RUNNING V21 - 8-22% SISA 8%+ (LONGGAR!)
-running = [x for x in result if 8 <= x['pct_low'] <= 22 and x['pct_high'] >= 8]
-running = sorted(running, key=lambda x: x['vol'], reverse=True)[:6]
+# RUNNING 10-27% SISA 12%+ - TANTANGAN AWAL MASIH AMAN!
+running = [x for x in result if 10 <= x['pct_low'] <= 27 and x['pct_high'] >= 12]
+running = sorted(running, key=lambda x: x['pct_low'], reverse=True)[:8]
 
-# MID V23 - 22-35% SISA 8%+ (TANTANGAN MENENGAH KAYAK GTC!)
-mid = [x for x in result if 22 < x['pct_low'] <= 35 and x['pct_high'] >= 8]
-mid = sorted(mid, key=lambda x: x['pct_low'], reverse=True)[:6]
+# CHALLENGE 27-60% SISA 12%+ - TANTANGAN PUCUK TAPI MASIH ADA SISA!
+challenge = [x for x in result if 27 < x['pct_low'] <= 60 and x['pct_high'] >= 12]
+challenge = sorted(challenge, key=lambda x: x['pct_low'], reverse=True)[:8]
 
-# CHALLENGE V25 - 35-55% SISA 5%+ (SUPER TANTANGAN KAYAK ONL & ICNT!)
-challenge = [x for x in result if 35 < x['pct_low'] <= 60 and x['pct_high'] >= 5]
-challenge = sorted(challenge, key=lambda x: x['vol'], reverse=True)[:6]
-
-msg = f"V47 BEST V17-V25 {now} | {len(result)} coin\n\n"
+msg = f"V46 MN TANTANGAN {now} | Anti koin 11 | Mn dulu baru Bn\n"
+msg += f"{len(result)} coin bersih (100+ rupiah, 150-999 Mn)\n\n"
 
 if running:
-    msg += "🌱 RUNNING 8-22% SISA 8%+ (AMAN):\n"
+    msg += "🌱 RUNNING 10-27% SISA 12%+ (EARLY):\n"
     for c in running:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% hrg {c['last']:.0f}\n"
     msg += "\n"
-
-if mid:
-    msg += "🚀 MID 22-35% SISA 8%+ (TANTANGAN):\n"
-    for c in mid:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}%\n"
-    msg += "\n"
+else:
+    msg += "🌱 RUNNING: KOSONG - BELUM ADA YANG FRESH!\n\n"
 
 if challenge:
-    msg += "🔥 CHALLENGE 35-60% SISA 5%+ (SUPER TANTANGAN):\n"
+    msg += "🔥 CHALLENGE 27-60% SISA 12%+ (MENANTANG):\n"
     for c in challenge:
-        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% - HIGH RISK!\n"
-
-if not running and not mid and not challenge:
-    msg += "KOSONG - MARKET SEPI! LIBUR DULU MIN!\n"
+        msg += f"-> {c['pair'].replace('_idr','').upper()} {c['pct_low']:.0f}% low {fmt_vol(c['vol'])} sisa {c['pct_high']:.0f}% hrg {c['last']:.0f}\n"
+else:
+    msg += "🔥 CHALLENGE: KOSONG!\n"
 
 print(msg)
 send_tele(msg)
