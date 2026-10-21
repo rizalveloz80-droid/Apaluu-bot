@@ -1,6 +1,7 @@
 import requests, os
 from datetime import datetime, timezone, timedelta
 
+# PAKAI YANG LAMA - GA USAH DIISI MANUAL LAGI
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
@@ -30,7 +31,8 @@ def fmt_vol(v):
     else:
         return f'{v/1e6:.0f} Mn'
 
-BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','bnb_idr','ern_idr'}
+# BLACKLIST UDAH TERMASUK HYPE + ERN
+BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','bnb_idr','ern_idr','hype_idr'}
 
 data = get_data()
 wib = timezone(timedelta(hours=7))
@@ -73,15 +75,15 @@ def mark_seen(pairs):
 
 picks = []
 
-# KELOMPOK 1: DINI (aman, target entry awal)
+# KELOMPOK 1: DINI
 dini = sorted([x for x in result if 0.5 <= x['pct_low'] <= 5 and x['pct_high'] >= 15 and 5 <= x['range_pct'] <= 50 and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:5]
 picks += dini
 
-# KELOMPOK 2: PUMP (lagi naik kencang, target 30%+, siap cut loss)
+# KELOMPOK 2: PUMP
 pump = sorted([x for x in result if 10 <= x['pct_low'] <= 40 and x['pct_high'] >= 20 and x['range_pct'] <= 80 and x['pair'] not in {p['pair'] for p in picks} and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:5]
 picks += pump
 
-# KELOMPOK 3: CADANGAN (isi sisa biar full 10)
+# KELOMPOK 3: CADANGAN
 if len(picks) < 10:
     cadangan = sorted([x for x in result if x['pair'] not in {p['pair'] for p in picks} and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:10-len(picks)]
     picks += cadangan
