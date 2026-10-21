@@ -5,3 +5,6 @@ gtc_idr
 ern_idr
 altlayer_idr
 mavia_idr
+drx_idr
+stik_idr
+kernel_idr
