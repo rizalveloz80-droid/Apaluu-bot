@@ -26,3 +26,13 @@ onl_idr
 iost_idr
 ondo_idr
 hype_idr
+pengu_idr
+neon_idr
+anoa_idr
+wld_idr
+pippin_idr
+sui_idr
+ada_idr
+aster_idr
+near_idr
+arc_idr
