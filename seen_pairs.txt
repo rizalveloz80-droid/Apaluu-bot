@@ -36,3 +36,13 @@ ada_idr
 aster_idr
 near_idr
 arc_idr
+moodeng_idr
+qnt_idr
+beat_idr
+arb_idr
+ena_idr
+pump_idr
+cst_idr
+marscoin_idr
+hbar_idr
+trollsol_idr
