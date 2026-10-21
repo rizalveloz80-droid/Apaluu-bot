@@ -1,86 +1,84 @@
 import requests
-import time
 import os
+import time
 
-API_URL = "https://indodax.com/api/ticker/{}"
-MARKETS_URL = "https://indodax.com/api/pairs"
+TELE_TOKEN = os.getenv("TELE_TOKEN")
+TELE_CHAT_ID = os.getenv("TELE_CHAT_ID")
 
-BLACKLIST = {
-    'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr',
-    'xrp_idr','sol_idr','doge_idr','bnb_idr','ern_idr','hype_idr'
-}
-
-# ====== MODE HUNTER (ICNT/ZEROBRO) ======
-H_MIN_CHANGE = 5
-H_MAX_CHANGE = 25
-H_MIN_TO_HIGH = 25
-H_MIN_VOL = 100000
-
-# ====== MODE SEGAR (koin aman) ======
-S_MIN_CHANGE = 3
-S_MAX_CHANGE = 10
-S_MIN_TO_HIGH = 20
-S_MIN_VOL = 200000
-
-TELEGRAM_TOKEN = os.getenv('TELE_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELE_CHAT_ID')
-
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+def send_tele(msg):
     try:
-        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
+        url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
+    except: pass
+
+def get_depth(pair):
+    try:
+        r = requests.get(f"https://indodax.com/api/{pair}/depth", timeout=5).json()
+        buy = sum(float(x[0])*float(x[1]) for x in r.get('buy', [])[:30])
+        sell = sum(float(x[0])*float(x[1]) for x in r.get('sell', [])[:30])
+        return buy, sell
     except:
-        pass
+        return 0,0
 
-def get_markets():
-    r = requests.get(MARKETS_URL, timeout=10)
-    return [p["id"] for p in r.json()]
-
-def analyze(pair):
-    r = requests.get(API_URL.format(pair), timeout=10)
-    if r.status_code != 200:
-        return None
-    t = r.json()["ticker"]
-    last = float(t["last"])
-    low = float(t["low"]) or 1
-    high = float(t["high"]) or last
-    base = pair.split("_")[0]
-    vol = float(t[f"vol_{base}"]) * last
-    change = (last - low) / low * 100
-    to_high = (high - last) / last * 100 if last else 0
-    return {"pair": pair, "last": last, "change": change, "to_high": to_high, "vol": vol}
+def get_trades(pair):
+    try:
+        r = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=5).json()
+        return r[:15] # 15 trade terakhir
+    except:
+        return []
 
 def main():
-    pairs = get_markets()
-    for p in pairs:
-        if p in BLACKLIST:
-            continue
+    print("SCANNING CEPET MODE...")
+    try:
+        tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
+    except Exception as e:
+        print(f"Gagal ambil tickers: {e}")
+        return
+
+    for pair, t in tickers.items():
+        if not pair.endswith("_idr"): continue
         try:
-            a = analyze(p)
-            if not a:
-                continue
+            last = float(t['last'])
+            high = float(t['high'])
+            low = float(t['low'])
+            vol_idr = float(t['vol_idr'])
+            # vol_btc = float(t['vol_btc']) # kalo perlu
 
-            # 1) HUNTER
-            if (a["vol"] >= H_MIN_VOL and H_MIN_CHANGE <= a["change"] <= H_MAX_CHANGE and a["to_high"] >= H_MIN_TO_HIGH):
-                msg = (f"🔥 HUNTER {a['pair']}\n"
-                       f"naik {a['change']:.1f}% dr low\n"
-                       f"⚡ sisa ke high {a['to_high']:.1f}%\n"
-                       f"vol {a['vol']/1e6:.2f}M")
-                send_telegram(msg)
-                print(msg)
+            if vol_idr < 10000000: continue # skip yang sepi di bawah 10jt
 
-            # 2) SEGAR
-            elif (a["vol"] >= S_MIN_VOL and S_MIN_CHANGE <= a["change"] <= S_MAX_CHANGE and a["to_high"] >= S_MIN_TO_HIGH):
-                msg = (f"🌱 SEGAR {a['pair']}\n"
-                       f"naik {a['change']:.1f}% dr low\n"
-                       f"⚡ sisa ke high {a['to_high']:.1f}%\n"
-                       f"vol {a['vol']/1e6:.2f}M")
-                send_telegram(msg)
-                print(msg)
+            # === LOGIKA SEGAR: BARU NAIK, HIGH MASIH JAUH ===
+            # high jauh minimal 10% di atas harga sekarang = masih segar, bukan pucuk
+            if high == 0: continue
+            jarak_high = (high - last) / high * 100
+            if jarak_high < 8: continue # kalo udah deket high (pucuk) skip
 
-        except Exception:
-            continue
-        time.sleep(0.3)
+            # === LOGIKA NO DROP: CEK 15 TRADE TERAKHIR, JANGAN ADA NYELAM DALEM ===
+            trades = get_trades(pair)
+            drop = False
+            for tr in trades:
+                price = float(tr['price'])
+                # kalo ada trade yang anjlok >3% dari harga sekarang = pernah drop
+                if price < last * 0.97:
+                    drop = True
+                    break
+            if drop: continue
+
+            # === LOGIKA HUNTER: BUY DOMINAN ===
+            buy_vol, sell_vol = get_depth(pair)
+            if sell_vol == 0: continue
+            ratio = buy_vol / sell_vol
+            if ratio < 2.0: continue # hunter minimal buy 2x sell
+
+            # LOLOS SEMUA = KIRIM TELE
+            coin = pair.replace("_idr","").upper()
+            pesan = f"🔥 *HUNTER SEGAR* 🔥\n\n💰 {coin}/IDR\n📈 Last: {last}\n🚀 High: {high} (jauh {jarak_high:.1f}%)\n💵 Vol: Rp {vol_idr:,.0f}\n⚖️ Buy/Sell: {ratio:.2f}x\n✅ No Drop"
+            print(pesan)
+            send_tele(pesan)
+            time.sleep(0.5) # jeda biar ga spam tele
+
+        except: continue
+
+    print("SELESAI CEPET!")
 
 if __name__ == "__main__":
     main()
