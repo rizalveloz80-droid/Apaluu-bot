@@ -9,3 +9,6 @@ drx_idr
 stik_idr
 kernel_idr
 bsv_idr
+tmg_idr
+nova_idr
+pha_idr
