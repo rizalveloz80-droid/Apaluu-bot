@@ -16,3 +16,13 @@ zerebro_idr
 gns_idr
 show_idr
 mito_idr
+skyai_idr
+fartcoin_idr
+sn_idr
+useless_idr
+strk_idr
+icnt_idr
+onl_idr
+iost_idr
+ondo_idr
+hype_idr
