@@ -12,3 +12,4 @@ bsv_idr
 tmg_idr
 nova_idr
 pha_idr
+zerebro_idr
