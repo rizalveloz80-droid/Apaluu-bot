@@ -1,6 +1,5 @@
-import requests
-import os
-import time
+import requests, os, time
+from datetime import datetime, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT_ID = os.getenv("TELE_CHAT_ID")
@@ -8,71 +7,56 @@ TELE_CHAT_ID = os.getenv("TELE_CHAT_ID")
 def send_tele(msg):
     try:
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
-    except: pass
-
-def get_depth(pair):
-    try:
-        r = requests.get(f"https://indodax.com/api/{pair}/depth", timeout=5).json()
-        buy = sum(float(x[0])*float(x[1]) for x in r.get('buy', [])[:30])
-        sell = sum(float(x[0])*float(x[1]) for x in r.get('sell', [])[:30])
-        return buy, sell
-    except: return 0,0
+        requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=15)
+    except Exception as e:
+        print(e)
 
 def main():
-    print("BOT 2 MODE ANTI DUMP JALAN...")
+    print("SCAN DINI RUN MODE...")
     try:
-        tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
-    except Exception as e:
-        print(f"Gagal tickers: {e}")
-        return
+        data = requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
+    except: return
 
-    for pair, t in tickers.items():
+    now_wib = datetime.utcnow() + timedelta(hours=7)
+    jam_str = now_wib.strftime("%H:%M")
+    total_koin = len([k for k in data.keys() if k.endswith("_idr")])
+
+    hasil = []
+    for pair, t in data.items():
         if not pair.endswith("_idr"): continue
         try:
-            last = float(t['last'])
-            high = float(t['high'])
-            low = float(t['low'])
-            vol_idr = float(t['vol_idr'])
-            if low == 0 or high == 0: continue
-            coin = pair.replace("_idr","").upper()
+            last = float(t['last']); high = float(t['high']); low = float(t['low']); vol = float(t['vol_idr'])
+            if low==0 or high==0: continue
 
-            try: change = float(t.get('change','0') or 0)
-            except: change = 0
+            naik_low = (last - low) / low * 100
+            sisa_high = (high - last) / high * 100 if high>0 else 0
 
-            # ========== MODE 1: HUNTER SEGAR (BUAT SIANG) ==========
-            jarak_high = (high - last) / high * 100 if high>0 else 0
-            if vol_idr > 10000000 and jarak_high > 8:
-                buy, sell = get_depth(pair)
-                if sell > 0 and buy / sell >= 2.0:
-                    send_tele(f"🔥 *HUNTER SEGAR*\n\n💰 {coin}/IDR\n📈 Last: {last}\n🚀 Jauh High: {jarak_high:.1f}%\n⚖️ Buy/Sell: {buy/sell:.2f}x\n💵 Vol: Rp {vol_idr:,.0f}")
-                    time.sleep(0.5)
+            # RUMUS PERSIS ZEREBRO & SHOW DI SCREENSHOT LU:
+            # Naik 6-9% dari low, Sisa 10-40% ke high, Vol gede
+            if 4 <= naik_low <= 12 and sisa_high >= 10 and vol > 100000000: # vol >100jt
+                # Format vol
+                if vol >= 1e9:
+                    vol_str = f"{vol/1e9:.2f} Bn"
+                else:
+                    vol_str = f"{vol/1e6:.0f} Mn"
 
-            # ========== MODE 2: MANTUL OVERNIGHT ANTI DUMP (TIPE SHOW/SN/ICNT LU) ==========
-            posisi_dari_low = (last - low) / low * 100 if low>0 else 999
-            
-            # SYARAT ANTI DUMP:
-            if -25 <= change <= -4 and 5 <= posisi_dari_low <= 18 and vol_idr > 80000000:
-                buy, sell = get_depth(pair)
-                if sell == 0: continue
-                ratio = buy / sell
-                if not (1.3 <= ratio <= 5.0): continue # skip fake wall
-
-                # CEK 10 TRADE TERAKHIR HARUS BANYAK YANG NAIK
-                try:
-                    trades = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=4).json()[:10]
-                    naik = 0
-                    for i in range(len(trades)-1):
-                        if float(trades[i]['price']) >= float(trades[i+1]['price']):
-                            naik += 1
-                    if naik >= 5: # minimal 5 dari 10 trade naik = konfirm mantul
-                        send_tele(f"🌙 *MANTUL AMAN (TIPE SHOW/SN)*\n\n💰 {coin}/IDR\n📉 24h: {change}%\n📍 Last: {last} (Low: {low})\n✅ Mantul {posisi_dari_low:.1f}% dari low\n⚖️ Buy/Sell: {ratio:.2f}x\n📈 Trade ijo: {naik}/10\n💵 Vol: Rp {vol_idr:,.0f}\n👉 Entry aman, hold pagi")
-                        time.sleep(0.5)
-                except: pass
-
+                coin = pair.replace("_idr","").upper()
+                hasil.append((vol, f"{coin} 🎯 RUN\nNaik {naik_low:.1f}% dari low | Sisa {sisa_high:.0f}% ke high\nVol {vol_str}"))
         except: continue
 
-    print("SELESAI AMAN!")
+    # Sort vol gede di atas kayak ZEREBRO 6.99Bn paling atas
+    hasil.sort(key=lambda x: x[0], reverse=True)
+
+    if hasil:
+        pesan = f"🚨 SCAN DINI {jam_str} WIB | {total_koin} koin\n\n"
+        for i, (vol, txt) in enumerate(hasil[:10], 1): # Top 10 aja biar ga spam
+            pesan += f"{i}. {txt}\n\n"
+        send_tele(pesan)
+    else:
+        pesan = f"🚨 SCAN DINI {jam_str} WIB | {total_koin} koin\n\nKOSONG - market tenang, jangan maksa entry."
+        send_tele(pesan)
+
+    print("SELESAI")
 
 if __name__ == "__main__":
     main()
