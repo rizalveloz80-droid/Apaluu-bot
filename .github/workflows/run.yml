@@ -1,27 +1,20 @@
-name: scan
+name: Hunter Bot
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
-  scan:
+  run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - run: pip install requests
-      - env:
+      - run: python main.py
+        env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
-        run: python main.py
-      - name: Simpan seen (anti repeat)
-        run: |
-          git config user.name "bot"
-          git config user.email "bot@bot.com"
-          git add seen_pairs.txt
-          git commit -m "update seen" || echo "tidak ada perubahan"
-          git push
