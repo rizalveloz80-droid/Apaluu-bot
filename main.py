@@ -12,25 +12,23 @@ BLACKLIST = {
 
 # ====== MODE HUNTER (ICNT/ZEROBRO) ======
 H_MIN_CHANGE = 5
-H_MAX_CHANGE = 25      # koin volatile naik sampe 25%
-H_MIN_TO_HIGH = 25     # masih ruang ke high >=25%
+H_MAX_CHANGE = 25
+H_MIN_TO_HIGH = 25
 H_MIN_VOL = 100000
 
 # ====== MODE SEGAR (koin aman) ======
 S_MIN_CHANGE = 3
-S_MAX_CHANGE = 10      # koin konservatif
+S_MAX_CHANGE = 10
 S_MIN_TO_HIGH = 20
 S_MIN_VOL = 200000
 
-# PAKAI YANG SEBELUMNYA - GA USAH DIISI MANUAL
 TELEGRAM_TOKEN = os.getenv('TELE_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
-        requests.post(url, json=data, timeout=10)
+        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
     except:
         pass
 
@@ -62,7 +60,7 @@ def main():
             if not a:
                 continue
 
-            # 1) HUNTER - koin volatile sisa gede (kaya ZEREBRO lu)
+            # 1) HUNTER
             if (a["vol"] >= H_MIN_VOL and H_MIN_CHANGE <= a["change"] <= H_MAX_CHANGE and a["to_high"] >= H_MIN_TO_HIGH):
                 msg = (f"🔥 HUNTER {a['pair']}\n"
                        f"naik {a['change']:.1f}% dr low\n"
@@ -71,7 +69,7 @@ def main():
                 send_telegram(msg)
                 print(msg)
 
-            # 2) SEGAR - koin aman ngga volatile
+            # 2) SEGAR
             elif (a["vol"] >= S_MIN_VOL and S_MIN_CHANGE <= a["change"] <= S_MAX_CHANGE and a["to_high"] >= S_MIN_TO_HIGH):
                 msg = (f"🌱 SEGAR {a['pair']}\n"
                        f"naik {a['change']:.1f}% dr low\n"
@@ -85,6 +83,4 @@ def main():
         time.sleep(0.3)
 
 if __name__ == "__main__":
-    while True:
-        main()
-        time.sleep(300)  # 5 menit
+    main()
