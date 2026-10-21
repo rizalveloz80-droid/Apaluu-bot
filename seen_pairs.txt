@@ -56,3 +56,13 @@ gwei_idr
 fet_idr
 bmt_idr
 xlm_idr
+pol_idr
+ray_idr
+xpl_idr
+spx_idr
+uni_idr
+uai_idr
+myx_idr
+velvet_idr
+ban_idr
+link_idr
