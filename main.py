@@ -17,22 +17,14 @@ def get_depth(pair):
         buy = sum(float(x[0])*float(x[1]) for x in r.get('buy', [])[:30])
         sell = sum(float(x[0])*float(x[1]) for x in r.get('sell', [])[:30])
         return buy, sell
-    except:
-        return 0,0
-
-def get_trades(pair):
-    try:
-        r = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=5).json()
-        return r[:15] # 15 trade terakhir
-    except:
-        return []
+    except: return 0,0
 
 def main():
-    print("SCANNING CEPET MODE...")
+    print("BOT 2 MODE ANTI DUMP JALAN...")
     try:
         tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
     except Exception as e:
-        print(f"Gagal ambil tickers: {e}")
+        print(f"Gagal tickers: {e}")
         return
 
     for pair, t in tickers.items():
@@ -42,43 +34,45 @@ def main():
             high = float(t['high'])
             low = float(t['low'])
             vol_idr = float(t['vol_idr'])
-            # vol_btc = float(t['vol_btc']) # kalo perlu
-
-            if vol_idr < 10000000: continue # skip yang sepi di bawah 10jt
-
-            # === LOGIKA SEGAR: BARU NAIK, HIGH MASIH JAUH ===
-            # high jauh minimal 10% di atas harga sekarang = masih segar, bukan pucuk
-            if high == 0: continue
-            jarak_high = (high - last) / high * 100
-            if jarak_high < 8: continue # kalo udah deket high (pucuk) skip
-
-            # === LOGIKA NO DROP: CEK 15 TRADE TERAKHIR, JANGAN ADA NYELAM DALEM ===
-            trades = get_trades(pair)
-            drop = False
-            for tr in trades:
-                price = float(tr['price'])
-                # kalo ada trade yang anjlok >3% dari harga sekarang = pernah drop
-                if price < last * 0.97:
-                    drop = True
-                    break
-            if drop: continue
-
-            # === LOGIKA HUNTER: BUY DOMINAN ===
-            buy_vol, sell_vol = get_depth(pair)
-            if sell_vol == 0: continue
-            ratio = buy_vol / sell_vol
-            if ratio < 2.0: continue # hunter minimal buy 2x sell
-
-            # LOLOS SEMUA = KIRIM TELE
+            if low == 0 or high == 0: continue
             coin = pair.replace("_idr","").upper()
-            pesan = f"🔥 *HUNTER SEGAR* 🔥\n\n💰 {coin}/IDR\n📈 Last: {last}\n🚀 High: {high} (jauh {jarak_high:.1f}%)\n💵 Vol: Rp {vol_idr:,.0f}\n⚖️ Buy/Sell: {ratio:.2f}x\n✅ No Drop"
-            print(pesan)
-            send_tele(pesan)
-            time.sleep(0.5) # jeda biar ga spam tele
+
+            try: change = float(t.get('change','0') or 0)
+            except: change = 0
+
+            # ========== MODE 1: HUNTER SEGAR (BUAT SIANG) ==========
+            jarak_high = (high - last) / high * 100 if high>0 else 0
+            if vol_idr > 10000000 and jarak_high > 8:
+                buy, sell = get_depth(pair)
+                if sell > 0 and buy / sell >= 2.0:
+                    send_tele(f"🔥 *HUNTER SEGAR*\n\n💰 {coin}/IDR\n📈 Last: {last}\n🚀 Jauh High: {jarak_high:.1f}%\n⚖️ Buy/Sell: {buy/sell:.2f}x\n💵 Vol: Rp {vol_idr:,.0f}")
+                    time.sleep(0.5)
+
+            # ========== MODE 2: MANTUL OVERNIGHT ANTI DUMP (TIPE SHOW/SN/ICNT LU) ==========
+            posisi_dari_low = (last - low) / low * 100 if low>0 else 999
+            
+            # SYARAT ANTI DUMP:
+            if -25 <= change <= -4 and 5 <= posisi_dari_low <= 18 and vol_idr > 80000000:
+                buy, sell = get_depth(pair)
+                if sell == 0: continue
+                ratio = buy / sell
+                if not (1.3 <= ratio <= 5.0): continue # skip fake wall
+
+                # CEK 10 TRADE TERAKHIR HARUS BANYAK YANG NAIK
+                try:
+                    trades = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=4).json()[:10]
+                    naik = 0
+                    for i in range(len(trades)-1):
+                        if float(trades[i]['price']) >= float(trades[i+1]['price']):
+                            naik += 1
+                    if naik >= 5: # minimal 5 dari 10 trade naik = konfirm mantul
+                        send_tele(f"🌙 *MANTUL AMAN (TIPE SHOW/SN)*\n\n💰 {coin}/IDR\n📉 24h: {change}%\n📍 Last: {last} (Low: {low})\n✅ Mantul {posisi_dari_low:.1f}% dari low\n⚖️ Buy/Sell: {ratio:.2f}x\n📈 Trade ijo: {naik}/10\n💵 Vol: Rp {vol_idr:,.0f}\n👉 Entry aman, hold pagi")
+                        time.sleep(0.5)
+                except: pass
 
         except: continue
 
-    print("SELESAI CEPET!")
+    print("SELESAI AMAN!")
 
 if __name__ == "__main__":
     main()
