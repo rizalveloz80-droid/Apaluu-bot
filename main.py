@@ -1,107 +1,90 @@
-import requests, os
-from datetime import datetime, timezone, timedelta
+import requests
+import time
+import os
 
-# PAKAI YANG LAMA - GA USAH DIISI MANUAL LAGI
-TELE_TOKEN = os.getenv('TELE_TOKEN')
-TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
+API_URL = "https://indodax.com/api/ticker/{}"
+MARKETS_URL = "https://indodax.com/api/pairs"
 
-def send_tele(msg):
+BLACKLIST = {
+    'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr',
+    'xrp_idr','sol_idr','doge_idr','bnb_idr','ern_idr','hype_idr'
+}
+
+# ====== MODE HUNTER (ICNT/ZEROBRO) ======
+H_MIN_CHANGE = 5
+H_MAX_CHANGE = 25      # koin volatile naik sampe 25%
+H_MIN_TO_HIGH = 25     # masih ruang ke high >=25%
+H_MIN_VOL = 100000
+
+# ====== MODE SEGAR (koin aman) ======
+S_MIN_CHANGE = 3
+S_MAX_CHANGE = 10      # koin konservatif
+S_MIN_TO_HIGH = 20
+S_MIN_VOL = 200000
+
+# PAKAI YANG SEBELUMNYA - GA USAH DIISI MANUAL
+TELEGRAM_TOKEN = os.getenv('TELE_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELE_CHAT_ID')
+
+def send_telegram(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
-        url = 'https://api.telegram.org/bot' + TELE_TOKEN + '/sendMessage'
-        requests.post(url, json={'chat_id': TELE_CHAT_ID, 'text': msg}, timeout=15)
+        requests.post(url, json=data, timeout=10)
     except:
         pass
 
-def get_data():
-    try:
-        r = requests.get('https://indodax.com/api/tickers', timeout=15).json()
-        return r.get('tickers', {})
-    except:
-        return {}
+def get_markets():
+    r = requests.get(MARKETS_URL, timeout=10)
+    return [p["id"] for p in r.json()]
 
-def fnum(v):
-    try:
-        return float(str(v).replace(',', '').strip())
-    except:
-        return 0.0
+def analyze(pair):
+    r = requests.get(API_URL.format(pair), timeout=10)
+    if r.status_code != 200:
+        return None
+    t = r.json()["ticker"]
+    last = float(t["last"])
+    low = float(t["low"]) or 1
+    high = float(t["high"]) or last
+    base = pair.split("_")[0]
+    vol = float(t[f"vol_{base}"]) * last
+    change = (last - low) / low * 100
+    to_high = (high - last) / last * 100 if last else 0
+    return {"pair": pair, "last": last, "change": change, "to_high": to_high, "vol": vol}
 
-def fmt_vol(v):
-    if v >= 1000000000:
-        return f'{v/1e9:.2f} Bn'
-    else:
-        return f'{v/1e6:.0f} Mn'
+def main():
+    pairs = get_markets()
+    for p in pairs:
+        if p in BLACKLIST:
+            continue
+        try:
+            a = analyze(p)
+            if not a:
+                continue
 
-# BLACKLIST UDAH TERMASUK HYPE + ERN
-BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','xrp_idr','sol_idr','doge_idr','bnb_idr','ern_idr','hype_idr'}
+            # 1) HUNTER - koin volatile sisa gede (kaya ZEREBRO lu)
+            if (a["vol"] >= H_MIN_VOL and H_MIN_CHANGE <= a["change"] <= H_MAX_CHANGE and a["to_high"] >= H_MIN_TO_HIGH):
+                msg = (f"🔥 HUNTER {a['pair']}\n"
+                       f"naik {a['change']:.1f}% dr low\n"
+                       f"⚡ sisa ke high {a['to_high']:.1f}%\n"
+                       f"vol {a['vol']/1e6:.2f}M")
+                send_telegram(msg)
+                print(msg)
 
-data = get_data()
-wib = timezone(timedelta(hours=7))
-now = datetime.now(wib).strftime('%H:%M')
-result = []
+            # 2) SEGAR - koin aman ngga volatile
+            elif (a["vol"] >= S_MIN_VOL and S_MIN_CHANGE <= a["change"] <= S_MAX_CHANGE and a["to_high"] >= S_MIN_TO_HIGH):
+                msg = (f"🌱 SEGAR {a['pair']}\n"
+                       f"naik {a['change']:.1f}% dr low\n"
+                       f"⚡ sisa ke high {a['to_high']:.1f}%\n"
+                       f"vol {a['vol']/1e6:.2f}M")
+                send_telegram(msg)
+                print(msg)
 
-for pair, d in data.items():
-    if not pair.endswith('_idr'):
-        continue
-    if pair in BLACKLIST:
-        continue
-    last = fnum(d.get('last'))
-    low = fnum(d.get('low'))
-    high = fnum(d.get('high'))
-    vol = fnum(d.get('vol_idr'))
-    if low <= 0 or last < 20 or vol < 100000000:
-        continue
-    if last == 0 or high == 0:
-        continue
-    pct_low = (last - low) / low * 100
-    pct_high = (high - last) / last * 100 if last > 0 else 0
-    range_pct = (high - low) / low * 100 if low > 0 else 0
-    result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low, 'pct_high': pct_high, 'range_pct': range_pct})
+        except Exception:
+            continue
+        time.sleep(0.3)
 
-SEEN = set()
-try:
-    with open('seen_pairs.txt') as f:
-        for line in f:
-            SEEN.add(line.strip())
-except:
-    pass
-
-def mark_seen(pairs):
-    try:
-        with open('seen_pairs.txt', 'a') as f:
-            for p in pairs:
-                f.write(p + '\n')
-    except:
-        pass
-
-picks = []
-
-# KELOMPOK 1: DINI
-dini = sorted([x for x in result if 0.5 <= x['pct_low'] <= 5 and x['pct_high'] >= 15 and 5 <= x['range_pct'] <= 50 and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:5]
-picks += dini
-
-# KELOMPOK 2: PUMP
-pump = sorted([x for x in result if 10 <= x['pct_low'] <= 40 and x['pct_high'] >= 20 and x['range_pct'] <= 80 and x['pair'] not in {p['pair'] for p in picks} and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:5]
-picks += pump
-
-# KELOMPOK 3: CADANGAN
-if len(picks) < 10:
-    cadangan = sorted([x for x in result if x['pair'] not in {p['pair'] for p in picks} and x['pair'] not in SEEN], key=lambda x: x['vol'], reverse=True)[:10-len(picks)]
-    picks += cadangan
-
-msg = f'🚨 SCAN DINI + PUMP {now} WIB | {len(result)} koin\n\n'
-if picks:
-    for i, c in enumerate(picks[:10], 1):
-        if c['pct_low'] <= 5:
-            status = '🌱 DINI'
-        elif c['pct_low'] <= 40:
-            status = '🚀 PUMP'
-        else:
-            status = '🎯 RUN'
-        pair_name = c['pair'].upper().replace('_IDR','')
-        msg += f"{i}. {pair_name} {status}\n   Naik {c['pct_low']:.1f}% dari low | Sisa {c['pct_high']:.0f}% ke high\n   Vol {fmt_vol(c['vol'])}\n\n"
-else:
-    msg += 'KOSONG - market tenang, jangan maksa entry.\n'
-
-print(msg)
-send_tele(msg)
-mark_seen({p['pair'] for p in picks})
+if __name__ == "__main__":
+    while True:
+        main()
+        time.sleep(300)  # 5 menit
