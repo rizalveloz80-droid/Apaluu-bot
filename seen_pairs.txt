@@ -46,3 +46,13 @@ cst_idr
 marscoin_idr
 hbar_idr
 trollsol_idr
+ltc_idr
+xaut_idr
+avax_idr
+trx_idr
+mubarak_idr
+birb_idr
+gwei_idr
+fet_idr
+bmt_idr
+xlm_idr
