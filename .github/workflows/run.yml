@@ -1,19 +1,27 @@
-name: run
+name: scan
+
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
 jobs:
-  run-bot:
+  scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Run bot
-        env:
+      - env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELE_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
         run: python main.py
+      - name: Simpan seen (anti repeat)
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add seen_pairs.txt
+          git commit -m "update seen" || echo "tidak ada perubahan"
+          git push
