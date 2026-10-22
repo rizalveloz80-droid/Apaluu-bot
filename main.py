@@ -1,132 +1,49 @@
-import requests
-import time
-import os
+import requests, os, time
 from datetime import datetime, timedelta, timezone
 
-MARKETS_URL = "https://indodax.com/api/pairs"
-API_URL = "https://indodax.com/api/ticker/{}"
+TELE_TOKEN = os.getenv('TELE_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('TELEGRAM_CHAT_ID')
 
-SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge',
-    'bnb','ada','dot','ltc','trx','link','avax','mkr','sui','hype',
-    'near','ton','apt','sei','inj','ftm','atom','aave','uni','poly',
-    'matic','meme','floki','wif','xlm','algo','vet','theta','eos','mana',
-    'axs','enj','chz','jup','render','fet','agix','grt','etc','bch','bsv',
-    'dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi',
-    'portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','ern','bome'}
-
-TELE_TOKEN = os.getenv("TELE_TOKEN")
-TELE_CHAT_ID = os.getenv("TELE_CHAT_ID")
-
-def send(txt):
+def kirim(teks):
     try:
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": txt, "parse_mode": "Markdown"}, timeout=10)
-    except: pass
+        r = requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": teks, "parse_mode": "Markdown"}, timeout=10)
+        print(f"TELE {r.status_code}: {teks[:50]}")
+    except Exception as e:
+        print(f"TELE GAGAL: {e}")
 
 def get_depth(pair):
     try:
         r = requests.get(f"https://indodax.com/api/{pair}/depth", timeout=4).json()
-        buy = sum(float(x[0])*float(x[1]) for x in r.get('buy', [])[:20])
-        sell = sum(float(x[0])*float(x[1]) for x in r.get('sell', [])[:20])
-        return buy, sell
-    except: return 0,0
+        buy = sum(float(x[0])*float(x[1]) for x in r.get('buy',[])[:15])
+        sell = sum(float(x[0])*float(x[1]) for x in r.get('sell',[])[:15])
+        return buy, sell, buy/sell if sell else 0
+    except: return 0,0,0
 
 def get_hijau(pair):
     try:
-        trades = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=4).json()[:12]
+        trades = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=3).json()[:10]
         hijau = sum(1 for i in range(len(trades)-1) if float(trades[i]['price']) >= float(trades[i+1]['price']))
         return hijau
     except: return 0
 
-def ana(pair):
+def scan():
+    wib = timezone(timedelta(hours=7))
+    now_str = datetime.now(wib).strftime("%H:%M WIB")
     try:
-        t = requests.get(API_URL.format(pair), timeout=5).json()["ticker"]
-        last = float(t["last"]); low = float(t["low"]) or 1; high = float(t["high"]) or last
-        vol = float(t.get("vol_idr",0))
-        if vol == 0:
-            vol = float(t.get("vol_"+pair.split("_")[0],0)) * last
-        chg = (last-low)/low*100
-        th = (high-last)/high*100 if high else 0
-        return chg, th, vol, last
-    except: return None
-
-def main():
-    now = datetime.now(timezone.utc) + timedelta(hours=7)
-    jam_str = now.strftime("%H:%M")
-
-    # 24 JAM FULL - ANTI KETINGGALAN DINI
-    MIN_VOL = 15000000  # 15Mn 24 JAM!
-    MIN_RATIO = 1.0
-    MIN_HIJAU = 3
-    S_MIN_CHG, S_MAX_CHG = 0.8, 5
-    H_MIN_CHG, H_MAX_CHG = 5, 20
-    MIN_TH = 5
-    mode = "24JAM DINI"
-
-    print(f"SCAN {mode} {jam_str} | Vol {MIN_VOL/1e6:.0f}Mn")
-
-    try:
-        pairs = requests.get(MARKETS_URL, timeout=8).json()
-    except: return
+        tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json().get("tickers",{})
+    except Exception as e:
+        print(f"Gagal ambil ticker: {e}")
+        return
 
     segar = []
     hunter = []
-
-    for p in pairs:
-        pair = p.get("id","")
-        if not pair.endswith("_idr") or not p.get("tradable"): continue
-        if pair.split("_")[0].lower() in SKIP: continue
-
-        r = ana(pair)
-        if not r: 
-            time.sleep(0.15)
-            continue
-        chg, th, vol, last = r
-        if vol < MIN_VOL or th < MIN_TH: 
-            time.sleep(0.15)
-            continue
-
-        buy, sell = get_depth(pair)
-        if sell == 0: 
-            time.sleep(0.15)
-            continue
-        ratio = buy / sell
-        if ratio < MIN_RATIO or ratio > 7: 
-            time.sleep(0.15)
-            continue
-
-        hijau = get_hijau(pair)
-        if hijau < MIN_HIJAU: 
-            time.sleep(0.15)
-            continue
-
-        coin = pair.replace("_idr","").upper()
-        vstr = f"{vol/1e9:.2f} Bn" if vol>=1e9 else f"{vol/1e6:.0f} Mn"
-
-        if S_MIN_CHG <= chg <= S_MAX_CHG:
-            segar.append((vol, f"🌱 SEGAR {coin} | Naik {chg:.1f}% | Sisa {th:.0f}% | Vol {vstr} | B/S {ratio:.1f}x | Ijo {hijau}/12"))
-        elif H_MIN_CHG <= chg <= H_MAX_CHG:
-            hunter.append((vol, f"🔥 HUNTER {coin} | Naik {chg:.1f}% | Sisa {th:.0f}% | Vol {vstr} | B/S {ratio:.1f}x | Ijo {hijau}/12"))
-
-        time.sleep(0.2)
-
-    segar.sort(key=lambda x: x[0], reverse=True)
-    hunter.sort(key=lambda x: x[0], reverse=True)
-
-    if segar or hunter:
-        pesan = f"🚨 SCAN {jam_str} WIB | {mode}\n"
-        pesan += f"Filter: Vol {MIN_VOL/1e6:.0f}Mn | B/S {MIN_RATIO}x | Ijo {MIN_HIJAU}x\n\n"
-        if segar:
-            pesan += f"🌱 SEGAR:\n"
-            for _, txt in segar[:8]: pesan += f"{txt}\n"
-            pesan += "\n"
-        if hunter:
-            pesan += f"🔥 HUNTER:\n"
-            for _, txt in hunter[:8]: pesan += f"{txt}\n"
-        send(pesan)
-    else:
-        # SELALU KIRIM BIAR GA DIKIRA MATI
-        send(f"🚨 SCAN {jam_str} WIB | {mode}\n\nKOSONG - Market sepi\nFilter {MIN_VOL/1e6:.0f}Mn | {S_MIN_CHG}-{H_MAX_CHG}%")
-
-if __name__ == "__main__":
-    main()
+    
+    for pair, t in tickers.items():
+        if not pair.endswith("_idr"): continue
+        try:
+            last = float(t.get("last",0)); low = float(t.get("low",0)); high = float(t.get("high",0))
+            vol = float(t.get("vol_idr",0))
+            if low<=0 or last<10 or vol<10_000_000: continue  # 10Mn biar ga KOSONG
+            
+            chg = (last-low)/low*
