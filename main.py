@@ -1,12 +1,16 @@
 import requests
 import os
 
-# INI BLOCK LIST LENGKAP LU - YANG GA MAU MASUK! TAMBAHIN DISINI!
+# BLOCK LIST FINAL V18.6 - SEMUA GEDE & STABLE DI BLOCK!
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
-    'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR',
-    'FLOKI_IDR','ADA_IDR','FARTCOIN_IDR','HYPE_IDR','XRP_IDR'
-    # <- tambahin semua koin yang lu block di V18.4 disini!
+    'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
+    'ADA_IDR','FARTCOIN_IDR','HYPE_IDR','TRX_IDR','AVAX_IDR','LINK_IDR','DOT_IDR',
+    # Tambahan baru yang lu minta:
+    'SUI_IDR','ASTER_IDR','ONDO_IDR','QNT_IDR', # gede vol 1-2Bn
+    'PAXG_IDR', # emas
+    'KITE_IDR', # dump chart tadi
+    'BMT_IDR' # hunter 31% kegedean
 ]
 
 def get_indodax_data():
@@ -22,34 +26,38 @@ def get_indodax_data():
         except: continue
     return out
 
-def scan_v18_5(data):
+def scan_v18_6(data):
     early=[]; hunter=[]; segar=[]
     for k in data:
         if k['symbol'] in BLOCKED: continue
         if k['vol']<0.025: continue
-        if 1.0<=k['chg']<=4.0 and k['th']<=5.0 and k['vol']>=0.08 and k['last']>k['low']:
+        # EARLY DIKETATIN: vol naik 0.10Bn, TH max 4% (tadi 5%)
+        if 1.0<=k['chg']<=4.0 and k['th']<=4.0 and k['vol']>=0.10 and k['last']>k['low']:
             early.append(k)
-        elif k['chg']>4.0 and k['th']<=10.0 and k['vol']>=0.07:
+        # HUNTER tetap
+        elif k['chg']>4.0 and k['th']<=6.0 and k['vol']>=0.07:
             hunter.append(k)
-        elif k['chg']<=4.0 and k['th']<=12.0 and k['vol']>=0.15:
+        # SEGAR DIKETATIN: vol 0.15 - 1.0Bn aja, di atas 1.0 auto skip SUI/ASTER
+        elif 0.2<=k['chg']<=4.0 and k['th']<=8.0 and 0.15<=k['vol']<=1.0:
             segar.append(k)
     return sorted(early,key=lambda x:x['chg'])[:3], sorted(hunter,key=lambda x:x['th'])[:3], sorted(segar,key=lambda x:x['vol'],reverse=True)[:4]
 
 def kirim_tele(pesan):
     token=os.getenv('TELE_TOKEN'); chat=os.getenv('TELE_CHAT_ID')
-    if not token or not chat: print("TELE TOKEN/CHAT_ID kosong"); return
+    if not token or not chat: return
     url=f"https://api.telegram.org/bot{token}/sendMessage"
-    requests.post(url, json={'chat_id':chat,'text':pesan}, timeout=10)
+    try: requests.post(url, json={'chat_id':chat,'text':pesan}, timeout=10)
+    except: pass
 
 if __name__=="__main__":
     data=get_indodax_data()
-    e,h,s=scan_v18_5(data)
-    msg=f"SCAN V18.5 10 KOINS\nData {len(data)} | E{len(e)} H{len(h)} S{len(s)}\n\n"
-    msg+="⚡ EARLY\n"
+    e,h,s=scan_v18_6(data)
+    msg=f"SCAN V18.6 10 KOINS - FINAL\nData {len(data)} | E{len(e)} H{len(h)} S{len(s)}\n\n"
+    msg+="⚡ EARLY (Tahan Besok)\n"
     for k in e: msg+=f"{k['symbol']} {k['chg']:.1f}% Vol {k['vol']:.2f}Bn TH {k['th']:.1f}%\n"
-    msg+="\n🚀 HUNTER\n"
+    msg+="\n🚀 HUNTER (Scalp)\n"
     for k in h: msg+=f"{k['symbol']} {k['chg']:.1f}% TH {k['th']:.1f}% Vol {k['vol']:.2f}Bn\n"
-    msg+="\n🌱 SEGAR\n"
+    msg+="\n🌱 SEGAR (Mid Vol)\n"
     for k in s: msg+=f"{k['symbol']} {k['chg']:.1f}% Vol {k['vol']:.2f}Bn TH {k['th']:.1f}%\n"
     print(msg)
     kirim_tele(msg)
