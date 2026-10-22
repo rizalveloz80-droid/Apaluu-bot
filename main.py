@@ -25,25 +25,22 @@ def get_data():
         return out
     except: return []
 
-def scan_hybrid(data):
+def scan_v19(data):
     early=[]; hunter=[]; segar=[]
     for k in data:
         if k['sym'] in BLOCKED: continue
         v=k['vol']; c=k['chg']; s=k['sisa']; rg=k['range']
         
-        # ⚡ EARLY = V18.7 + V54 sisa>15% (buat hold besok kayak ICNT)
-        # chg 1-4% + sisa 15-35% + range <=35% + vol 0.10-1.0 + chg>=0
-        if 1.0<=c<=4.0 and 15<=s<=35 and rg<=35 and c>=0 and 0.10<=v<=1.0:
+        # ⚡ EARLY - HOLD BESOK (kayak ICNT TP 32%) - KETAT!
+        if 0.5<=c<=4.0 and 15<=s<=28 and rg<=28 and 0.15<=v<=0.90:
             early.append(k)
             
-        # 🚀 HUNTER = V18.7 scalp, sisa kecil TH<=4% (biar ga kepucuk)
-        # chg >4% + sisa <=4% + range <=40% + vol 0.07-1.0
-        elif 4.0<c<=25 and s<=4.0 and rg<=40 and 0.07<=v<=1.0:
+        # 🚀 HUNTER - MAIN CEPAT SCALP - TETAP!
+        elif 4.0<c<=20 and s<=3.5 and rg<=35 and 0.08<=v<=0.60:
             hunter.append(k)
             
-        # 🌱 SEGAR = V18.7 mid + V54 sisa>15% (anti resistance)
-        # chg 0.5-4% + sisa 15-30% + range <=35% + vol 0.15-0.60
-        elif 0.5<=c<=4.0 and 15<=s<=30 and rg<=35 and c>=0 and 0.15<=v<=0.60:
+        # 🌱 SEGAR - MAIN CEPAT MID - TETAP KETAT DIKIT!
+        elif 0.8<=c<=3.5 and 15<=s<=25 and rg<=25 and 0.20<=v<=0.60:
             segar.append(k)
 
     early=sorted(early, key=lambda x: x['sisa'], reverse=True)[:3]
@@ -53,17 +50,17 @@ def scan_hybrid(data):
 
 def kirim(msg):
     token=os.getenv('TELE_TOKEN'); chat=os.getenv('TELE_CHAT_ID')
-    if not token or not chat: return
+    if not token or not chat: print(msg); return
     try: requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={'chat_id':chat,'text':msg}, timeout=10)
     except: pass
 
 if __name__=="__main__":
     data=get_data()
-    e,h,s=scan_hybrid(data)
-    msg=f"HYBRID V18.7xV54 - EARLY/HUNTER/SEGAR\nData {len(data)} | E{len(e)} H{len(h)} S{len(s)}\n\n⚡ EARLY sisa>15%\n"
+    e,h,s=scan_v19(data)
+    msg=f"V19 FINAL KETAT - E/H/S\nData {len(data)} | E{len(e)} H{len(h)} S{len(s)}\n\n⚡ EARLY sisa15-28% range<=28%\n"
     for k in e: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+="\n🚀 HUNTER sisa<=4%\n"
-    for k in h: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% Vol {k['vol']:.2f}Bn\n"
-    msg+="\n🌱 SEGAR sisa>15% Vol 0.15-0.60\n"
+    msg+="\n🚀 HUNTER sisa<=3.5% (scalp)\n"
+    for k in h: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    msg+="\n🌱 SEGAR sisa15-25% range<=25%\n"
     for k in s: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg); kirim(msg)
