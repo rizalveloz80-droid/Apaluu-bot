@@ -11,7 +11,7 @@ SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge',
     'dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi',
     'portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','pengu','pump'}
 
-VOL_MIN = 80000000
+VOL_MIN = 5000000
 MAX_CHG = 100.0
 
 def send_tele(m):
@@ -24,17 +24,15 @@ early=[]; hunter=[]; segar=[]; dalem=[]
 
 for pair,d in tickers.items():
  if not pair.endswith("_idr"): continue
- # FIX INI KUNCI! Ambil simbolnya aja: near_idr -> near
  symbol = pair.split('_')[0].lower()
  if symbol in SKIP: continue
-
  try:
   last=float(d["last"]); low=float(d["low"]); high=float(d["high"]); vol=float(d["vol_idr"])
   if low==0 or last<10 or vol<VOL_MIN: continue
-  if ((high-low)/low*100) < 2.0: continue
+  if ((high-low)/low*100) < 0.5: continue
   chg=(last-low)/low*100; th=(high-last)/last*100; dl=(last-low)/last*100; sq=dl+th
   if -30 <= chg <= -1.5 and dl<=5 and sq<22 and th<25 and chg>=0.3: dalem.append((pair,chg,vol,th,dl))
-  if 1.2 <= chg <=10 and th<=6 and dl<=6 and sq<13 and vol>=100000000: early.append((pair,chg,vol,th))
+  if 1.2 <= chg <=10 and th<=6 and dl<=6 and sq<13 and vol>=5000000: early.append((pair,chg,vol,th))
   if chg<1.2 or chg>MAX_CHG or th<0 or th>50 or chg<0.3: continue
   if chg<=4:
    if th<=15: segar.append((pair,chg,vol,th))
