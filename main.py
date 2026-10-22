@@ -1,7 +1,8 @@
 import requests, os, datetime
 
-VOL_MIN = 500000000
-S_MIN = 1.5
+VOL_SEGAR = 100000000   # deteksi dini 100Mn aja
+VOL_HUNTER = 500000000  # hunter harus 500Mn
+S_MIN = 1.2  # balikin ke 1.2 biar ZEREBRO 1.12% masuk
 H_MIN = 4.0
 MAX_CHG = 30.0
 TH_MAX_SEGAR = 15.0
@@ -20,7 +21,6 @@ try:
 except:
     tickers = {}
 
-# FIX JAM WIB
 wib = datetime.datetime.utcnow() + datetime.timedelta(hours=7)
 now = wib.strftime("%H:%M WIB")
 
@@ -34,15 +34,18 @@ for pair, data in tickers.items():
         low = float(data.get("low", 0))
         high = float(data.get("high", 0))
         vol = float(data.get("vol_idr", 0))
-        if low == 0 or vol < VOL_MIN: continue
+        if low == 0: continue
         chg = ((last-low)/low)*100
         if chg < S_MIN or chg > MAX_CHG: continue
         th = ((high-last)/last)*100 if last>0 else 0
         if th < 0: continue
+        
         if chg <= H_MIN:
+            if vol < VOL_SEGAR: continue
             if th > TH_MAX_SEGAR: continue
             segar.append((pair, chg, vol, th))
         else:
+            if vol < VOL_HUNTER: continue
             if th > TH_MAX_HUNTER: continue
             hunter.append((pair, chg, vol, th))
     except: continue
@@ -51,15 +54,15 @@ segar = sorted(segar, key=lambda x: x[2], reverse=True)[:5]
 hunter = sorted(hunter, key=lambda x: x[1], reverse=True)[:5]
 
 if not segar and not hunter:
-    send_tele(f"KOSONG SCAN {now} V15.5 ANTI NYANGKUT Vol 500Mn")
+    send_tele(f"KOSONG SCAN {now} V15.6 DETEKSI DINI")
 else:
-    msg = f"SCAN {now} V15.5 ANTI NYANGKUT\n"
+    msg = f"SCAN {now} V15.6 DETEKSI DINI\n"
     if segar:
-        msg += f"\n-- SEGAR 1.5-4% TH<15% --\n"
+        msg += f"\n-- 🌱 SEGAR 1.2-4% (dini) --\n"
         for p,c,v,th in segar:
-            msg += f"{p.upper()} {c:.2f}% Vol {v/1e9:.1f}Bn TH {th:.1f}%\n"
+            msg += f"{p.upper()} {c:.2f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n"
     if hunter:
-        msg += f"\n-- HUNTER 4-30% TH<10% --\n"
+        msg += f"\n-- 🚀 HUNTER 4-30% --\n"
         for p,c,v,th in hunter:
             msg += f"{p.upper()} {c:.2f}% Vol {v/1e9:.1f}Bn TH {th:.1f}%\n"
     send_tele(msg)
