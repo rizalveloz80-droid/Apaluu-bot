@@ -2,13 +2,17 @@ import requests, os, datetime, sys
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELE_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELE_CHAT_ID")
 
-# CONFIG FINAL - GA USAH DIEDIT LAGI
+# === SKIP PUNYA LU - 74 KOIN ===
+SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge',
+    'bnb','ada','dot','ltc','trx','link','avax','mkr','sui','hype',
+    'near','ton','apt','sei','inj','ftm','atom','aave','uni','poly',
+    'matic','meme','floki','wif','xlm','algo','vet','theta','eos','mana',
+    'axs','enj','chz','jup','render','fet','agix','grt','etc','bch','bsv',
+    'dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi',
+    'portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','pengu','pump'}
+
 VOL_MIN = 80000000
 MAX_CHG = 100.0
-BLOCKED = {
- "btc_idr","wbtc_idr","usdt_idr","usdc_idr","dai_idr","busd_idr","tusd_idr","idrt_idr","usdn_idr","eur_idr","eurc_idr","usde_idr","usd1_idr","pyusd_idr",
- "eth_idr","weth_idr","bnb_idr","xrp_idr","sol_idr","ada_idr","trx_idr","avax_idr","matic_idr","doge_idr","shib_idr","dot_idr","ltc_idr","bch_idr","paxg_idr","pepe_idr","link_idr"
-}
 
 def send_tele(m):
  try: requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": m}, timeout=10)
@@ -16,10 +20,14 @@ def send_tele(m):
 
 tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json().get("tickers", {})
 now = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%H:%M WIB")
-early=hunter=segar=dalem=[]; early=[]; hunter=[]; segar=[]; dalem=[]
+early=[]; hunter=[]; segar=[]; dalem=[]
 
 for pair,d in tickers.items():
- if not pair.endswith("_idr") or pair in BLOCKED: continue
+ if not pair.endswith("_idr"): continue
+ # FIX INI KUNCI! Ambil simbolnya aja: near_idr -> near
+ symbol = pair.split('_')[0].lower()
+ if symbol in SKIP: continue
+
  try:
   last=float(d["last"]); low=float(d["low"]); high=float(d["high"]); vol=float(d["vol_idr"])
   if low==0 or last<10 or vol<VOL_MIN: continue
@@ -34,7 +42,7 @@ for pair,d in tickers.items():
    if th<=12: hunter.append((pair,chg,vol,th))
  except: continue
 
-msg=f"SCAN {now} V18.3 LOCK\n"
+msg=f"SCAN {now} V18.4 SKIP FIX\n"
 if early: msg+="\n⚡ EARLY\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn\n" for p,c,v,th in early[:3]])
 if hunter: msg+="\n🚀 HUNTER\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(hunter,key=lambda x:x[1],reverse=True)[:5]])
 if segar: msg+="\n🌱 SEGAR\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn\n" for p,c,v,th in sorted(segar,key=lambda x:x[2],reverse=True)[:5]])
