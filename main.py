@@ -53,25 +53,15 @@ def ana(pair):
 def main():
     now = datetime.now(timezone.utc) + timedelta(hours=7)
     jam_str = now.strftime("%H:%M")
-    jam = now.hour
 
-    # ANTI KETINGGALAN UCJL - ENTRY SEJAK DINI
-    if 0 <= jam <= 7:
-        MIN_VOL = 15000000  # 15Mn aja! biar jam 06:00 ke-detect
-        MIN_RATIO = 1.0
-        MIN_HIJAU = 3
-        S_MIN_CHG, S_MAX_CHG = 0.8, 5  # 0.8% aja udah SEGAR!
-        H_MIN_CHG, H_MAX_CHG = 5, 20
-        MIN_TH = 5
-        mode = "PAGI DINI"
-    else:
-        MIN_VOL = 30000000  # 30Mn siang
-        MIN_RATIO = 1.1
-        MIN_HIJAU = 3
-        S_MIN_CHG, S_MAX_CHG = 1.0, 4.5
-        H_MIN_CHG, H_MAX_CHG = 4.5, 15
-        MIN_TH = 8
-        mode = "SORE"
+    # 24 JAM FULL - ANTI KETINGGALAN DINI
+    MIN_VOL = 15000000  # 15Mn 24 JAM!
+    MIN_RATIO = 1.0
+    MIN_HIJAU = 3
+    S_MIN_CHG, S_MAX_CHG = 0.8, 5
+    H_MIN_CHG, H_MAX_CHG = 5, 20
+    MIN_TH = 5
+    mode = "24JAM DINI"
 
     print(f"SCAN {mode} {jam_str} | Vol {MIN_VOL/1e6:.0f}Mn")
 
@@ -124,7 +114,7 @@ def main():
     hunter.sort(key=lambda x: x[0], reverse=True)
 
     if segar or hunter:
-        pesan = f"🚨 SCAN {jam_str} WIB | V13 DINI {mode}\n"
+        pesan = f"🚨 SCAN {jam_str} WIB | {mode}\n"
         pesan += f"Filter: Vol {MIN_VOL/1e6:.0f}Mn | B/S {MIN_RATIO}x | Ijo {MIN_HIJAU}x\n\n"
         if segar:
             pesan += f"🌱 SEGAR:\n"
@@ -135,9 +125,8 @@ def main():
             for _, txt in hunter[:8]: pesan += f"{txt}\n"
         send(pesan)
     else:
-        # Biar ga spam, kirim KOSONG cuma tiap 1 jam sekali aja
-        if now.minute < 5:
-            send(f"🚨 SCAN {jam_str} WIB | V13 DINI {mode}\n\nKOSONG - Market sepi\nFilter {MIN_VOL/1e6:.0f}Mn")
+        # SELALU KIRIM BIAR GA DIKIRA MATI
+        send(f"🚨 SCAN {jam_str} WIB | {mode}\n\nKOSONG - Market sepi\nFilter {MIN_VOL/1e6:.0f}Mn | {S_MIN_CHG}-{H_MAX_CHG}%")
 
 if __name__ == "__main__":
     main()
