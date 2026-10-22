@@ -1,11 +1,11 @@
 import requests, os, datetime
 
-VOL_MIN = 500000000  # naikin jadi 500Mn biar ga 0.1Bn kayak ONT
+VOL_MIN = 500000000
 S_MIN = 1.5
 H_MIN = 4.0
 MAX_CHG = 30.0
-TH_MAX_SEGAR = 15.0  # segar ga boleh jauh dari high >15%
-TH_MAX_HUNTER = 10.0 # hunter ga boleh jauh >10%
+TH_MAX_SEGAR = 15.0
+TH_MAX_HUNTER = 10.0
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELE_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELE_CHAT_ID")
 
@@ -20,7 +20,10 @@ try:
 except:
     tickers = {}
 
-now = datetime.datetime.now().strftime("%H:%M WIB")
+# FIX JAM WIB
+wib = datetime.datetime.utcnow() + datetime.timedelta(hours=7)
+now = wib.strftime("%H:%M WIB")
+
 segar = []
 hunter = []
 
@@ -36,13 +39,11 @@ for pair, data in tickers.items():
         if chg < S_MIN or chg > MAX_CHG: continue
         th = ((high-last)/last)*100 if last>0 else 0
         if th < 0: continue
-        
-        # FILTER ANTI NYANGKUT BARU
         if chg <= H_MIN:
-            if th > TH_MAX_SEGAR: continue  # segar tapi udah jatuh 37% buang!
+            if th > TH_MAX_SEGAR: continue
             segar.append((pair, chg, vol, th))
         else:
-            if th > TH_MAX_HUNTER: continue  # hunter tapi udah jatuh 29% buang!
+            if th > TH_MAX_HUNTER: continue
             hunter.append((pair, chg, vol, th))
     except: continue
 
