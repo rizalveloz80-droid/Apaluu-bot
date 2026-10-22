@@ -1,40 +1,48 @@
-import requests, os, datetime, sys
-BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELE_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELE_CHAT_ID")
-SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge','bnb','ada','dot','ltc','trx','link','avax','mkr','sui','hype','near','ton','apt','sei','inj','ftm','atom','aave','uni','poly','matic','meme','floki','wif','xlm','algo','vet','theta','eos','mana','axs','enj','chz','jup','render','fet','agix','grt','etc','bch','bsv','dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi','portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','pengu','pump','paxg'}
-VOL_MIN = 25000000
-MAX_CHG = 100.0
-def send_tele(m):
- try: requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": m}, timeout=10)
- except: pass
-tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json().get("tickers", {})
-now = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%H:%M WIB")
-early=[]; hunter=[]; segar=[]; dalem=[]
-for pair,d in tickers.items():
- if not pair.endswith("_idr"): continue
- if pair.split('_')[0].lower() in SKIP: continue
- try:
-  last=float(d["last"]); low=float(d["low"]); high=float(d["high"]); vol=float(d["vol_idr"])
-  if low==0 or last<10 or vol<VOL_MIN: continue
-  if ((high-low)/low*100) < 0.5: continue
-  chg=(last-low)/low*100; th=(high-last)/last*100; dl=(last-low)/last*100; sq=dl+th
-  if -30 <= chg <= -1.5 and dl<=5 and sq<22 and th<25 and chg>=0.3: dalem.append((pair,chg,vol,th,dl))
-  if 1.2 <= chg <=10 and th<=6 and dl<=6 and sq<13 and vol>=20000000: early.append((pair,chg,vol,th))
-  if chg<1.2 or chg>MAX_CHG or th<0 or th>50 or chg<0.3: continue
-  if chg<=4:
-   if th<=15: segar.append((pair,chg,vol,th))
-  else:
-   if th<=12: hunter.append((pair,chg,vol,th))
- except: continue
+# ============================================
+# SCAN V18.5 10 KOINS - FINAL LOCK 22 OKT 2026
+# EARLY ketatin 3, HUNTER label 3, SEGAR longgar 4
+# BLOCK LIST LAMA TETAP AMAN!
+# ============================================
 
-msg=f"SCAN {now} V18.4 25JT\n"
-if early: 
- msg+="\n⚡ EARLY (Entry % kecil dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(early,key=lambda x:x[1])[:3]])
-if hunter:
- msg+="\n🚀 HUNTER (TH kecil = dekat pucuk)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(hunter,key=lambda x:x[3])[:3]])
-if segar:
- msg+="\n🌱 SEGAR (Vol gede dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(segar,key=lambda x:x[2],reverse=True)[:3]])
-if dalem:
- msg+="\n💎 DALEM\n"+"".join([f"{p.upper()} {c:.1f}% DL {dl:.1f}%\n" for p,c,v,th,dl in sorted(dalem,key=lambda x:x[4])[:3]])
-if not (early or hunter or segar or dalem): msg+="KOSONG"
-send_tele(msg); print(msg); sys.exit(0)
+BLOCKED = [
+    'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
+    'SHIB_IDR','DOGE_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR'
+    # GANTI INI SAMA BLOCK LIST LAMA LU YANG ASLI DI V18.4!
+]
+
+def scan_v18_5(data):
+    early, hunter, segar = [], [], []
+    
+    for koin in data:
+        symbol = koin.get('symbol', koin.get('pair',''))
+        chg = float(koin.get('chg', 0))
+        th = float(koin.get('th', 0))
+        vol = float(koin.get('vol', 0))  # dalam Bn
+        last = float(koin.get('last', 0))
+        low = float(koin.get('low', 1))
+        
+        # 1. BLOCK LIST LAMA - TETAP DI BLOCK!
+        if symbol in BLOCKED:
+            continue
+        # 2. VOL MINIMAL 25JT - AUTO BLOCK MICIN
+        if vol < 0.025:
+            continue
+            
+        # 3. EARLY = DETEKSI DINI - 3 BIJI - HOLD BESOK
+        if 1.0 <= chg <= 4.0 and th <= 5.0 and vol >= 0.08 and last > low:
+            early.append(koin)
+        # 4. HUNTER = SCALP - 3 BIJI - LABEL TH 0%
+        elif chg > 4.0 and th <= 10.0 and vol >= 0.07:
+            koin['label'] = "SCALP ONLY! JANGAN HOLD!" if th <= 1.0 else "SCALP"
+            hunter.append(koin)
+        # 5. SEGAR = SWING VOL RAME - 4 BIJI
+        elif chg <= 4.0 and th <= 12.0 and vol >= 0.15:
+            segar.append(koin)
+    
+    early = sorted(early, key=lambda x: float(x['chg']))[:3]
+    hunter = sorted(hunter, key=lambda x: float(x['th']))[:3]
+    segar = sorted(segar, key=lambda x: float(x['vol']), reverse=True)[:4]
+    
+    return early, hunter, segar
+
+def format_tele(early, hunter,
