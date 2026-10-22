@@ -1,106 +1,102 @@
-import requests, os, time
-from datetime import datetime, timedelta, timezone
+import requests, os, datetime
 
-TELE_TOKEN = os.getenv('TELE_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN')
-TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('TELEGRAM_CHAT_ID')
+# === V15.3 UNIVERSAL - FINAL ===
+VOL_MIN = 10_000_000
+RATIO_MIN = 0.6
+S_MIN_CHG = 0.8
+H_MIN_CHG = 4.0
+MAX_CHG = 30.0
+GREEN_MIN = 2
+TH_MIN = 2.0
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-def kirim(teks):
+def send_tele(msg):
     try:
-        url = "https://api.telegram.org/bot" + TELE_TOKEN + "/sendMessage"
-        requests.post(url, data={"chat_id": TELE_CHAT_ID, "text": teks}, timeout=10)
-    except Exception as e:
-        print(e)
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
+    except: pass
 
-def get_depth(pair):
+def get_ticker():
     try:
-        r = requests.get("https://indodax.com/api/" + pair + "/depth", timeout=4).json()
-        buy = sum(float(x[0])*float(x[1]) for x in r.get('buy',[])[:15])
-        sell = sum(float(x[0])*float(x[1]) for x in r.get('sell',[])[:15])
-        ratio = buy / sell if sell > 0 else 0
-        return ratio
-    except:
-        return 0
+        r = requests.get("https://indodax.com/api/tickers", timeout=15).json()
+        return r.get("tickers", {})
+    except: return {}
 
-def get_hijau(pair):
+def get_trades(pair, limit=10):
     try:
-        trades = requests.get("https://indodax.com/api/" + pair + "/trades", timeout=3).json()[:10]
-        hijau = 0
-        for i in range(len(trades)-1):
-            if float(trades[i]['price']) >= float(trades[i+1]['price']):
-                hijau += 1
-        return hijau
-    except:
-        return 0
+        # ambil 10 trade terakhir buat hitung ijo
+        url = f"https://indodax.com/api/trades/{pair}"
+        r = requests.get(url, timeout=10).json()
+        trades = r.get("trades", [])[:limit]
+        green = 0
+        for t in trades:
+            # di indodax type buy = ijo (buyer take)
+            if t.get("type") == "buy":
+                green += 1
+        return green
+    except: return 0
 
-def scan():
-    wib = timezone(timedelta(hours=7))
-    now_str = datetime.now(wib).strftime("%H:%M WIB")
+def get_depth_ratio(pair):
     try:
-        tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json().get("tickers",{})
-    except:
-        return
+        # ambil orderbook buat B/S ratio
+        url = f"https://indodax.com/api/depth/{pair}"
+        r = requests.get(url, timeout=10).json()
+        # indodax depth format beda2, coba handle
+        buy_vol = sum([float(x[1]) * float(x[0]) for x in r.get("buy", [])[:10]])
+        sell_vol = sum([float(x[1]) * float(x[0]) for x in r.get("sell", [])[:10]])
+        if sell_vol == 0: return 999
+        return buy_vol / sell_vol
+    except: return 0
 
-    segar = []
-    hunter = []
+tickers = get_ticker()
+now = datetime.datetime.now().strftime("%H:%M WIB")
+hasil_segar = []
+hasil_hunter = []
 
-    for pair, t in tickers.items():
-        if not pair.endswith("_idr"):
+for pair, data in tickers.items():
+    if not pair.endswith("_idr"): continue
+    try:
+        last = float(data.get("last", 0))
+        low = float(data.get("low", 0))
+        high = float(data.get("high", 0))
+        vol_idr = float(data.get("vol_idr", 0))
+        
+        if low == 0 or last == 0: continue
+        if vol_idr < VOL_MIN: continue
+        
+        chg = ((last - low) / low) * 100
+        if chg < S_MIN_CHG: continue
+        if chg > MAX_CHG: continue
+        
+        # TH = jarak ke high
+        th = ((high - last) / last) * 100 if last>0 else 0
+        if th < TH_MIN and chg > 10: # kalo udah tinggi, harus masih ada ruang 2% ke high
             continue
-        try:
-            last = float(t.get("last",0))
-            low = float(t.get("low",0))
-            high = float(t.get("high",0))
-            vol = float(t.get("vol_idr",0))
-            if low <= 0 or last < 10 or vol < 10000000:
-                continue
+        if th < 0: continue # udah break high ga usah
+        
+        # B/S Ratio
+        ratio = get_depth_ratio(pair)
+        if ratio < RATIO_MIN: continue
+        
+        # Green count
+        green = get_trades(pair, 10)
+        
+        # LOGIKA ANTI PUCUK V15.3
+        need_green = GREEN_MIN
+        if chg > 15: # kalo udah naik 15%+ dari low 24jam, wajib ijo 3x (bandar masih jaga)
+            need_green = 3
+        
+        if green < need_green: continue
+        
+        # Masuk kategori
+        if chg <= H_MIN_CHG:
+            hasil_segar.append(f"🌱 {pair.upper()} {chg:.2f}% Vol {vol_idr/1e9:.1f}Bn B/S {ratio:.2f}x Ijo {green}x TH {th:.1f}%")
+        else:
+            hasil_hunter.append(f"🔥 {pair.upper()} {chg:.2f}% Vol {vol_idr/1e9:.1f}Bn B/S {ratio:.2f}x Ijo {green}x TH {th:.1f}%")
+            
+    except: continue
 
-            chg = (last - low) / low * 100
-            th = (high - last) / high * 100 if high > 0 else 0
-            if chg < 0.5 or chg > 20:
-                continue
-            if th < 1.5:
-                continue
-
-            ratio = get_depth(pair)
-            if ratio < 0.7:
-                continue
-
-            hijau = get_hijau(pair)
-            if hijau < 2:
-                continue
-
-            coin = pair.replace("_idr","").upper()
-            vstr = str(int(vol/1000000)) + "Mn"
-            txt = coin + " | Naik " + str(round(chg,1)) + "% | Sisa " + str(int(th)) + "% | Vol " + vstr + " | B/S " + str(round(ratio,1)) + "x | Ijo " + str(hijau) + "/10"
-
-            if chg <= 4.5:
-                segar.append((vol, "SEGAR " + txt))
-            else:
-                hunter.append((vol, "HUNTER " + txt))
-
-        except:
-            continue
-        time.sleep(0.15)
-
-    segar.sort(key=lambda x: x[0], reverse=True)
-    hunter.sort(key=lambda x: x[0], reverse=True)
-
-    if segar or hunter:
-        pesan = "SCAN " + now_str + " | V15.1 KOMPLIT 10Mn\nFilter: Vol 10Mn | B/S 0.7x | Ijo 2x\n\n"
-        if segar:
-            pesan += "SEGAR DINI (Bandar+Vol+Ijo):\n"
-            for _, s in segar[:6]:
-                pesan += s + "\n"
-            pesan += "\n"
-        if hunter:
-            pesan += "HUNTER:\n"
-            for _, s in hunter[:6]:
-                pesan += s + "\n"
-        print(pesan)
-        kirim(pesan)
-    else:
-        msg = "SCAN " + now_str + " | V15.1 KOMPLIT 10Mn\n\nKOSONG - Market sepi bener\nFilter Vol 10Mn B/S 0.7x Ijo 2x"
-        print(msg)
-        kirim(msg)
-
-scan()
+# Kirim hasil
+if not hasil_segar and not hasil_hunter:
+    send_tele(f"KOSONG - Market sepi bener\nSCAN {now} | V15.3 UNIVERSAL 10Mn\nFilter Vol 10Mn B/S 0.6x Ijo 2x(3x jika >15%) TH
