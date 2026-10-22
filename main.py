@@ -1,27 +1,15 @@
 import requests, os, datetime, sys
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELE_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELE_CHAT_ID")
-
-# === SKIP PUNYA LU - 75 KOIN (udah + paxg biar ga muncul lagi) ===
-SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge',
-    'bnb','ada','dot','ltc','trx','link','avax','mkr','sui','hype',
-    'near','ton','apt','sei','inj','ftm','atom','aave','uni','poly',
-    'matic','meme','floki','wif','xlm','algo','vet','theta','eos','mana',
-    'axs','enj','chz','jup','render','fet','agix','grt','etc','bch','bsv',
-    'dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi',
-    'portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','pengu','pump','paxg'}
-
-VOL_MIN = 25000000  # 25jt - TENGAH-TENGAH
+SKIP = {'usdt','usdc','dai','busd','husd','btc','eth','xrp','sol','doge','bnb','ada','dot','ltc','trx','link','avax','mkr','sui','hype','near','ton','apt','sei','inj','ftm','atom','aave','uni','poly','matic','meme','floki','wif','xlm','algo','vet','theta','eos','mana','axs','enj','chz','jup','render','fet','agix','grt','etc','bch','bsv','dash','zec','xmr','btt','win','1inch','gmx','rndr','kas','ordi','portal','tia','ondo','ena','zks','ethfi','pyth','mew','xaut','pengu','pump','paxg'}
+VOL_MIN = 25000000
 MAX_CHG = 100.0
-
 def send_tele(m):
  try: requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": m}, timeout=10)
  except: pass
-
 tickers = requests.get("https://indodax.com/api/tickers", timeout=15).json().get("tickers", {})
 now = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%H:%M WIB")
 early=[]; hunter=[]; segar=[]; dalem=[]
-
 for pair,d in tickers.items():
  if not pair.endswith("_idr"): continue
  if pair.split('_')[0].lower() in SKIP: continue
@@ -39,16 +27,14 @@ for pair,d in tickers.items():
    if th<=12: hunter.append((pair,chg,vol,th))
  except: continue
 
-# SORTING ENAK BACA
 msg=f"SCAN {now} V18.4 25JT\n"
 if early: 
- msg+="\n⚡ EARLY (Entry % kecil dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(early,key=lambda x:x[1])[:5]])
+ msg+="\n⚡ EARLY (Entry % kecil dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(early,key=lambda x:x[1])[:3]])
 if hunter:
- msg+="\n🚀 HUNTER (TH kecil = dekat pucuk)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(hunter,key=lambda x:x[3])[:5]])
+ msg+="\n🚀 HUNTER (TH kecil = dekat pucuk)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(hunter,key=lambda x:x[3])[:3]])
 if segar:
- msg+="\n🌱 SEGAR (Vol gede dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(segar,key=lambda x:x[2],reverse=True)[:5]])
+ msg+="\n🌱 SEGAR (Vol gede dulu)\n"+"".join([f"{p.upper()} {c:.1f}% Vol {v/1e9:.2f}Bn TH {th:.1f}%\n" for p,c,v,th in sorted(segar,key=lambda x:x[2],reverse=True)[:3]])
 if dalem:
- msg+="\n💎 DALEM\n"+"".join([f"{p.upper()} {c:.1f}% DL {dl:.1f}%\n" for p,c,v,th,dl in sorted(dalem,key=lambda x:x[4])[:5]])
+ msg+="\n💎 DALEM\n"+"".join([f"{p.upper()} {c:.1f}% DL {dl:.1f}%\n" for p,c,v,th,dl in sorted(dalem,key=lambda x:x[4])[:3]])
 if not (early or hunter or segar or dalem): msg+="KOSONG"
-
 send_tele(msg); print(msg); sys.exit(0)
