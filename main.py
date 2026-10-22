@@ -1,8 +1,8 @@
 import requests, os, datetime
 
-VOL_SEGAR = 100000000   # deteksi dini 100Mn aja
-VOL_HUNTER = 500000000  # hunter harus 500Mn
-S_MIN = 1.2  # balikin ke 1.2 biar ZEREBRO 1.12% masuk
+VOL_SEGAR = 100000000
+VOL_HUNTER = 500000000
+S_MIN = 1.2
 H_MIN = 4.0
 MAX_CHG = 30.0
 TH_MAX_SEGAR = 15.0
@@ -35,6 +35,12 @@ for pair, data in tickers.items():
         high = float(data.get("high", 0))
         vol = float(data.get("vol_idr", 0))
         if low == 0: continue
+        
+        # === CUMA TAMBAH INI DOANG MIN, YANG LAIN GA DIRUBAH ===
+        if last < 20:  # HARGA 12 PERAK SKIP!
+            continue
+        # =======================================================
+        
         chg = ((last-low)/low)*100
         if chg < S_MIN or chg > MAX_CHG: continue
         th = ((high-last)/last)*100 if last>0 else 0
@@ -54,9 +60,9 @@ segar = sorted(segar, key=lambda x: x[2], reverse=True)[:5]
 hunter = sorted(hunter, key=lambda x: x[1], reverse=True)[:5]
 
 if not segar and not hunter:
-    send_tele(f"KOSONG SCAN {now} V15.6 DETEKSI DINI")
+    send_tele(f"KOSONG SCAN {now} V15.7 ANTI RECEH")
 else:
-    msg = f"SCAN {now} V15.6 DETEKSI DINI\n"
+    msg = f"SCAN {now} V15.7 ANTI RECEH\n"
     if segar:
         msg += f"\n-- 🌱 SEGAR 1.2-4% (dini) --\n"
         for p,c,v,th in segar:
