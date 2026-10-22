@@ -1,10 +1,11 @@
 import requests, os, datetime
 
-VOL_MIN = 10000000
-S_MIN = 1.5  # naik dari 0.8 biar ga 123 koin
+VOL_MIN = 500000000  # naikin jadi 500Mn biar ga 0.1Bn kayak ONT
+S_MIN = 1.5
 H_MIN = 4.0
 MAX_CHG = 30.0
-TH_MIN = 2.5
+TH_MAX_SEGAR = 15.0  # segar ga boleh jauh dari high >15%
+TH_MAX_HUNTER = 10.0 # hunter ga boleh jauh >10%
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELE_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID") or os.getenv("TELE_CHAT_ID")
 
@@ -35,29 +36,31 @@ for pair, data in tickers.items():
         if chg < S_MIN or chg > MAX_CHG: continue
         th = ((high-last)/last)*100 if last>0 else 0
         if th < 0: continue
-        if chg > 10 and th < TH_MIN: continue  # anti pucuk
+        
+        # FILTER ANTI NYANGKUT BARU
         if chg <= H_MIN:
+            if th > TH_MAX_SEGAR: continue  # segar tapi udah jatuh 37% buang!
             segar.append((pair, chg, vol, th))
         else:
+            if th > TH_MAX_HUNTER: continue  # hunter tapi udah jatuh 29% buang!
             hunter.append((pair, chg, vol, th))
     except: continue
 
-# ambil terbaik aja
-segar = sorted(segar, key=lambda x: x[2], reverse=True)[:8]
-hunter = sorted(hunter, key=lambda x: x[1], reverse=True)[:8]
+segar = sorted(segar, key=lambda x: x[2], reverse=True)[:5]
+hunter = sorted(hunter, key=lambda x: x[1], reverse=True)[:5]
 
 if not segar and not hunter:
-    send_tele(f"KOSONG SCAN {now} V15.4 BALANCE Vol 10Mn S_MIN 1.5%")
+    send_tele(f"KOSONG SCAN {now} V15.5 ANTI NYANGKUT Vol 500Mn")
 else:
-    msg = f"SCAN {now} V15.4 BALANCE\n"
+    msg = f"SCAN {now} V15.5 ANTI NYANGKUT\n"
     if segar:
-        msg += f"\n--- SEGAR 1.5-4% ({len(segar)}) ---\n"
+        msg += f"\n-- SEGAR 1.5-4% TH<15% --\n"
         for p,c,v,th in segar:
             msg += f"{p.upper()} {c:.2f}% Vol {v/1e9:.1f}Bn TH {th:.1f}%\n"
     if hunter:
-        msg += f"\n--- HUNTER 4-30% ({len(hunter)}) ---\n"
+        msg += f"\n-- HUNTER 4-30% TH<10% --\n"
         for p,c,v,th in hunter:
             msg += f"{p.upper()} {c:.2f}% Vol {v/1e9:.1f}Bn TH {th:.1f}%\n"
     send_tele(msg)
 
-print(f"SCAN {now} segar:{len(segar)} hunter:{len(hunter)} dari 123 jadi segini")
+print(f"SCAN {now} segar:{len(segar)} hunter:{len(hunter)}")
