@@ -1,5 +1,6 @@
 import requests, os
 
+# V22 DIP MODE - BLOCK delisting & stable, tapi DIP -5% masih boleh!
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
     'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
@@ -8,10 +9,11 @@ BLOCKED = [
     'ERN_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR'
 ]
 
+# REAL dari screenshot lu - update jam 11.37!
 MANUAL_REAL = {
-    'MITO_IDR': -10.11, 'ARC_IDR': -12.43, 'PUMP_IDR': -7.30,
-    'MAVIA_IDR': -8.96, 'STRK_IDR': -6.28, 'CST_IDR': -3.18,
-    'UCJL_IDR': -8.51, 'ICNT_IDR': -3.42, 'NEON_IDR': 1.12
+    'MITO_IDR': -10.11, 'ARC_IDR': -12.43, 'CST_IDR': -3.18,
+    'PUMP_IDR': -7.30, 'MAVIA_IDR': -8.96, 'STRK_IDR': -6.28,
+    'UCJL_IDR': -8.51, 'ICNT_IDR': -2.31, 'NEON_IDR': 1.12
 }
 
 def get_data():
@@ -50,18 +52,27 @@ def get_data():
         return []
 
 def scan(data):
-    early=[]; pre=[]; trending=[]
+    early_dip=[]; early=[]; pre=[]; trending=[]
     for k in data:
         v=k['vol']; c=k['chg']; chg24=k['chg24']; s=k['sisa']; rg=k['range']
-        if v < 0.60: continue
-        if chg24 < 1.0: continue
-        if 0.2<=c<=9 and 10<=s<=35 and rg<=45 and 0.60<=v<=5.0 and 1.0<=chg24<=9:
+        # FILTER BARU - biar ICNT -2.31% lolos, MITO -10% tetep BUANG!
+        if v < 0.40: continue  # dulu 0.60, sekarang 0.40 biar ICNT 0.467 lolos!
+        if chg24 < -5: continue  # MITO -10.11% ARC -12.43% UCJL -8.51% BUANG! ICNT -2.31% LOLOS!
+        
+        # DIP BOUNCE kayak ICNT lu 11.27: merah -5% sampai 0% tapi low+ kecil & sisa gede
+        if -5 <= chg24 <= 0.9 and 0 <= c <= 5 and 8 <= s <= 40 and rg <= 50:
+            early_dip.append(k)
+        # EARLY normal ijo 1-9%
+        elif 0.2 <= c <= 9 and 10 <= s <= 35 and rg <= 45 and 1 <= chg24 <= 9:
             early.append(k)
-        elif 2<=c<=18 and 10<=s<=28 and rg<=50 and 0.60<=v<=3.5 and 1<=chg24<=14:
+        # PRE 2-18%
+        elif 2 <= c <= 18 and 10 <= s <= 28 and rg <= 50 and 1 <= chg24 <= 14:
             pre.append(k)
-        elif 6<=c<=80 and 3<=s<=15 and rg<=65 and v>=0.60 and chg24>=2:
+        # TRENDING
+        elif 6 <= c <= 80 and 3 <= s <= 15 and rg <= 65 and v >= 0.40 and chg24 >= 2:
             trending.append(k)
     return (
+        sorted(early_dip, key=lambda x: x['vol'], reverse=True)[:2],
         sorted(early, key=lambda x: x['vol'], reverse=True)[:2],
         sorted(pre, key=lambda x: x['vol'], reverse=True)[:2],
         sorted(trending, key=lambda x: x['vol'], reverse=True)[:3]
@@ -79,22 +90,26 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    e,p,t=scan(data)
-    msg = f"V21 KETAT FIXED - Data {len(data)} | E{len(e)} P{len(p)} T{len(t)} R0\n\n"
+    ed, e, p, t = scan(data)
+    msg = f"V22 DIP MODE - Data {len(data)} | ED{len(ed)} E{len(e)} P{len(p)} T{len(t)}\n\n"
+    if ed:
+        msg += "EARLY DIP (merah -5% to 0% bounce)\n"
+        for k in ed:
+            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg += "\n"
     if e:
         msg += "EARLY\n"
         for k in e:
             msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg += "\n"
     else:
-        msg += "EARLY kosong (UCJL -8.51% ICNT -3.42% BUANG)\n\n"
+        if not ed:
+            msg += "EARLY kosong\n\n"
     if p:
         msg += "PRE\n"
         for k in p:
             msg += f"{k['sym']} {k['chg']:.1f}% {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg += "\n"
-    else:
-        msg += "PRE kosong\n\n"
     msg += "TRENDING\n"
     if t:
         for k in t:
