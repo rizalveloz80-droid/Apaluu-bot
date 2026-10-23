@@ -1,5 +1,6 @@
 import requests, os
 
+# BLOCK V19 - STRK JANGAN DI-BLOCK (sesuai request)
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
     'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
@@ -7,6 +8,7 @@ BLOCKED = [
     'SUI_IDR','ASTER_IDR','ONDO_IDR','QNT_IDR','PAXG_IDR','KITE_IDR',
     'PIPPIN_IDR','PENGU_IDR','SKYAI_IDR','ARB_IDR'
 ]
+# STRK_IDR GA MASUK BLOCK!
 
 def get_data():
     try:
@@ -25,33 +27,51 @@ def get_data():
         return out
     except: return []
 
-def scan_v19(data):
-    early=[]; hunter=[]; segar=[]
+def scan_v18_5(data):
+    early=[]; pre_hunter=[]; hunter=[]; segar=[]
+
     for k in data:
         if k['sym'] in BLOCKED: continue
         v=k['vol']; c=k['chg']; s=k['sisa']; rg=k['range']
         
-        # ⚡ EARLY - HOLD BESOK (TP kayak ICNT) - KETAT sisa 15-28% range<=28%
+        # ⚡ EARLY - HOLD BESOK (kayak ICNT) - V19 ketat
         if 0.5<=c<=4.0 and 15<=s<=28 and rg<=28 and 0.15<=v<=0.90:
             early.append(k)
             
-        # 🚀 HUNTER - MAIN CEPAT SCALP - TETAP!
+        # 🚀 PRE-HUNTER - BARU! Tangkap 4-15% SEBELUM jadi 21% (GTC case)
+        # GTC jam 18:00 10% sisa 12% masuk sini!
+        elif 4.0<c<=15 and 3.5<s<=12 and rg<=28 and 0.20<=v<=1.0:
+            pre_hunter.append(k)
+            
+        # 🚀 HUNTER - MAIN CEPAT SCALP - sisa <=3.5% deket pucuk
         elif 4.0<c<=20 and s<=3.5 and rg<=35 and 0.08<=v<=0.60:
             hunter.append(k)
 
-    # 🌱 SEGAR ambil dari EARLY juga tapi sort by Vol biar PM ga kosong + jangan duplikat EARLY
-    # SEGAR = EARLY yang vol nya 0.15-0.60 (PM 0.24Bn masuk!)
+    # --- FIX SEGAR BIAR GA USELESS TERUS ---
     early_sorted = sorted(early, key=lambda x: x['sisa'], reverse=True)
-    for k in early_sorted:
-        if 0.15 <= k['vol'] <= 0.60:
-            segar.append(k)
-
-    # potong biar rapi
-    early_final = early_sorted[:2]  # E2 kayak tadi STRK, USELESS
-    hunter_final = sorted(hunter, key=lambda x: x['sisa'])[:2]  # H2 MCT, DRX
-    segar_final = sorted(segar, key=lambda x: x['vol'], reverse=True)[:2]  # S1/S2 PM bakal masuk
     
-    return early_final, hunter_final, segar_final
+    # SEGAR ambil dari EARLY tapi Vol 0.15-0.60 + ANTI-DUPLIKAT E1=S1
+    segar_pool = [k for k in early_sorted if 0.15 <= k['vol'] <= 0.60]
+    
+    # EARLY final E2
+    early_final = early_sorted[:2]
+    early_syms = [x['sym'] for x in early_final]
+
+    # SEGAR final S2 - buang yang udah jadi EARLY biar ga USELESS terus
+    segar_filtered = [k for k in segar_pool if k['sym'] not in early_syms]
+    
+    # Kalo market sepi cuma USELESS doang yang ada (jam 00:21)
+    if not segar_filtered:
+        # ambil dari early_sorted yang sisa paling gede (biar beda)
+        segar_filtered = early_sorted[1:3] if len(early_sorted)>1 else early_sorted[:1]
+    
+    segar_final = sorted(segar_filtered, key=lambda x: x['vol'], reverse=True)[:2]
+    
+    # PRE-HUNTER & HUNTER sort
+    pre_final = sorted(pre_hunter, key=lambda x: x['sisa'])[:2]
+    hunter_final = sorted(hunter, key=lambda x: x['sisa'])[:2]
+
+    return early_final, pre_final, hunter_final, segar_final
 
 def kirim(msg):
     token=os.getenv('TELE_TOKEN'); chat=os.getenv('TELE_CHAT_ID')
@@ -61,11 +81,14 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    e,h,s=scan_v19(data)
-    msg=f"V19 FIX - E/H/S\nData {len(data)} | E{len(e)} H{len(h)} S{len(s)}\n\n⚡ EARLY sisa15-28% range<=28%\n"
+    e,p,h,s=scan_v18_5(data)
+    msg=f"V18.5 UNIVERSAL - E/P/H/S\nData {len(data)} | E{len(e)} P{len(p)} H{len(h)} S{len(s)}\n\n"
+    msg+=f"⚡ EARLY sisa15-28% range<=28%\n"
     for k in e: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+="\n🚀 HUNTER sisa<=3.5% (scalp)\n"
+    msg+=f"\n🚀 PRE-HUNTER BARU! sisa3.5-12% (tangkap sebelum 21%)\n"
+    for k in p: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    msg+=f"\n🚀 HUNTER sisa<=3.5% (scalp)\n"
     for k in h: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+="\n🌱 SEGAR sisa15-28% Vol 0.15-0.60\n"
+    msg+=f"\n🌱 SEGAR Vol 0.15-0.60 anti-duplikat\n"
     for k in s: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg); kirim(msg)
