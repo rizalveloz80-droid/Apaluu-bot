@@ -1,20 +1,20 @@
 import requests, os
 
-# V22 DIP FINAL - FULL COPY PASTE! GA USAH GANTI VERSI!
+# V23 RUNNING - BLOCK sampah biar trending update!
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
     'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
     'ADA_IDR','FARTCOIN_IDR','HYPE_IDR','TRX_IDR','AVAX_IDR','LINK_IDR','SUI_IDR',
     'ASTER_IDR','ONDO_IDR','QNT_IDR','PAXG_IDR','KITE_IDR','PIPPIN_IDR','PENGU_IDR','SKYAI_IDR','ARB_IDR',
     'ERN_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR',
-    'CST_IDR','IOST_IDR'  # BLOCK yang lu kirim -2.50% & -5.88% palsu!
+    'CST_IDR','IOST_IDR','USELESS_IDR'  # USELESS -48% lu block biar ga muncul!
 ]
 
 MANUAL_REAL = {
     'MITO_IDR': -10.11, 'ARC_IDR': -12.43, 'UCJL_IDR': -8.51,
-    'PUMP_IDR': -7.30, 'MAVIA_IDR': -8.96, 'STRK_IDR': -6.28,
-    'ICNT_IDR': -2.31, 'CST_IDR': -2.50, 'IOST_IDR': -5.88,
-    'NEON_IDR': 1.12
+    'PUMP_IDR': -7.30, 'MAVIA_IDR': -8.96,
+    'ICNT_IDR': -2.31, 'BR_IDR': 16.7, 'GTC_IDR': 21.5, 'XR_IDR': 25.6,
+    'XDC_IDR': 2.44, 'ZEREBRO_IDR': 15.61
 }
 
 def get_data():
@@ -56,21 +56,30 @@ def scan(data):
     early_dip=[]; early=[]; pre=[]; trending=[]
     for k in data:
         v=k['vol']; c=k['chg']; chg24=k['chg24']; s=k['sisa']; rg=k['range']
+        # VOL 0.40 udah pas! Jangan 0.60 kek V21, ICNT 0.43 kepotong!
         if v < 0.40: continue
+        # DIP -4% biar ICNT -2.3% lolos, MITO -10% BUANG!
         if chg24 < -4: continue
-        if -4 <= chg24 <= 0.9 and 1 <= c <= 5 and 10 <= s <= 40 and rg <= 50:
+
+        # 1. EARLY DIP - kayak ICNT lu +1.32%
+        if -4 <= chg24 <= 0.9 and 1 <= c <= 6 and 8 <= s <= 40 and rg <= 50:
             early_dip.append(k)
-        elif 0.2 <= c <= 9 and 10 <= s <= 35 and rg <= 45 and 1 <= chg24 <= 9:
+        # 2. EARLY FRESH - biar ga ketinggalan coin baru pump 1-12%
+        elif 0.2 <= c <= 12 and 10 <= s <= 40 and rg <= 50 and 1 <= chg24 <= 12:
             early.append(k)
-        elif 2 <= c <= 18 and 10 <= s <= 28 and rg <= 50 and 1 <= chg24 <= 14:
+        # 3. PRE - mau pump 2-22%
+        elif 2 <= c <= 22 and 8 <= s <= 35 and rg <= 55 and 1 <= chg24 <= 18:
             pre.append(k)
-        elif 6 <= c <= 80 and 3 <= s <= 15 and rg <= 65 and v >= 0.40 and chg24 >= 2:
+        # 4. TRENDING RUNNING - ini yang lu mau update terus!
+        # Dulu s 3-15% -> sekarang s 5-20% + c 5-35% biar yang pucuk sisa 6% masih boleh TAPI di sort paling bawah!
+        # Jadi kalo ada coin baru sisa 15% bakal naik ke atas, BR sisa 6% turun!
+        elif 5 <= c <= 60 and 5 <= s <= 25 and rg <= 70 and v >= 0.50 and chg24 >= 3:
             trending.append(k)
     return (
-        sorted(early_dip, key=lambda x: x['chg24'], reverse=True)[:3],
-        sorted(early, key=lambda x: x['vol'], reverse=True)[:2],
-        sorted(pre, key=lambda x: x['vol'], reverse=True)[:2],
-        sorted(trending, key=lambda x: x['vol'], reverse=True)[:3]
+        sorted(early_dip, key=lambda x: x['chg24'], reverse=True)[:2],
+        sorted(early, key=lambda x: x['vol'], reverse=True)[:3],
+        sorted(pre, key=lambda x: (x['sisa'], x['vol']), reverse=True)[:3],
+        sorted(trending, key=lambda x: (x['sisa'], x['vol'], x['chg']), reverse=True)[:5]
     )
 
 def kirim(msg):
@@ -86,26 +95,28 @@ def kirim(msg):
 if __name__=="__main__":
     data=get_data()
     ed, e, p, t = scan(data)
-    msg = f"V22 DIP MODE - Data {len(data)} | ED{len(ed)} E{len(e)} P{len(p)} T{len(t)}\n\n"
+    msg = f"V23 RUNNING - Data {len(data)} | ED{len(ed)} E{len(e)} P{len(p)} T{len(t)}\n\n"
     if ed:
-        msg += "EARLY DIP (merah -4% to 0% bounce)\n"
+        msg += "EARLY DIP\n"
         for k in ed:
             msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg += "\n"
     if e:
-        msg += "EARLY\n"
+        msg += "EARLY FRESH (baru pump!)\n"
         for k in e:
-            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+            msg += f"{k['sym']} {k['chg']:.1f}% {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg += "\n"
     if p:
         msg += "PRE\n"
         for k in p:
             msg += f"{k['sym']} {k['chg']:.1f}% {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg += "\n"
-    msg += "TRENDING\n"
+    msg += "TRENDING RUNNING\n"
     if t:
         for k in t:
-            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+            # tandain pucuk
+            tag = " PUCUK!" if k['sisa'] < 7 else ""
+            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn{tag}\n"
     else:
         msg += "kosong\n"
     print(msg)
