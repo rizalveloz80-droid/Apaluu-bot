@@ -1,15 +1,13 @@
 import requests, os
 
-# V21 KETAT FINAL - BLOCK semua yang bikin lu komplain!
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
     'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
     'ADA_IDR','FARTCOIN_IDR','HYPE_IDR','TRX_IDR','AVAX_IDR','LINK_IDR','SUI_IDR',
     'ASTER_IDR','ONDO_IDR','QNT_IDR','PAXG_IDR','KITE_IDR','PIPPIN_IDR','PENGU_IDR','SKYAI_IDR','ARB_IDR',
-    'ERN_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR' # delisting
+    'ERN_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR'
 ]
 
-# REAL dari screenshot lu biar ga palsu lagi! 
 MANUAL_REAL = {
     'MITO_IDR': -10.11, 'ARC_IDR': -12.43, 'PUMP_IDR': -7.30,
     'MAVIA_IDR': -8.96, 'STRK_IDR': -6.28, 'CST_IDR': -3.18,
@@ -35,7 +33,6 @@ def get_data():
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
                 vol_bn=vol/1e9
-                # REAL
                 if sym in MANUAL_REAL:
                     chg24 = MANUAL_REAL[sym]
                 elif pair in prices and prices[pair]:
@@ -49,18 +46,15 @@ def get_data():
                 out.append({'sym':sym,'chg':chg_low,'chg24':chg24,'sisa':sisa,'range':rg,'vol':vol_bn})
             except: continue
         return out
-    except Exception as e:
-        print(f"ERROR {e}")
+    except:
         return []
 
 def scan(data):
     early=[]; pre=[]; trending=[]
     for k in data:
         v=k['vol']; c=k['chg']; chg24=k['chg24']; s=k['sisa']; rg=k['range']
-        # KETAT OPSI A
-        if v < 0.60: continue # UCJL 0.49 & ICNT 0.47 & MRS 0.37 KE BLOCK!
-        if chg24 < 1.0: continue # UCJL -8.51% & ICNT -3.42% & CST -3.18% MITO -10% BUANG TOTAL!
-        
+        if v < 0.60: continue
+        if chg24 < 1.0: continue
         if 0.2<=c<=9 and 10<=s<=35 and rg<=45 and 0.60<=v<=5.0 and 1.0<=chg24<=9:
             early.append(k)
         elif 2<=c<=18 and 10<=s<=28 and rg<=50 and 0.60<=v<=3.5 and 1<=chg24<=14:
@@ -75,20 +69,37 @@ def scan(data):
 
 def kirim(msg):
     token=os.getenv('TELE_TOKEN'); chat=os.getenv('TELE_CHAT_ID')
-    if not token or not chat: print(msg); return
+    if not token or not chat:
+        print(msg); return
     try:
         r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id":chat,"text":msg}, timeout=15)
-        print(f"TELE {r.status_code} {'TERKIRIM' if r.status_code==200 else 'GAGAL'}")
+        print(f"TELE {r.status_code}")
     except Exception as e:
         print(f"TELE ERROR {e}")
 
 if __name__=="__main__":
     data=get_data()
     e,p,t=scan(data)
-    msg=f"V21 KETAT FINAL - Data {len(data)} | E{len(e)} P{len(p)} T{len(t)} R0\n\n"
+    msg = f"V21 KETAT FIXED - Data {len(data)} | E{len(e)} P{len(p)} T{len(t)} R0\n\n"
     if e:
-        msg+=f"EARLY\n" + "\n".join([f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn" for k in e]) + "\n\n"
+        msg += "EARLY\n"
+        for k in e:
+            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg += "\n"
     else:
-        msg+=f"EARLY (kosong - UCJL -8.51% ICNT -3.42% BUANG)\n\n"
+        msg += "EARLY kosong (UCJL -8.51% ICNT -3.42% BUANG)\n\n"
     if p:
-        msg+=f"PRE\n" + "\n".join([f"{k['sym']} {k['chg']:.1f}% {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol
+        msg += "PRE\n"
+        for k in p:
+            msg += f"{k['sym']} {k['chg']:.1f}% {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg += "\n"
+    else:
+        msg += "PRE kosong\n\n"
+    msg += "TRENDING\n"
+    if t:
+        for k in t:
+            msg += f"{k['sym']} {k['chg']:.1f}% 24h {k['chg24']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    else:
+        msg += "kosong\n"
+    print(msg)
+    kirim(msg)
