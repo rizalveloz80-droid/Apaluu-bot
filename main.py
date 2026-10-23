@@ -28,14 +28,16 @@ def get_data():
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
                 if last < 10: continue # harga 10 pun masuk, tapi UNMD 11 ke block di atas!
                 vol_bn=vol/1e9
-                if vol_bn < 0.005: continue # 30 JUTA pun masuk! Dari 0.15 jadi 0.03! Data 21 jadi 250+!
+                if vol_bn 
+ 
+if vol_bn < 0.005 or vol_bn > 0.5: continue # 30 JUTA pun masuk! Dari 0.15 jadi 0.03! Data 21 jadi 250+!
 
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
 
                 if chg24 < -40: continue # ALT -15% masuk!
-                if chg24 > 100: continue
+                if chg24 > 300: continue
 
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
