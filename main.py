@@ -1,15 +1,26 @@
-import requests, os
+import requests, os, json
 
-# V42 - ALTLAYER BALIK! CUMA BOME + ONDO YANG DI BLOCK!
 BLOCKED = {
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR',
     'XRP_IDR','DOGE_IDR','SOL_IDR','HYPE_IDR','FARTCOIN_IDR',
     'PEPE_IDR','SHIB_IDR','TRX_IDR','AVAX_IDR','ADA_IDR','DOT_IDR','LINK_IDR','LTC_IDR','BCH_IDR','XLM_IDR','UNI_IDR','ETC_IDR','NEAR_IDR','BONK_IDR','FLOKI_IDR','WIF_IDR',
     'HBAR_IDR','XAUT_IDR','PIPPIN_IDR','PENGU_IDR','ANOA_IDR','GID_IDR','WLD_IDR','TIA_IDR',
     'BEAT_IDR','MARSCOIN_IDR','MOODENG_IDR','NOVA_IDR','SHOW_IDR','MRS_IDR','CST_IDR',
-    'BOME_IDR','ONDO_IDR', # CUMA 2 INI! ALTLAYER GA DI BLOCK!
+    'BOME_IDR','ONDO_IDR',
     'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR','SKYAI_IDR','ARC_IDR'
 }
+
+STATE_FILE = "/tmp/trailing_state.json"
+
+def load_state():
+    try:
+        with open(STATE_FILE,'r') as f: return json.load(f)
+    except: return {}
+
+def save_state(state):
+    try:
+        with open(STATE_FILE,'w') as f: json.dump(state,f)
+    except: pass
 
 def get_data():
     try:
@@ -26,7 +37,7 @@ def get_data():
             if sym in BLOCKED: continue
             try:
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
-                if last < 15: continue # BOME 12 KE BLOCK
+                if last < 15: continue
                 vol_bn=vol/1e9
                 if vol_bn < 0.15: continue
                 if vol_bn > 10: continue
@@ -37,30 +48,69 @@ def get_data():
                 if chg24 > 100: continue
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
-                if sisa < 3: continue
-                if sisa > 20: continue # MAX 20%! ALTLAYER 19% MASUK! BOME 18% UDAH KE BLOCK KARENA HARGA!
+                # TRAILING: sisa <3% masih boleh kalo lagi moon!
+                if sisa < 1: continue
+                if sisa > 20: continue
                 if rg < 3: continue
                 if rg > 80: continue
                 chg_low=(last-low)/low*100 if low else 0
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn})
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last,'high':high})
             except: continue
         return out
     except: return []
 
 def scan(data):
-    bottom=[]; early=[]; running=[]
+    state = load_state()
+    new_state = {}
+    bottom=[]; early=[]; running=[]; mooning=[]
+    
     for k in data:
-        c=k['chg']; s=k['sisa']; low=k['low']
-        if c < 0 and 2 <= low <= 20:
-            bottom.append(k)
-        elif 3 <= s <= 6:
+        sym=k['sym']
+        last=k['last']
+        high=k['high']
+        sisa=k['sisa']
+        
+        # TRAILING LOGIC
+        prev_high = state.get(sym, {}).get('high', high)
+        # Kalo high baru lebih tinggi, update!
+        if high > prev_high:
+            prev_high = high
+        
+        # Simpen high terbaru
+        new_state[sym] = {'high': prev_high, 'last': last}
+        
+        # Hitung sisa trailing dari high tertinggi yang pernah ada
+        sisa_trailing = (prev_high - last) / last * 100 if last else sisa
+        
+        # Kalo lagi mooning (sisa mengecil dari sebelumnya), masuk MOONING!
+        prev_sisa = state.get(sym, {}).get('sisa', 100)
+        is_mooning = sisa < prev_sisa and sisa < 8
+        
+        k['sisa_trail'] = sisa_trailing
+        k['is_mooning'] = is_mooning
+        
+        # KATEGORI TRAILING
+        if is_mooning and sisa <= 6:
+            mooning.append(k) # LAGI MOON! TRAILING!
+        elif 1 <= sisa <= 6:
             running.append(k)
-        elif 7 <= s <= 20:
+        elif 7 <= sisa <= 20:
             early.append(k)
+        elif k['low'] >= 5:
+            bottom.append(k)
+
+    save_state({**state, **new_state})
+    # Update sisa history
+    for k in data:
+        if k['sym'] in new_state:
+            new_state[k['sym']]['sisa'] = k['sisa']
+    save_state({**load_state(), **new_state})
+
     return (
-        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:4],
+        sorted(mooning, key=lambda x: x['vol'], reverse=True)[:4],
+        sorted(running, key=lambda x: x['vol'], reverse=True)[:4],
         sorted(early, key=lambda x: x['vol'], reverse=True)[:4],
-        sorted(running, key=lambda x: x['vol'], reverse=True)[:4]
+        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:2]
     )
 
 def kirim(msg):
@@ -77,19 +127,23 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    btm, erl, run = scan(data)
-    total = len(btm)+len(erl)+len(run)
-    msg=f"V42 ALTLAYER BALIK Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)} = {total}\n\n"
-    if btm:
-        msg+="BOTTOM\n"
-        for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    moon, run, erl, btm = scan(data)
+    total = len(moon)+len(run)+len(erl)+len(btm)
+    msg=f"V43 AUTO TRAILING Data {len(data)} | M{len(moon)} R{len(run)} E{len(erl)} B{len(btm)} = {total}\n\n"
+    if moon:
+        msg+="🚀 MOONING TRAILING (sisa mengecil!)\n"
+        for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="\n"
+    if run:
+        msg+="RUNNING 1-6%\n"
+        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if erl:
         msg+="EARLY 7-20% (ALTLAYER DISINI!)\n"
         for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
-    if run:
-        msg+="RUNNING 3-6%\n"
-        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    if btm:
+        msg+="BOTTOM\n"
+        for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
