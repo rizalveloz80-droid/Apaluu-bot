@@ -1,10 +1,14 @@
 import requests, os
 
+# BLOCK FINAL! PENGU ANOA GID XAUT PIPPIN WLD SEMUA MASUK BLOCK!
 BLOCKED = {
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR',
     'XRP_IDR','DOGE_IDR','SOL_IDR','HYPE_IDR','FARTCOIN_IDR',
     'PEPE_IDR','SHIB_IDR','TRX_IDR','AVAX_IDR','ADA_IDR','DOT_IDR','LINK_IDR','LTC_IDR','BCH_IDR','XLM_IDR','UNI_IDR','ETC_IDR','NEAR_IDR','BONK_IDR','FLOKI_IDR','WIF_IDR',
-    'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR'
+    'HBAR_IDR','XAUT_IDR','PIPPIN_IDR','PENGU_IDR','ANOA_IDR','GID_IDR','WLD_IDR','TIA_IDR',
+    'BEAT_IDR','MARSCOIN_IDR','MOODENG_IDR','NOVA_IDR','SHOW_IDR','MRS_IDR','CST_IDR',
+    # Delisting
+    'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR','SKYAI_IDR','ARC_IDR'
 }
 
 def get_data():
@@ -24,20 +28,18 @@ def get_data():
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
                 if last < 10: continue
                 vol_bn=vol/1e9
-                if vol_bn < 0.005: continue # CUMA INI! ATAS GA DI BLOCK!
-                
+                if vol_bn < 0.08: continue
+                if vol_bn > 10: continue
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
-                if chg24 < -40: continue
-                if chg24 > 300: continue
-                
+                if chg24 < -30: continue
+                if chg24 > 200: continue
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
-                if sisa < 0.5: continue
-                if sisa > 95: continue
-                if rg > 400: continue
-                
+                if sisa < 3: continue
+                if sisa > 80: continue
+                if rg > 200: continue
                 chg_low=(last-low)/low*100 if low else 0
                 out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn})
             except: continue
@@ -45,27 +47,21 @@ def get_data():
     except: return []
 
 def scan(data):
-    bottom=[]; early=[]; running=[]; pucuk=[]
+    bottom=[]; early=[]; running=[]
     for k in data:
         c=k['chg']; s=k['sisa']; low=k['low']
-        # NEON BAWAH: low+ 9% (dari 81 ke 89) sisa 12% -> EARLY!
-        if c < 0 and 1 <= low <= 30:
+        if c < 0 and 1 <= low <= 25 and 5 <= s <= 60:
             bottom.append(k)
-        elif 0.5 <= s <= 4.5:
-            pucuk.append(k)
-        elif 4.5 <= s < 9:
+        elif 3 <= s < 9:
             running.append(k)
-        elif 9 <= s <= 25: # NEON BAWAH sisa 12.3% MASUK SINI!
+        elif 9 <= s <= 35:
             early.append(k)
-        elif s > 25:
+        elif s > 35:
             bottom.append(k)
-        else:
-            early.append(k)
     return (
-        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:10],
-        sorted(early, key=lambda x: x['vol'], reverse=True)[:10],
-        sorted(running, key=lambda x: x['vol'], reverse=True)[:10],
-        sorted(pucuk, key=lambda x: x['vol'], reverse=True)[:10]
+        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:4],
+        sorted(early, key=lambda x: x['vol'], reverse=True)[:4],
+        sorted(running, key=lambda x: x['vol'], reverse=True)[:4]
     )
 
 def kirim(msg):
@@ -82,22 +78,19 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    btm, erl, run, pck = scan(data)
-    msg=f"V37 NEON BAWAH-ATAS Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)} P{len(pck)}\n\n"
+    btm, erl, run = scan(data)
+    total = len(btm)+len(erl)+len(run)
+    msg=f"V39 FINAL 12 MAX Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)} = {total}\n\n"
     if btm:
         msg+="BOTTOM\n"
         for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if erl:
-        msg+="EARLY (NEON BAWAH DISINI!)\n"
+        msg+="EARLY\n"
         for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if run:
         msg+="RUNNING\n"
         for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
-        msg+="\n"
-    if pck:
-        msg+="PUCUK TIPIS (NEON PUCUK DISINI!)\n"
-        for k in pck: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
