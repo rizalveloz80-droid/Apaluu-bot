@@ -7,19 +7,17 @@ BLOCKED = {
     'HBAR_IDR','XAUT_IDR','PIPPIN_IDR','PENGU_IDR','ANOA_IDR','GID_IDR','WLD_IDR','TIA_IDR',
     'BEAT_IDR','MARSCOIN_IDR','MOODENG_IDR','NOVA_IDR','SHOW_IDR','MRS_IDR','CST_IDR',
     'BOME_IDR','ONDO_IDR',
-    'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR','SKYAI_IDR','ARC_IDR'
+    'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR','SUI_IDR','ARC_IDR'
 }
 
-STATE_FILE = "/tmp/trailing_state.json"
-
+STATE_FILE = "/tmp/v46_state.json"
 def load_state():
     try:
         with open(STATE_FILE,'r') as f: return json.load(f)
     except: return {}
-
-def save_state(state):
+def save_state(s):
     try:
-        with open(STATE_FILE,'w') as f: json.dump(state,f)
+        with open(STATE_FILE,'w') as f: json.dump(s,f)
     except: pass
 
 def get_data():
@@ -37,64 +35,81 @@ def get_data():
             if sym in BLOCKED: continue
             try:
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
-                if last < 15: continue
                 vol_bn=vol/1e9
-                if vol_bn < 0.15: continue
-                if vol_bn > 10: continue
+                if last < 0.5: continue # <0.5 baru block total
+                if vol_bn < 0.08: continue # Turunin jadi 0.08Bn = 80Mn biar BIRB 18:00 masuk!
+                if vol_bn > 20: continue
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
-                if chg24 < -25: continue
-                if chg24 > 100: continue
+                if chg24 < -40: continue
+                if chg24 > 200: continue
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
                 chg_low=(last-low)/low*100 if low else 0
-                if sisa < 1: continue
-                if sisa > 25: continue # Longgarin dikit biar bounce masuk
-                if rg < 2: continue
-                if rg > 100: continue
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last,'high':high,'rg':rg})
+                
+                # GA FILTER SISA KETAT DULU, BIAR PRE-PUMP MASUK!
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last,'high':high,'rg':rg,'low_price':low})
             except: continue
         return out
     except: return []
 
 def scan(data):
-    state = load_state()
-    new_state = {}
-    mooning=[]; running=[]; early=[]; bounce=[]
+    state=load_state()
+    new_state={}
+    pre_pump=[]; moon=[]; bounce=[]; early=[]
     
     for k in data:
-        sym=k['sym']; last=k['last']; high=k['high']; sisa=k['sisa']; low=k['low']; chg=k['chg']
+        sym=k['sym']; last=k['last']; high=k['high']; sisa=k['sisa']; low=k['low']; chg=k['chg']; rg=k['rg']; vol=k['vol']
         
-        prev_high = state.get(sym, {}).get('high', high)
-        if high > prev_high: prev_high = high
-        new_state[sym] = {'high': prev_high, 'last': last, 'sisa': sisa}
+        # Track history buat detek vol spike
+        hist = state.get(sym, {})
+        prev_vol = hist.get('vol', vol)
+        prev_rg = hist.get('rg', rg)
+        prev_sisa = hist.get('sisa', 100)
         
-        prev_sisa = state.get(sym, {}).get('sisa', 100)
-        is_mooning = sisa < prev_sisa and sisa < 8 and prev_sisa != 100
+        vol_spike = vol / prev_vol if prev_vol>0 else 1
+        rg_grow = rg - prev_rg
         
-        # BOUNCE LOGIC BALIK!
-        # Bounce = dari low naik 3-25% + chg masih minus / kecil
-        is_bounce = 3 <= low <= 30 and 5 <= sisa <= 25 and chg < 5
+        new_state[sym] = {'vol':vol,'rg':rg,'sisa':sisa,'high':high,'last':last}
         
-        k['is_mooning'] = is_mooning
-        k['is_bounce'] = is_bounce
+        # 1. PRE-PUMP DETECTOR (PELAJARAN DARI BIRB!)
+        # Ciri BIRB jam 18:00-21:00:
+        # - rg kecil 10-30% (sideways)
+        # - sisa gede 20-40% (jauh dari high)
+        # - low naik dikit 1-5% (akumulasi)
+        # - vol mulai naik dikit (17K -> 20K)
+        is_pre_pump = (
+            5 <= rg <= 40 and  # Sideways belum meledak
+            10 <= sisa <= 50 and # Masih jauh dari pucuk
+            0.5 <= low <= 15 and # Udah naik dikit dari low
+            vol >= 0.08 and # Vol mulai ada
+            chg < 15 # Belum pump
+        )
         
-        if is_mooning and sisa <= 6:
-            mooning.append(k)
+        # 2. MOONING TRAIL
+        is_mooning = sisa < prev_sisa and sisa < 10 and prev_sisa != 100
+        
+        # 3. BOUNCE
+        is_bounce = 3 <= low <= 50 and chg < 8
+        
+        if is_mooning and sisa <= 8:
+            moon.append(k)
+        elif is_pre_pump:
+            # Kasih score: vol spike + rg grow = lebih bagus
+            k['score'] = vol_spike + rg_grow
+            pre_pump.append(k)
         elif is_bounce:
             bounce.append(k)
-        elif 1 <= sisa <= 6:
-            running.append(k)
-        elif 7 <= sisa <= 25:
+        elif 7 <= sisa <= 30:
             early.append(k)
-
+    
     save_state({**state, **new_state})
-
+    
     return (
-        sorted(mooning, key=lambda x: x['vol'], reverse=True)[:3],
+        sorted(pre_pump, key=lambda x: (x['vol'], x.get('score',0)), reverse=True)[:4],
+        sorted(moon, key=lambda x: x['vol'], reverse=True)[:3],
         sorted(bounce, key=lambda x: x['vol'], reverse=True)[:3],
-        sorted(running, key=lambda x: x['vol'], reverse=True)[:3],
         sorted(early, key=lambda x: x['vol'], reverse=True)[:3]
     )
 
@@ -103,29 +118,29 @@ def kirim(msg):
     chat=os.getenv('TELE_CHAT_ID')
     if not token or not chat: print(msg); return
     try:
-        url = "https://api.telegram.org/bot" + token + "/sendMessage"
-        requests.post(url, json={"chat_id": chat, "text": msg}, timeout=15)
+        url="https://api.telegram.org/bot"+token+"/sendMessage"
+        requests.post(url, json={"chat_id":chat,"text":msg}, timeout=15)
     except: print(msg)
 
 if __name__=="__main__":
     data=get_data()
-    moon, bnc, run, erl = scan(data)
-    total = len(moon)+len(bnc)+len(run)+len(erl)
-    msg=f"V44 TRAIL+BOUNCE Data {len(data)} | M{len(moon)} B{len(bnc)} R{len(run)} E{len(erl)} = {total}\n\n"
+    pre, moon, bnc, erl = scan(data)
+    total=len(pre)+len(moon)+len(bnc)+len(erl)
+    msg=f"V46 ANTI KETINGGALAN Data {len(data)} | PRE{len(pre)} M{len(moon)} B{len(bnc)} E{len(erl)} = {total}\n\n"
+    if pre:
+        msg+="⚠️ PRE-PUMP (tangkap sebelum meledak!)\n"
+        for k in pre: msg+=f"{k['sym']} {k['chg']:.1f}% rg {k['rg']:.0f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="\n"
     if moon:
-        msg+="🚀 MOONING (sisa mengecil!)\n"
-        for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="🚀 MOONING TRAIL\n"
+        for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if bnc:
-        msg+="📈 BOUNCE (pantulan dari low!)\n"
+        msg+="📈 BOUNCE\n"
         for k in bnc: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
-    if run:
-        msg+="RUNNING 1-6%\n"
-        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
-        msg+="\n"
     if erl:
-        msg+="EARLY 7-25% (ALTLAYER!)\n"
-        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="EARLY\n"
+        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
