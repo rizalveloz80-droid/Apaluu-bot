@@ -57,7 +57,7 @@ def scan(data):
         # BOUNCE MERAH: ALT -15.88% low+5% sisa 23% -> BOTTOM!
         if c < 0 and 1 <= low <= 25 and 5 <= s <= 60:
             bottom.append(k)
-        elif 3 <= s < 9:
+        elif 0.5 <= s < 9:
             running.append(k) # STIK 11.7% sisa 7% Vol 0.28Bn MASUK SINI!
         elif 9 <= s <= 35 and 5 <= c <= 50:
             early.append(k)
