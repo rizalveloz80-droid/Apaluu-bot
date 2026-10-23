@@ -24,39 +24,48 @@ def get_data():
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
                 if last < 10: continue
                 vol_bn=vol/1e9
-                if vol_bn < 0.005 or vol_bn > 0.5: continue
+                if vol_bn < 0.005: continue # CUMA INI! ATAS GA DI BLOCK!
+                
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
                 if chg24 < -40: continue
                 if chg24 > 300: continue
+                
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
                 if sisa < 0.5: continue
                 if sisa > 95: continue
                 if rg > 400: continue
+                
                 chg_low=(last-low)/low*100 if low else 0
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last})
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn})
             except: continue
         return out
     except: return []
 
 def scan(data):
-    bottom=[]; early=[]; running=[]
+    bottom=[]; early=[]; running=[]; pucuk=[]
     for k in data:
         c=k['chg']; s=k['sisa']; low=k['low']
-        if c < 0 and 1 <= low <= 25 and 5 <= s <= 60:
+        # NEON BAWAH: low+ 9% (dari 81 ke 89) sisa 12% -> EARLY!
+        if c < 0 and 1 <= low <= 30:
             bottom.append(k)
-        elif 0.5 <= s < 9:
+        elif 0.5 <= s <= 4.5:
+            pucuk.append(k)
+        elif 4.5 <= s < 9:
             running.append(k)
-        elif 9 <= s <= 35 and 5 <= c <= 50:
+        elif 9 <= s <= 25: # NEON BAWAH sisa 12.3% MASUK SINI!
             early.append(k)
-        elif s >= 15 and c < 10:
+        elif s > 25:
             bottom.append(k)
+        else:
+            early.append(k)
     return (
         sorted(bottom, key=lambda x: x['vol'], reverse=True)[:10],
         sorted(early, key=lambda x: x['vol'], reverse=True)[:10],
-        sorted(running, key=lambda x: x['vol'], reverse=True)[:10]
+        sorted(running, key=lambda x: x['vol'], reverse=True)[:10],
+        sorted(pucuk, key=lambda x: x['vol'], reverse=True)[:10]
     )
 
 def kirim(msg):
@@ -68,27 +77,27 @@ def kirim(msg):
     try:
         url = "https://api.telegram.org/bot" + token + "/sendMessage"
         requests.post(url, json={"chat_id": chat, "text": msg}, timeout=15)
-    except Exception as e:
-        print(e)
+    except:
         print(msg)
 
 if __name__=="__main__":
     data=get_data()
-    btm, erl, run = scan(data)
-    msg=f"V34 BLOCK TETAP LONGGAR Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)}\n\n"
+    btm, erl, run, pck = scan(data)
+    msg=f"V37 NEON BAWAH-ATAS Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)} P{len(pck)}\n\n"
     if btm:
-        msg+="BOTTOM ADA BUYER\n"
-        for k in btm:
-            msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="BOTTOM\n"
+        for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if erl:
-        msg+="EARLY FRESH\n"
-        for k in erl:
-            msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="EARLY (NEON BAWAH DISINI!)\n"
+        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if run:
-        msg+="RUNNING (STIK DISINI!)\n"
-        for k in run:
-            msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="RUNNING\n"
+        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="\n"
+    if pck:
+        msg+="PUCUK TIPIS (NEON PUCUK DISINI!)\n"
+        for k in pck: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
