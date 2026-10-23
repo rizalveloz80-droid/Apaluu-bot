@@ -1,13 +1,11 @@
 import requests, os
 
-# BLOCK FINAL! PENGU ANOA GID XAUT PIPPIN WLD SEMUA MASUK BLOCK!
 BLOCKED = {
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR',
     'XRP_IDR','DOGE_IDR','SOL_IDR','HYPE_IDR','FARTCOIN_IDR',
     'PEPE_IDR','SHIB_IDR','TRX_IDR','AVAX_IDR','ADA_IDR','DOT_IDR','LINK_IDR','LTC_IDR','BCH_IDR','XLM_IDR','UNI_IDR','ETC_IDR','NEAR_IDR','BONK_IDR','FLOKI_IDR','WIF_IDR',
     'HBAR_IDR','XAUT_IDR','PIPPIN_IDR','PENGU_IDR','ANOA_IDR','GID_IDR','WLD_IDR','TIA_IDR',
-    'BEAT_IDR','MARSCOIN_IDR','MOODENG_IDR','NOVA_IDR','SHOW_IDR','MRS_IDR','CST_IDR',
-    # Delisting
+    'BEAT_IDR','MARSCOIN_IDR','MOODENG_IDR','NOVA_IDR','SHOW_IDR','MRS_IDR','CST_IDR','BOME_IDR',
     'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR','SKYAI_IDR','ARC_IDR'
 }
 
@@ -26,7 +24,7 @@ def get_data():
             if sym in BLOCKED: continue
             try:
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
-                if last < 10: continue
+                if last < 15: continue # FIX! BOME 12 KE BLOCK! Minimal harga 15!
                 vol_bn=vol/1e9
                 if vol_bn < 0.08: continue
                 if vol_bn > 10: continue
@@ -37,29 +35,34 @@ def get_data():
                 if chg24 > 200: continue
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
-                if sisa < 3: continue
-                if sisa > 80: continue
-                if rg > 200: continue
+                if sisa < 3: continue # MIN 3%
+                if sisa > 15: continue # MAX 15%! BOME 18% KE BLOCK!
+                if rg > 100: continue
+                if rg < 2: continue # MIN BOUNCE 2% DARI LOW!
                 chg_low=(last-low)/low*100 if low else 0
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn})
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'rg':rg})
             except: continue
         return out
     except: return []
 
 def scan(data):
-    bottom=[]; early=[]; running=[]
+    bounce=[]; running=[]; early=[]
     for k in data:
-        c=k['chg']; s=k['sisa']; low=k['low']
-        if c < 0 and 1 <= low <= 25 and 5 <= s <= 60:
-            bottom.append(k)
-        elif 3 <= s < 9:
+        c=k['chg']; s=k['sisa']; low=k['low']; rg=k['rg']
+        # BOUNCE: chg_low minimal 2% dari low + sisa 3-15%
+        if 2 <= low <= 20 and 3 <= s <= 15:
+            if low >= 5: # BOUNCE KUAT!
+                bounce.append(k)
+            elif 3 <= s <= 8:
+                running.append(k)
+            else:
+                early.append(k)
+        elif 3 <= s <= 8:
             running.append(k)
-        elif 9 <= s <= 35:
+        elif 9 <= s <= 15:
             early.append(k)
-        elif s > 35:
-            bottom.append(k)
     return (
-        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:4],
+        sorted(bounce, key=lambda x: x['vol'], reverse=True)[:4],
         sorted(early, key=lambda x: x['vol'], reverse=True)[:4],
         sorted(running, key=lambda x: x['vol'], reverse=True)[:4]
     )
@@ -78,19 +81,19 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    btm, erl, run = scan(data)
-    total = len(btm)+len(erl)+len(run)
-    msg=f"V39 FINAL 12 MAX Data {len(data)} | B{len(btm)} E{len(erl)} R{len(run)} = {total}\n\n"
-    if btm:
-        msg+="BOTTOM\n"
-        for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    bnc, erl, run = scan(data)
+    total = len(bnc)+len(erl)+len(run)
+    msg=f"V40 SISA 3-15% BOUNCE Data {len(data)} | B{len(bnc)} E{len(erl)} R{len(run)} = {total}\n\n"
+    if bnc:
+        msg+="BOUNCE 2-20% DARI LOW\n"
+        for k in bnc: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if erl:
-        msg+="EARLY\n"
-        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="EARLY 9-15%\n"
+        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if run:
-        msg+="RUNNING\n"
-        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="RUNNING 3-8%\n"
+        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
