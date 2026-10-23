@@ -1,6 +1,16 @@
 import requests, os
 
-BLOCKED = ['BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR','MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR']
+# INI YANG DI BLOCK - GA AKAN KELUAR LAGI!
+BLOCKED = {
+    # Major gede sisa 0% spam PUCUK!
+    'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR',
+    'XRP_IDR','DOGE_IDR','SOL_IDR','HYPE_IDR','FARTCOIN_IDR',
+    'PEPE_IDR','SHIB_IDR','TRX_IDR','AVAX_IDR','ADA_IDR','DOT_IDR','LINK_IDR','LTC_IDR','BCH_IDR','XLM_IDR','UNI_IDR','ETC_IDR','NEAR_IDR',
+    # Delisting
+    'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','SKYAI_IDR',
+    # Meme gede vol 4-6Bn sisa 0%
+    'BONK_IDR','FLOKI_IDR','WIF_IDR'
+}
 
 def get_data():
     try:
@@ -14,58 +24,52 @@ def get_data():
         for pair,d in tickers.items():
             if not pair.endswith('_idr'): continue
             sym=pair.upper()
-            if sym in BLOCKED: continue
+            if sym in BLOCKED: continue # XRP DOGE SOL HYPE FARTCOIN LANGSUNG HILANG!
             try:
                 last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
-                if last < 25: continue
+                if last < 30: continue # UNMD 11 hilang
                 vol_bn=vol/1e9
-                if vol_bn < 0.10: continue # turunin biar STIK 0.28Bn masuk!
+                if vol_bn < 0.15: continue
+
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
-                if chg24 < -25: continue
-                if chg24 < 0.3: 
-                    # bounce merah boleh
+
+                if chg24 < -20: continue
+                if chg24 > 60: continue
+                if chg24 < 0.5 and chg24 > -0.5:
+                    # cek bounce merah
                     chg_low=(last-low)/low*100 if low else 0
-                    if not (chg24 <0 and 1.5 <= chg_low <= 15):
+                    if not (chg24 <0 and 2 <= chg_low <= 12):
                         continue
 
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
-                if sisa > 70: continue
-                if rg > 85: continue
+
+                # CROSSCHECK: sisa <5% kayak XRP 0% DOGE 0% FARTCOIN 1% LANGSUNG BLOCK! GA MASUK PUCUK!
+                if sisa < 5: continue
+                if sisa > 65: continue
+                if rg > 75: continue
 
                 chg_low=(last-low)/low*100 if low else 0
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'rg':rg,'vol':vol_bn})
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn})
             except: continue
         return out
     except: return []
 
 def scan(data):
-    bottom=[]; early=[]; pucuk=[]
+    bottom=[]; early=[]
     for k in data:
         c=k['chg']; s=k['sisa']
-        chg_low=k['low']
-        is_bounce = c < 0 and 1.5 <= chg_low <= 15
-
-        if is_bounce:
-            if s < 10: pucuk.append(k)
-            else: bottom.append(k)
-        else:
-            if s < 8: # STIK 7.89% -> PUCUK!
-                pucuk.append(k)
-            elif 8 <= s <= 25 and c <= 20:
-                if c <= 12: bottom.append(k)
-                else: early.append(k)
-            elif 25 < s <= 65 and c <= 15:
-                bottom.append(k)
-            elif 10 <= s <= 50 and 12 < c <= 35:
-                early.append(k)
-    
+        # BOTTOM SEGAR: yang masih bawah 0.5-15% sisa 15-65%
+        if 0.5 <= c <= 15 and 15 <= s <= 65:
+            bottom.append(k)
+        # EARLY FRESH: 15-40% sisa 8-35% 
+        elif 12 <= c <= 40 and 8 <= s <= 35:
+            early.append(k)
     return (
-        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:5],
-        sorted(early, key=lambda x: x['vol'], reverse=True)[:5],
-        sorted(pucuk, key=lambda x: x['vol'], reverse=True)[:5]
+        sorted(bottom, key=lambda x: (x['sisa'], x['vol']), reverse=True)[:5],
+        sorted(early, key=lambda x: x['vol'], reverse=True)[:5]
     )
 
 def kirim(msg):
@@ -77,8 +81,8 @@ def kirim(msg):
 
 if __name__=="__main__":
     data=get_data()
-    btm, erl, pck = scan(data)
-    msg=f"V29 ANTI LOLOS Data {len(data)} | B{len(btm)} E{len(erl)} P{len(pck)}\n\n"
+    btm, erl = scan(data)
+    msg=f"V30 CROSSCHECK Data {len(data)} | B{len(btm)} E{len(erl)}\n\n"
     if btm:
         msg+="BOTTOM SEGAR\n"
         for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
@@ -86,11 +90,7 @@ if __name__=="__main__":
     if erl:
         msg+="EARLY FRESH\n"
         for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
-        msg+="\n"
-    if pck:
-        msg+="⚠️ PUCUK! JANGAN ENTRY! (STIK BMT)\n"
-        for k in pck:
-            # STIK 11.76% sisa 7% Vol 0.28Bn -> PUCUK!
-            msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn PUCUK!\n"
+    if not btm and not erl:
+        msg+="Ga ada yang segar\n"
     print(msg)
     kirim(msg)
