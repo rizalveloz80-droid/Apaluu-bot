@@ -44,17 +44,16 @@ def get_data():
                 chg24 = change.get(pair, 0)
                 if abs(chg24) < 0.1:
                     chg24 = (last-low)/low*100 if low else 0
-                if chg24 < -20: continue
+                if chg24 < -25: continue
                 if chg24 > 100: continue
                 sisa=(high-last)/last*100 if last else 0
                 rg=(high-low)/low*100 if low else 0
-                # TRAILING: sisa <3% masih boleh kalo lagi moon!
-                if sisa < 1: continue
-                if sisa > 20: continue
-                if rg < 3: continue
-                if rg > 80: continue
                 chg_low=(last-low)/low*100 if low else 0
-                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last,'high':high})
+                if sisa < 1: continue
+                if sisa > 25: continue # Longgarin dikit biar bounce masuk
+                if rg < 2: continue
+                if rg > 100: continue
+                out.append({'sym':sym,'chg':chg24,'low':chg_low,'sisa':sisa,'vol':vol_bn,'last':last,'high':high,'rg':rg})
             except: continue
         return out
     except: return []
@@ -62,88 +61,71 @@ def get_data():
 def scan(data):
     state = load_state()
     new_state = {}
-    bottom=[]; early=[]; running=[]; mooning=[]
+    mooning=[]; running=[]; early=[]; bounce=[]
     
     for k in data:
-        sym=k['sym']
-        last=k['last']
-        high=k['high']
-        sisa=k['sisa']
+        sym=k['sym']; last=k['last']; high=k['high']; sisa=k['sisa']; low=k['low']; chg=k['chg']
         
-        # TRAILING LOGIC
         prev_high = state.get(sym, {}).get('high', high)
-        # Kalo high baru lebih tinggi, update!
-        if high > prev_high:
-            prev_high = high
+        if high > prev_high: prev_high = high
+        new_state[sym] = {'high': prev_high, 'last': last, 'sisa': sisa}
         
-        # Simpen high terbaru
-        new_state[sym] = {'high': prev_high, 'last': last}
-        
-        # Hitung sisa trailing dari high tertinggi yang pernah ada
-        sisa_trailing = (prev_high - last) / last * 100 if last else sisa
-        
-        # Kalo lagi mooning (sisa mengecil dari sebelumnya), masuk MOONING!
         prev_sisa = state.get(sym, {}).get('sisa', 100)
-        is_mooning = sisa < prev_sisa and sisa < 8
+        is_mooning = sisa < prev_sisa and sisa < 8 and prev_sisa != 100
         
-        k['sisa_trail'] = sisa_trailing
+        # BOUNCE LOGIC BALIK!
+        # Bounce = dari low naik 3-25% + chg masih minus / kecil
+        is_bounce = 3 <= low <= 30 and 5 <= sisa <= 25 and chg < 5
+        
         k['is_mooning'] = is_mooning
+        k['is_bounce'] = is_bounce
         
-        # KATEGORI TRAILING
         if is_mooning and sisa <= 6:
-            mooning.append(k) # LAGI MOON! TRAILING!
+            mooning.append(k)
+        elif is_bounce:
+            bounce.append(k)
         elif 1 <= sisa <= 6:
             running.append(k)
-        elif 7 <= sisa <= 20:
+        elif 7 <= sisa <= 25:
             early.append(k)
-        elif k['low'] >= 5:
-            bottom.append(k)
 
     save_state({**state, **new_state})
-    # Update sisa history
-    for k in data:
-        if k['sym'] in new_state:
-            new_state[k['sym']]['sisa'] = k['sisa']
-    save_state({**load_state(), **new_state})
 
     return (
-        sorted(mooning, key=lambda x: x['vol'], reverse=True)[:4],
-        sorted(running, key=lambda x: x['vol'], reverse=True)[:4],
-        sorted(early, key=lambda x: x['vol'], reverse=True)[:4],
-        sorted(bottom, key=lambda x: x['vol'], reverse=True)[:2]
+        sorted(mooning, key=lambda x: x['vol'], reverse=True)[:3],
+        sorted(bounce, key=lambda x: x['vol'], reverse=True)[:3],
+        sorted(running, key=lambda x: x['vol'], reverse=True)[:3],
+        sorted(early, key=lambda x: x['vol'], reverse=True)[:3]
     )
 
 def kirim(msg):
     token=os.getenv('TELE_TOKEN')
     chat=os.getenv('TELE_CHAT_ID')
-    if not token or not chat:
-        print(msg)
-        return
+    if not token or not chat: print(msg); return
     try:
         url = "https://api.telegram.org/bot" + token + "/sendMessage"
         requests.post(url, json={"chat_id": chat, "text": msg}, timeout=15)
-    except:
-        print(msg)
+    except: print(msg)
 
 if __name__=="__main__":
     data=get_data()
-    moon, run, erl, btm = scan(data)
-    total = len(moon)+len(run)+len(erl)+len(btm)
-    msg=f"V43 AUTO TRAILING Data {len(data)} | M{len(moon)} R{len(run)} E{len(erl)} B{len(btm)} = {total}\n\n"
+    moon, bnc, run, erl = scan(data)
+    total = len(moon)+len(bnc)+len(run)+len(erl)
+    msg=f"V44 TRAIL+BOUNCE Data {len(data)} | M{len(moon)} B{len(bnc)} R{len(run)} E{len(erl)} = {total}\n\n"
     if moon:
-        msg+="🚀 MOONING TRAILING (sisa mengecil!)\n"
-        for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="🚀 MOONING (sisa mengecil!)\n"
+        for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="\n"
+    if bnc:
+        msg+="📈 BOUNCE (pantulan dari low!)\n"
+        for k in bnc: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if run:
         msg+="RUNNING 1-6%\n"
-        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        for k in run: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if erl:
-        msg+="EARLY 7-20% (ALTLAYER DISINI!)\n"
-        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
-        msg+="\n"
-    if btm:
-        msg+="BOTTOM\n"
-        for k in btm: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+        msg+="EARLY 7-25% (ALTLAYER!)\n"
+        for k in erl: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% bnc {k['low']:.0f}% Vol {k['vol']:.2f}Bn\n"
     print(msg)
     kirim(msg)
