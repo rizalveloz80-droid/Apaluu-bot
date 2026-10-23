@@ -1,6 +1,5 @@
 import requests, os
 
-# BLOCK V19 - STRK JANGAN DI-BLOCK (sesuai request)
 BLOCKED = [
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR',
     'XRP_IDR','SOL_IDR','DOGE_IDR','SHIB_IDR','PEPE_IDR','BONK_IDR','FLOKI_IDR',
@@ -8,7 +7,6 @@ BLOCKED = [
     'SUI_IDR','ASTER_IDR','ONDO_IDR','QNT_IDR','PAXG_IDR','KITE_IDR',
     'PIPPIN_IDR','PENGU_IDR','SKYAI_IDR','ARB_IDR'
 ]
-# STRK_IDR GA MASUK BLOCK!
 
 def get_data():
     try:
@@ -27,68 +25,52 @@ def get_data():
         return out
     except: return []
 
-def scan_v18_5(data):
-    early=[]; pre_hunter=[]; hunter=[]; segar=[]
-
+def scan_v18_6(data):
+    early=[]; pre=[]; hunter=[]; trending=[]
     for k in data:
         if k['sym'] in BLOCKED: continue
         v=k['vol']; c=k['chg']; s=k['sisa']; rg=k['range']
         
-        # ⚡ EARLY - HOLD BESOK (kayak ICNT) - V19 ketat
+        # ⚡ EARLY KETAT 0.5-4% sisa 15-28% - hold besok
         if 0.5<=c<=4.0 and 15<=s<=28 and rg<=28 and 0.15<=v<=0.90:
             early.append(k)
-            
-        # 🚀 PRE-HUNTER - BARU! Tangkap 4-15% SEBELUM jadi 21% (GTC case)
-        # GTC jam 18:00 10% sisa 12% masuk sini!
+        # 🚀 PRE-HUNTER 4-15% sisa 3.5-12% - sebelum trending
         elif 4.0<c<=15 and 3.5<s<=12 and rg<=28 and 0.20<=v<=1.0:
-            pre_hunter.append(k)
-            
-        # 🚀 HUNTER - MAIN CEPAT SCALP - sisa <=3.5% deket pucuk
+            pre.append(k)
+        # 🚀 HUNTER 4-20% sisa <=3.5% - scalp pucuk
         elif 4.0<c<=20 and s<=3.5 and rg<=35 and 0.08<=v<=0.60:
             hunter.append(k)
+        # 🔥 TRENDING LONGGAR - UCJL 88-100% GTC 36% masuk sini!
+        elif 15<=c<=120 and s<=10 and rg<=100 and v>=0.15:
+            trending.append(k)
 
-    # --- FIX SEGAR BIAR GA USELESS TERUS ---
-    early_sorted = sorted(early, key=lambda x: x['sisa'], reverse=True)
-    
-    # SEGAR ambil dari EARLY tapi Vol 0.15-0.60 + ANTI-DUPLIKAT E1=S1
-    segar_pool = [k for k in early_sorted if 0.15 <= k['vol'] <= 0.60]
-    
-    # EARLY final E2
-    early_final = early_sorted[:2]
-    early_syms = [x['sym'] for x in early_final]
+    early_f = sorted(early, key=lambda x: x['sisa'], reverse=True)[:2]
+    pre_f = sorted(pre, key=lambda x: x['sisa'])[:2]
+    hunter_f = sorted(hunter, key=lambda x: x['sisa'])[:2]
+    trending_f = sorted(trending, key=lambda x: (x['vol'], x['chg']), reverse=True)[:3]
 
-    # SEGAR final S2 - buang yang udah jadi EARLY biar ga USELESS terus
-    segar_filtered = [k for k in segar_pool if k['sym'] not in early_syms]
+    # ANTI-DUPLIKAT DGB
+    early_syms = [x['sym'] for x in early_f]
+    trending_f = [k for k in trending_f if k['sym'] not in early_syms]
     
-    # Kalo market sepi cuma USELESS doang yang ada (jam 00:21)
-    if not segar_filtered:
-        # ambil dari early_sorted yang sisa paling gede (biar beda)
-        segar_filtered = early_sorted[1:3] if len(early_sorted)>1 else early_sorted[:1]
-    
-    segar_final = sorted(segar_filtered, key=lambda x: x['vol'], reverse=True)[:2]
-    
-    # PRE-HUNTER & HUNTER sort
-    pre_final = sorted(pre_hunter, key=lambda x: x['sisa'])[:2]
-    hunter_final = sorted(hunter, key=lambda x: x['sisa'])[:2]
-
-    return early_final, pre_final, hunter_final, segar_final
+    return early_f, pre_f, hunter_f, trending_f
 
 def kirim(msg):
     token=os.getenv('TELE_TOKEN'); chat=os.getenv('TELE_CHAT_ID')
     if not token or not chat: print(msg); return
     try: requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={'chat_id':chat,'text':msg}, timeout=5)
-    except Exception as e: print(f"kirim gagal {e}")
+    except: pass
 
 if __name__=="__main__":
     data=get_data()
-    e,p,h,s=scan_v18_5(data)
-    msg=f"V18.5 UNIVERSAL - E/P/H/S\nData {len(data)} | E{len(e)} P{len(p)} H{len(h)} S{len(s)}\n\n"
-    msg+=f"⚡ EARLY sisa15-28% range<=28%\n"
-    for k in e: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+=f"\n🚀 PRE-HUNTER BARU! sisa3.5-12% (tangkap sebelum 21%)\n"
-    for k in p: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+=f"\n🚀 HUNTER sisa<=3.5% (scalp)\n"
-    for k in h: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% range {k['range']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    msg+=f"\n🌱 SEGAR Vol 0.15-0.60 anti-duplikat\n"
-    for k in s: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    e,p,h,t=scan_v18_6(data)
+    msg=f"V18.6 CUAN UCJL 100% - Data {len(data)} | E{len(e)} P{len(p)} H{len(h)} T{len(t)}\n\n"
+    msg+=f"⚡ EARLY (hold besok)\n"
+    for k in e: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    msg+=f"\n🚀 PRE-HUNTER (sebelum trending)\n"
+    for k in p: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
+    msg+=f"\n🚀 HUNTER (scalp pucuk)\n"
+    for k in h: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% Vol {k['vol']:.2f}Bn\n"
+    msg+=f"\n🔥 TRENDING LONGGAR (UCJL 100% masuk!)\n"
+    for k in t: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.1f}% Vol {k['vol']:.2f}Bn\n"
     print(msg); kirim(msg)
