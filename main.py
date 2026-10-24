@@ -1,122 +1,148 @@
-import requests, json, os, time
-from datetime import datetime
+import requests, os
+from datetime import datetime, timezone, timedelta
 
-BOT_TOKEN = "ISI_TOKEN_BOT_LU"
-CHAT_ID = "ISI_CHAT_ID_LU"
-STATE_FILE = "state_v66_2_final.json"
-ALIAS = {'actsol': 'act'}
-SKIP = {'usdt','usdc','dai','paxg','bttc','btc','eth','bnb','xrp','doge','usde','eur','myr','sgd','actsol'}
+TELE_TOKEN = os.getenv('TELE_TOKEN')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
-def load_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE,'r') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
-
-def save_state(s):
-    # FIX MERAH: json.dump(s,f) BUKAN json.dump(f,s)!
-    with open(STATE_FILE,'w') as f:
-        json.dump(s, f)
-
-state = load_state()
-now = time.time()
-
-try:
-    tickers = requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
-except:
-    print("Gagal ambil tickers"); exit()
-
-akum=[]; pre=[]; bottom=[]; early=[]; emrg=[]
-
-for pair,d in tickers.items():
-    if not pair.endswith("_idr"): continue
-    raw = pair.split("_")[0].lower()
-    sym = ALIAS.get(raw, raw)
-    if sym in SKIP: continue
+def send_tele(msg):
     try:
-        last=float(d['last']); high=float(d['high']); low=float(d['low'])
-        vol_bn=float(d['vol_idr'])/1e9
-        if low==0: continue
-        chg=(last-low)/low*100
-        th=(high-last)/last*100 if last>0 else 100
-        dl=(last-low)/last*100 if last>0 else 100
-        rg=(high-low)/low*100 if low>0 else 100
-    except: continue
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+    except Exception:
+        pass
 
-    if vol_bn < 0.09: 
-        state[pair]={'last':last,'vol':vol_bn,'th':th,'chg':chg,'time':state.get(pair,{}).get('time',0)}
+def get_tickers():
+    try:
+        return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers', {})
+    except Exception:
+        return {}
+
+def fnum(v, default=0.0):
+    try:
+        v = str(v).replace(',', '').strip()
+        if not v:
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+BLACKLIST = {'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr',
+             'xrp_idr','sol_idr','doge_idr','bnb_idr'}
+
+tickers = get_tickers()
+wib = timezone(timedelta(hours=7))
+now = datetime.now(wib).strftime("%H:%M")
+result = []
+
+for pair, d in tickers.items():
+    if not pair.endswith('_idr') or pair in BLACKLIST:
         continue
-    if chg < 0:
-        state[pair]={'last':last,'vol':vol_bn,'th':th,'chg':chg,'time':state.get(pair,{}).get('time',0)}
+    last = fnum(d.get('last'))
+    low  = fnum(d.get('low'))
+    high = fnum(d.get('high'))
+    vol  = fnum(d.get('vol_idr'))
+    chg  = fnum(d.get('change'))
+
+    if low <= 0 or last < 20:
+        continue
+    if vol < 30_000_000 or vol > 10_000_000_000:
         continue
 
-    s=state.get(pair,{})
-    prev_last=s.get('last',last); prev_vol=s.get('vol',vol_bn); prev_th=s.get('th',th); prev_time=s.get('time',0)
-    if prev_vol==0: prev_vol=vol_bn
-    vol_growth=vol_bn/prev_vol if prev_vol>0 else 1
-    price_25m=(last-prev_last)/prev_last*100 if prev_last>0 else 0
-    chg_jump=chg-s.get('chg',chg)
+    pct_low  = (last - low) / low * 100      # udah naik berapa dari low
+    pct_high = (high - last) / last * 100    # sisa ruang ke high
+    range_pct = (high - low) / low * 100
+    mid = (high + low) / 2
 
-    if (price_25m>=18 or chg_jump>=18) and vol_bn>=0.15 and vol_growth>=4:
-        emrg.append((pair.upper().replace('ACTSOL','ACT'),chg,vol_bn,price_25m,vol_growth))
-        state[pair]={'last':last,'vol':vol_bn,'th':th,'chg':chg,'time':now}
+    # Anti nyungsep: jangan di resistance & jangan di bawah mid terlalu dalam
+    if last >= high * 0.92:  # udah di resistance kayak ANOA sisa 11%
+        continue
+    if last < mid * 0.85:    # udah jebol mid dalam, rawan dump kayak PM
         continue
 
-    if 0.09 <= vol_bn <= 0.40 and 4 <= chg <= 18 and 12 <= rg <= 35 and th <= 12 and dl <= 10 and (th+dl) <= 12:
-        if vol_growth>=2.2 and price_25m>=1.0:
-            if now-prev_time>=25*60:
-                score=vol_growth*10+price_25m
-                akum.append((pair.upper().replace('ACTSOL','ACT'),chg,vol_bn,th,dl,last,price_25m,vol_growth,score))
+    result.append({'pair': pair, 'vol': vol, 'pct_low': pct_low,
+                   'pct_high': pct_high, 'chg': chg, 'range_pct': range_pct,
+                   'mid': mid, 'last': last, 'high': high})
 
-    if 0.15 <= vol_bn <= 1.0 and 2 <= chg <= 14 and th <= 12 and dl <= 10 and rg>=10:
-        if vol_growth>=2.8 and price_25m>=1.0:
-            if now-prev_time>=45*60:
-                pre.append((pair.upper().replace('ACTSOL','ACT'),chg,vol_bn,th,dl,last,price_25m,vol_growth,price_25m+vol_growth))
+def fmt_vol(v):
+    return f"{v/1e9:.2f} Bn" if v >= 1e9 else f"{v/1e6:.0f} Mn"
 
-    sisa=th
-    if 25 <= sisa <= 40 and dl <= 2.5 and vol_bn>=0.08 and chg>0:
-        if price_25m>=0.8:
-            if now-prev_time>=4*3600:
-                bottom.append((pair.upper().replace('ACTSOL','ACT'),chg,vol_bn,sisa,dl,last,price_25m))
+# ===== DETEKSI DINI (baru mulai gerak) - VERSI LU! =====
+pemula = sorted([
+    x for x in result
+    if 1.5 <= x['pct_low'] <= 5
+    and x['range_pct'] <= 45
+    and 25 <= x['pct_high'] <= 70
+    and x['chg'] >= -1
+    and x['vol'] >= 100_000_000
+], key=lambda x: x['pct_low'], reverse=True)[:3]
 
-    if vol_bn>=1.0 and 2 <= chg <= 14 and th <= 12 and dl <= 10:
-        if now-prev_time>=90*60:
-            early.append((pair.upper().replace('ACTSOL','ACT'),chg,vol_bn,th,dl,last))
+pemula_pairs = {x['pair'] for x in pemula}
 
-    if pair not in state: state[pair]={'last':last,'vol':vol_bn,'th':th,'chg':chg,'time':0}
-    else: state[pair].update({'last':last,'vol':vol_bn,'th':th,'chg':chg})
+akan = sorted([
+    x for x in result
+    if 5 < x['pct_low'] <= 12
+    and x['range_pct'] <= 55
+    and 15 <= x['pct_high'] <= 60
+    and x['chg'] >= -2
+    and x['pair'] not in pemula_pairs
+    and x['vol'] >= 300_000_000
+], key=lambda x: x['pct_high'], reverse=True)[:3]
 
-akum=sorted(akum,key=lambda x:x[8],reverse=True)[:3]
-pre=sorted(pre,key=lambda x:x[8],reverse=True)[:3]
-bottom=bottom[:2]; early=early[:1]; emrg=sorted(emrg,key=lambda x:x[4],reverse=True)[:1]
-total=len(akum)+len(pre)+len(bottom)+len(early)+len(emrg)
-if total==0:
-    print("Sepi - 66 koin tidur, ga ada buyer running early")
-    save_state(state); exit()
+akan_pairs = pemula_pairs | {x['pair'] for x in akan}
 
-msg=f"V66.2 DINI-10 {datetime.now().strftime('%H:%M')} AK{len(akum)} PR{len(pre)} B{len(bottom)} E{len(early)} M{len(emrg)} T{total}\n\n"
-if emrg:
-    msg+="🚨 EMRG INFO - Langit 7, jangan entry!\n"
-    for p,c,v,pc,g in emrg: msg+=f"{p} {c:.0f}% Vol {v:.2f}Bn +{pc:.0f}% x{g:.1f}\n"
-    msg+="\n"
-if akum:
-    msg+="🔵 AKUM 25M - Entry 40%!\n"
-    for p,c,v,th,dl,last,pc,g,sc in akum: msg+=f"{p} {c:.1f}% Vol {v:.2f}Bn TH{th:.0f}% DL{dl:.0f}% {last:.0f} x{g:.1f} +{pc:.1f}%\n"
-    msg+="\n"
-if pre:
-    msg+="⚡ PRE 45M\n"
-    for p,c,v,th,dl,last,pc,g,sc in pre: msg+=f"{p} {c:.1f}% Vol {v:.2f}Bn TH{th:.0f}% {last:.0f} x{g:.1f}\n"
-    msg+="\n"
-if bottom:
-    msg+="💎 BOTTOM 4H\n"
-    for p,c,v,sisa,dl,last,pc in bottom: msg+=f"{p} {c:.1f}% sisa{sisa:.0f}% DL{dl:.0f}% {last:.0f} +{pc:.1f}%\n"
-    msg+="\n"
-if early:
-    msg+="🔥 EARLY 90M\n"
-    for p,c,v,th,dl,last in early: msg+=f"{p} {c:.1f}% Vol {v:.2f}Bn TH{th:.0f}% {last:.0f}\n"
+lagi = sorted([
+    x for x in result
+    if 12 < x['pct_low'] <= 25
+    and x['range_pct'] <= 60
+    and 10 <= x['pct_high'] <= 50
+    and x['chg'] >= -2
+    and x['pair'] not in akan_pairs
+    and x['vol'] >= 250_000_000
+], key=lambda x: x['vol'], reverse=True)[:3]
+
+lagi_pairs = akan_pairs | {x['pair'] for x in lagi}
+
+udah = sorted([
+    x for x in result
+    if 25 < x['pct_low'] <= 45
+    and x['range_pct'] <= 70
+    and x['pct_high'] >= 8
+    and x['chg'] >= -2
+    and x['pair'] not in lagi_pairs
+    and x['vol'] >= 300_000_000
+], key=lambda x: x['vol'], reverse=True)[:2]
+
+msg = f"SCAN DINI {now} WIB | {len(result)} koin\n\n"
+
+if pemula:
+    msg += "🌱 PEMULA 1.5-5% (deteksi paling awal!):\n"
+    for c in pemula:
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.1f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
+    msg += "\n"
+
+if akan:
+    msg += "🎯 AKAN 5-12%:\n"
+    for c in akan:
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
+    msg += "\n"
+
+if lagi:
+    msg += "🚀 LAGI 12-25%:\n"
+    for c in lagi:
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
+    msg += "\n"
+
+if udah:
+    msg += "🔥 UDAH 25-45%:\n"
+    for c in udah:
+        msg += (f"-> {c['pair'].upper()[:-4]} naik {c['pct_low']:.0f}% "
+                f"sisa {c['pct_high']:.0f}% vol {fmt_vol(c['vol'])} chg {c['chg']:.1f}%\n")
+
+if not (pemula or akan or lagi or udah):
+    msg += "KOSONG - market tenang sekarang, jangan maksa entry.\n"
 
 print(msg)
-save_state(state)
+send_tele(msg)
