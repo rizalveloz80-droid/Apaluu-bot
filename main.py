@@ -1,5 +1,4 @@
-import requests, os, json
-
+import requests, os, json, time
 BLOCKED = {
     'BTC_IDR','ETH_IDR','USDT_IDR','USDC_IDR','DAI_IDR','PAXG_IDR',
     'XRP_IDR','DOGE_IDR','SOL_IDR','HYPE_IDR','FARTCOIN_IDR',
@@ -11,8 +10,7 @@ BLOCKED = {
     'MITO_IDR','ERN_IDR','UNMD_IDR','LUNA_IDR','LUNC_IDR','FTM_IDR','BTT_IDR','XEM_IDR','USELESS_IDR','PUMP_IDR','MAVIA_IDR',
     'AMP_IDR','IOST_IDR','KISHU_IDR',
 }
-
-STATE_FILE = "/tmp/v56_state.json"
+STATE_FILE = "/tmp/v57_state.json"
 
 def load_state():
     try:
@@ -55,6 +53,8 @@ def scan(data):
     state=load_state()
     new_state={}
     hold=[]; pre=[]; moon=[]; early=[]; koreksi=[]
+    now = time.time()
+    
     for k in data:
         sym=k['sym']; sisa=k['sisa']; chg=k['chg']; rg=k['rg']; vol=k['vol']
         hist=state.get(sym,{})
@@ -63,7 +63,11 @@ def scan(data):
         prev_high=hist.get('high',0)
         prev_last=hist.get('last',0)
         prev_chg=hist.get('chg',0)
-        new_state[sym]={'sisa':sisa,'vol':vol,'high':k['high'],'last':k['last'],'rg':rg,'low':k['low'],'chg':chg}
+        last_early_time=hist.get('last_early',0) # Kapan terakhir alert early?
+        last_hold_time=hist.get('last_hold',0)
+        
+        new_state[sym]={'sisa':sisa,'vol':vol,'high':k['high'],'last':k['last'],'rg':rg,'low':k['low'],'chg':chg,
+                        'last_early':last_early_time,'last_hold':last_hold_time}
         
         sisa_naik = sisa > prev_sisa + 4 and prev_sisa != 100
         last_turun = prev_last > 0 and (prev_last - k['last'])/prev_last*100 > 5 and k['high'] == prev_high
@@ -78,18 +82,35 @@ def scan(data):
         
         is_early_t1 = vol >= 1.0 and 2.5 <= chg <= 30 and 8 <= rg <= 90 and 3 <= sisa <= 35
         is_early_t2 = vol >= 0.40 and 4 <= chg <= 35 and 10 <= rg <= 100 and 5 <= sisa <= 40
-        is_early = is_early_t1 or is_early_t2 or vol_spike
+        is_early_raw = is_early_t1 or is_early_t2 or vol_spike
         
         is_hold_t1 = vol >= 0.08 and 8 <= chg <= 25 and sisa <= 15 and rg >= 5
         is_hold_t2 = vol >= 0.25 and 3 <= chg <= 20 and sisa <= 15 and rg >= 8
-        is_hold = is_hold_t1 or is_hold_t2
-        
+        is_hold_raw = is_hold_t1 or is_hold_t2
         is_pre = vol >= 0.35 and 2.5 <= chg <= 25 and rg >= 10 and sisa >= 8
         
+        # V57 FIX ANTI ITU-ITU TERUS!
+        # Early cuma alert kalo:
+        # 1. Belum pernah alert early dalam 3 jam terakhir, ATAU
+        # 2. Vol spike baru (vol naik 1.8x), ATAU
+        # 3. Chg naik 2%+ dari sebelumnya (progress!)
+        if is_early_raw:
+            cooldown = 3*3600 # 3 jam jangan alert lagi!
+            if now - last_early_time > cooldown or vol_spike or (chg - prev_chg > 2):
+                early.append(k)
+                new_state[sym]['last_early'] = now
+            else:
+                # Udah pernah alert, skip! Biar ga itu-itu terus!
+                continue
+        
+        if is_hold_raw:
+            cooldown_hold = 2*3600 # Hold cooldown 2 jam
+            if now - last_hold_time > cooldown_hold or chg - prev_chg > 1.5:
+                hold.append(k)
+                new_state[sym]['last_hold'] = now
+        
         if is_moon: moon.append(k)
-        elif is_early: early.append(k)
-        elif is_hold: hold.append(k)
-        elif is_pre: pre.append(k)
+        elif is_pre and not is_early_raw and not is_hold_raw: pre.append(k)
     
     save_state({**state,**new_state})
     return (
@@ -110,14 +131,14 @@ if __name__=="__main__":
     data=get_data()
     early, hold, pre, moon, koreksi = scan(data)
     total=len(early)+len(hold)+len(pre)+len(moon)
-    msg=f"V56 FINAL CLEAN Data {len(data)} BLOCKED 66 | EARLY{len(early)} HOLD{len(hold)} PRE{len(pre)} M{len(moon)} KOREKSI{len(koreksi)} = {total}\n\n"
+    msg=f"V57 ANTI-SPAM Data {len(data)} BLOCKED 66 | EARLY{len(early)} HOLD{len(hold)} PRE{len(pre)} M{len(moon)} = {total}\n\n"
     if early:
-        msg+="🔥 EARLY RUNNER\n"
+        msg+="🔥 EARLY RUNNER - BARU!\n"
         for k in early: msg+=f"{k['sym']} {k['chg']:.1f}% rg {k['rg']:.0f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn Hrg {k['last']:.0f}\n"
         msg+="\n"
     if hold:
         msg+="💎 HOLD IJO\n"
-        for k in hold: msg+=f"{k['sym']} {k['chg']:.1f}% rg {k['rg']:.0f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn Hrg {k['last']:.0f}\n"
+        for k in hold: msg+=f"{k['sym']} {k['chg']:.1f}% rg {k['rg']:.0f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
         msg+="\n"
     if pre:
         msg+="⚠️ PRE-PUMP\n"
@@ -130,6 +151,7 @@ if __name__=="__main__":
     if moon:
         msg+="🚀 MOONING\n"
         for k in moon: msg+=f"{k['sym']} {k['chg']:.1f}% sisa {k['sisa']:.0f}% Vol {k['vol']:.2f}Bn\n"
-    if total==0 and not koreksi: msg+="MARKET SEPI!"
+    if total==0:
+        msg+="MARKET SEPI - Ga ada koin baru! Yang tadi udah di-alert 3 jam yang lalu, ga diulang lagi biar ga bosan!"
     print(msg)
     kirim(msg)
