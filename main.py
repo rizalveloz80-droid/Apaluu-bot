@@ -66,7 +66,7 @@ result_bottom=[]
 result_trending=[]
 result_akum=[]
 
-# === BLOK 1: V7.5 FIX - TYPO e2 + MICIN UNMD + MAV EARLY ===
+# === BLOK 1: FIX TYPO e2 + MICIN UNMD + MAV EARLY ===
 for pair, d in tickers.items():
     if not pair.endswith('_idr'): continue
     if pair in BLACKLIST: continue
@@ -78,12 +78,9 @@ for pair, d in tickers.items():
     last = fnum(d.get('last')); low = fnum(d.get('low')); high = fnum(d.get('high'))
     vol = fnum(d.get('vol_idr')); chg = fnum(d.get('change'))
 
-    # [REVISI] Micin UNMD 30 perak masuk, last <1 baru block
     if low <= 0 or last < 1: continue
-    # [REVISI] Vol 50Mn-10Bn biar MAV/BIRB early masuk
     if vol < 50_000_000 or vol > 10_000_000_000: continue
 
-    # [FIX] typo e2 -> 100
     pct_low = (last - low) / low * 100 if low > 0 else 0
     range_pct = (high - low) / low * 100 if low > 0 else 0
     pct_from_high = (high - last) / high * 100 if high > 0 else 0
@@ -94,21 +91,18 @@ for pair, d in tickers.items():
         'c': chg, 's': pct_from_high
     }
 
-    # === BLOK 2: KATEGORI - ANTI BANJIR + ANTI NYANGKUT + MAV LEG 2 ===
-    # 1. BOTTOM BOUNCE - c<0 s 5-20% + safety
+    # === BLOK 2: KATEGORI ANTI BANJIR + ANTI NYANGKUT + MAV LEG 2 ===
     if (0.2 <= pct_low <= 4 and -15 <= chg <= -2 and 5 <= pct_from_high <= 20 
         and vol >= 100_000_000 and range_pct >= 7 
         and not (pct_from_high > 20 and range_pct > 35)):
         result_bottom.append(data_item)
 
-    # 2. TRENDING - normal + leg2 35% + super pump 100%+
     is_trending_normal = (chg >= 5 and pct_from_high < 15 and vol >= 200_000_000)
     is_trending_leg2 = (chg >= 50 and pct_low >= 100 and pct_from_high <= 35 and vol >= 500_000_000)
     is_super_pump = (chg >= 100 and pct_low >= 150)
     if (is_trending_normal or is_trending_leg2 or is_super_pump):
         result_trending.append(data_item)
 
-    # 3. AKUMULASI - PENGU udah ke block di BLACKLIST!
     if (0.5 <= chg <= 20 and 5 <= range_pct <= 60 and 0.2 <= pct_low <= 20 
         and pct_from_high <= 8 and vol >= 50_000_000):
         result_akum.append(data_item)
@@ -124,8 +118,7 @@ def fmt_vol(v): return f"{v/1e9:.2f} Bn" if v>=1e9 else f"{v/1e6:.0f} Mn"
 def boleh(pair, cd): s=state.get(pair,{}); return now_ts - s.get('time',0) >= cd*60
 def vol_growth(pair, curr_vol): s=state.get(pair,{}); prev=s.get('vol',curr_vol); return curr_vol/prev if prev>0 else 1.0
 
-# === BLOK 3: GABUNGAN + FILTER HARGA >20 + TOP 10 - REVISI LU! ===
-# Gabungkan semua hasil kategori menjadi satu list utama
+# === BLOK 3: FIX SEPI 14:57 - FILTER ADAPTIF + TOP 10 ===
 all_candidates = []
 for cat, items in [("🔥 TRENDING", result_trending),
                    ("🚀 AKUMULASI", result_akum),
@@ -134,35 +127,38 @@ for cat, items in [("🔥 TRENDING", result_trending),
         i['category'] = cat
         all_candidates.append(i)
 
-# [FILTER HARGA] Sesuai request lo: Harga harus di atas 20! + PENGU ga masuk!
-all_candidates = [c for c in all_candidates if c['last'] > 20]
+# [FIX ADAPTIF BIAR GA SEPI] - Jam 14:57 tadi SAFE 58 BOUNCE 113 tapi last >20 kosong!
+# Coba >20 dulu, kalo kosong turunin ke >10, >5, terakhir >1 biar tele tetap masuk!
+filtered_by_price = [c for c in all_candidates if c['last'] > 20]
+if not filtered_by_price:
+    filtered_by_price = [c for c in all_candidates if c['last'] > 10]
+if not filtered_by_price:
+    filtered_by_price = [c for c in all_candidates if c['last'] > 5]
+if not filtered_by_price:
+    filtered_by_price = [c for c in all_candidates if c['last'] > 1]
+    
+all_candidates = filtered_by_price
 
-# [FILTER COOLDOWN] 3 menit buat early, 15 menit buat akum
+# Cooldown filter
 filtered = []
 for c in all_candidates:
-    # cooldown beda per kategori
     cd = 3 if "TRENDING" in c['category'] else 15
     if boleh(c['pair'], cd):
         filtered.append(c)
 all_candidates = filtered
 
-# [SORTING BERBOBOT] Urutkan berdasarkan chg terbesar biar paling liar di atas
 all_candidates.sort(key=lambda x: x['chg'], reverse=True)
-
-# [LIMITASI] Ambil cuma TOP 10 saja biar nggak banjir!
 top_10_coins = all_candidates[:10]
 
 if not top_10_coins:
-    print(f"SCAN V7.5 FINAL {now} | SAFE {len(result_safe)} BOUNCE {len(result_all)} | BLOCK {len(BLACKLIST)} | Sepi - Ga ada koin >20")
+    print(f"SCAN V7.5 FINAL {now} | SAFE {len(result_safe)} BOUNCE {len(result_all)} | BLOCK {len(BLACKLIST)} | Sepi")
     exit()
 
-# Save state buat cooldown
 for x in top_10_coins:
     prev=state.get(x['pair'],{})
     state[x['pair']]={'last':x['last'],'vol':x['vol'],'time':now_ts,'count':prev.get('count',0)+1,'blocked_permanent':prev.get('blocked_permanent',False)}
 save_state(state)
 
-# Mulai susun pesan Telegram dari top_10 tadi
 msg = f"<b>💎 TOP 10 COIN BERBOBOT {now} WIB</b>\n"
 msg += f"SAFE {len(result_safe)} BOUNCE {len(result_all)} | BLOCK {len(BLACKLIST)}\n"
 msg += "──────\n"
