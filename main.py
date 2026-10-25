@@ -1,5 +1,5 @@
-# V8.2 FINAL LOCK - V8.1 + ERN + ANTI API 0.0% + ANTI TELE 400
-# JAMIN GA ADA KOREKSI LAGI!
+# V8.3 FINAL LOCK - FIX SKYAI 22% + MAV 73% KEDETEK! V8.2 + ANTI PUCUK FILTER
+# ERN TETEP KE-BLOCK 46!
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -36,16 +36,20 @@ for pair, d in tickers.items():
     if low <=0 or last <5 or vol < 35_000_000: continue
     pct_low = (last - low) / low * 100
     pct_high = (high - last) / high * 100
-    if 0.8 <= pct_low <= 60 and pct_high >= 4:
-        result.append({'cat': "AKUM EARLY" if pct_low < 12 else "BARU MAU PUMP", 'pair': pair, 'last': last, 'pct_low': pct_low, 'pct_high': pct_high, 'vol': vol})
+    
+    # FIX V8.3: BEDA FILTER BIAR YANG RUNNING MASUK!
+    if 0.8 <= pct_low < 12 and pct_high >= 4:
+        result.append({'cat': "AKUM EARLY", 'pair': pair, 'last': last, 'pct_low': pct_low, 'pct_high': pct_high, 'vol': vol})
+    elif 12 <= pct_low <= 150 and pct_high >= 1:  # YANG PUMP 12-150% BOLEH MEPET HIGH 1% AJA!
+        result.append({'cat': "BARU MAU PUMP", 'pair': pair, 'last': last, 'pct_low': pct_low, 'pct_high': pct_high, 'vol': vol})
 
 def fmt_vol(v): return f"{v/1e9:.2f}Bn" if v>=1e9 else f"{v/1e6:.0f}Mn"
 
 if not result:
     msg = f"SCAN {now}\nMarket flat - {len(tickers)} tickers"
 else:
-    result.sort(key=lambda x: x['pct_low'])
-    msg = f"EARLY {now}\nV8.2 FINAL 46 block\n------\n"
+    result.sort(key=lambda x: x['pct_low'], reverse=True) # YANG GEDE DI ATAS BIAR KELIATAN!
+    msg = f"EARLY {now}\nV8.3 FINAL 46 block\n------\n"
     for c in result[:10]:
         msg += f"{c['cat']} | {c['pair'].upper()[:-4]} Rp{c['last']:,.0f}\n   Naik {c['pct_low']:.1f}% dr low | Jauh {c['pct_high']:.0f}% dr high | Vol {fmt_vol(c['vol'])}\n\n"
 
