@@ -85,7 +85,7 @@ else:
 # ===== TEMPEL DISINI MIN - DIATAS global_lead, DIBAWAH result =====
 # V9 RUNNING #11-15 - AMAN PAKE TRY
 try:
-    running = [c for c in coins if 0 <= c['jauh'] <= 2.5 and c['naik'] >= 6 and c['vol'] >= 200_000_000]
+    running = [c for c in coins if 0 <= c['jauh'] <= 2.5 and c['naik'] >= 4 and c['vol'] >= 100_000_000]
     running = sorted(running, key=lambda x: x['vol'], reverse=True)[:5]
     msg += f"\n----- V9 RUNNING | {len(running)} block -----\n"
     for j,c in enumerate(running,11):
