@@ -1,4 +1,4 @@
-# V8.4 FINAL + GLOBAL LITE - V8.3 TETEP LOCK 46 BLOCK + V9 RUNNING #11-15 FIX! - CRON REFRESH 19.21
+# V8.4 FINAL + GLOBAL LITE - V8.3 TETEP LOCK 46 BLOCK + V9 RUNNING #11-15 FIX! - CRON REFRESH 19.21 + TELE FIX
 import requests, os, time
 from datetime import datetime, timezone, timedelta
 
@@ -6,8 +6,24 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
 def send_tele(msg):
-    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
-    json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+    print(f"DEBUG TELE TOKEN ADA: {bool(TELE_TOKEN)} CHAT_ID ADA: {bool(TELE_CHAT_ID)}")
+    if not TELE_TOKEN or not TELE_CHAT_ID:
+        print("TELE SKIP: Token/Chat ID kosong! Cek Secrets di GitHub!")
+        return
+    # Telegram max 4096 char, potong kalo kepanjangan
+    if len(msg) > 4000:
+        msg = msg[:4000] + "\n...(kepotong)"
+    try:
+        r = requests.post(
+            f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+            json={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "HTML"},
+            timeout=15
+        )
+        print(f"TELE RESPONSE: {r.status_code} - {r.text[:300]}")
+        if r.status_code != 200:
+            print(f"TELE GAGAL: {r.text}")
+    except Exception as e:
+        print(f"TELE ERROR EXCEPTION: {e}")
 
 def get_tickers():
     try: return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers', {})
@@ -51,7 +67,6 @@ for pair, d in tickers.items():
     if low <=0 or high <=0 or vol < 100_000_000: continue
     pct_low = (last - low) / low * 100
     pct_high = (high - last) / high * 100
-    # Lu minta 4% & 100jt disini min! Jauh <=5% (deket pucuk)
     if 0 <= pct_high <= 5 and pct_low >= 4:
         running.append({'symbol': pair.upper()[:-4], 'price': last, 'naik': pct_low, 'jauh': pct_high, 'vol': vol})
 
@@ -83,7 +98,6 @@ if result:
 else:
     msg += "Market flat V8.3\n"
 
-# V9 RUNNING #11-15 - UDAH FIX GA PAKE COINS LAGI
 if running:
     running = sorted(running, key=lambda x: x['vol'], reverse=True)[:5]
     msg += f"\n----- V9 RUNNING | {len(running)} block -----\n"
