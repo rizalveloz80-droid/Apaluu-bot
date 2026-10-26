@@ -1,4 +1,4 @@
-# V8.4 FINAL + GLOBAL LITE - V8.3 TETEP LOCK 46 BLOCK + V9 RUNNING #11-15 FIX!
+# V8.4 FINAL + GLOBAL LITE - V8.3 TETEP LOCK 46 BLOCK + V9 RUNNING #11-15 FIX! - CRON REFRESH 19.21
 import requests, os, time
 from datetime import datetime, timezone, timedelta
 
