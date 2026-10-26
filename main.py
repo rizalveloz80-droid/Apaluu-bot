@@ -82,12 +82,21 @@ if result:
 else:
     msg += "Market flat V8.3\n"
 
+# ===== TEMPEL DISINI MIN - DIATAS global_lead, DIBAWAH result =====
+# V9 RUNNING #11-15 - AMAN PAKE TRY
+try:
+    running = [c for c in coins if 0 <= c['jauh'] <= 2.5 and c['naik'] >= 6 and c['vol'] >= 200_000_000]
+    running = sorted(running, key=lambda x: x['vol'], reverse=True)[:5]
+    msg += f"\n----- V9 RUNNING | {len(running)} block -----\n"
+    for j,c in enumerate(running,11):
+        v = f"{c['vol']/1_000_000_000:.2f}Bn" if c['vol']>=1e9 else f"{c['vol']/1_000_000:.0f}Mn"
+        msg += f"#{j} RUNNING | {c['symbol']} Rp{int(c['price']):,} Naik {c['naik']:.1f}% Jauh {c['jauh']:.0f}% Vol {v}\n"
+except:
+    msg += "\n----- V9 RUNNING | 0 block -----\n"
+# =================================================================
+
 if global_lead:
-    msg += f"\n------ GLOBAL LEAD (CoinGecko Lite) ------\n"
-    for g in global_lead:
-        msg += f"LEAD | {g['sym']} Global +{g['cg_change']:.1f}% Vol ${g['cg_vol']/1e6:.1f}M | Indo +{g['indo_pct']:.1f}% | GAP {g['gap']:.0f}% -> SIAP PUMP!\n"
-else:
-    msg += f"\n------ GLOBAL LEAD: Ga ada gap gede, Indodax udah ngikut global ------\n"
+    msg += f"\n----- GLOBAL LEAD (CoinGecko Lite"
 
 print(msg)
 send_tele(msg)
