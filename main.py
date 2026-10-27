@@ -1,4 +1,4 @@
-# V8.4 FINAL + GLOBAL LITE - V8.3 TETEP LOCK 46 BLOCK + V9 RUNNING #11-15 FIX! - CRON REFRESH 19.21 + TELE FIX
+# V8.5 FINAL + GLOBAL LITE - FILTER 6% DRX FIX + BLACKLIST FULL - V8.3 46 BLOCK LOCK
 import requests, os, time
 from datetime import datetime, timezone, timedelta
 
@@ -10,7 +10,6 @@ def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT_ID:
         print("TELE SKIP: Token/Chat ID kosong! Cek Secrets di GitHub!")
         return
-    # Telegram max 4096 char, potong kalo kepanjangan
     if len(msg) > 4000:
         msg = msg[:4000] + "\n...(kepotong)"
     try:
@@ -20,10 +19,8 @@ def send_tele(msg):
             timeout=15
         )
         print(f"TELE RESPONSE: {r.status_code} - {r.text[:300]}")
-        if r.status_code != 200:
-            print(f"TELE GAGAL: {r.text}")
     except Exception as e:
-        print(f"TELE ERROR EXCEPTION: {e}")
+        print(f"TELE ERROR: {e}")
 
 def get_tickers():
     try: return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers', {})
@@ -33,11 +30,15 @@ def fnum(v,d=0.0):
     try: v=str(v).replace(',','').strip(); return float(v) if v else d
     except: return d
 
+# BLACKLIST LENGKAP: STABLE + GEDE + REQUEST LU + DELISTING INDODAX
 BLACKLIST = {
+    # Stable & BTC ETH
     'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
     'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
-    'bal_idr','collat_idr','dupe_idr','ladys_idr','perp_idr','poly_idr','rfc_idr','dlc_idr','voxel_idr','yfii_idr','moonpig_idr','doge2_idr','mshd_idr','vbg_idr','vra_idr','cht_idr','krd_idr','strm_idr','slp_idr','d_idr','bone_idr','aura_idr','honey_idr','lrc_idr','zeta_idr','shred_idr','h2o_idr',
-    'ern_idr'
+    # Request lu
+    'pepe_idr','xrp_idr','sol_idr','hype_idr','dodo_idr','pippin_idr','bome_idr','ada_idr','doge_idr','ena_idr','anoa_idr','ana_idr','sui_idr','ondo_idr','enb_idr','pengu_idr','pump_idr','shib_idr','nom_idr','mpro_idr','amph_idr','uni_idr','unmd_idr','fanch_idr','kdag_idr',
+    # Delisting lama V8.4
+    'bal_idr','collat_idr','dupe_idr','ladys_idr','perp_idr','poly_idr','rfc_idr','dlc_idr','voxel_idr','yfii_idr','moonpig_idr','doge2_idr','mshd_idr','vbg_idr','vra_idr','cht_idr','krd_idr','strm_idr','slp_idr','d_idr','bone_idr','aura_idr','honey_idr','lrc_idr','zeta_idr','shred_idr','h2o_idr','ern_idr'
 }
 
 def fmt_vol(v): return f"{v/1e9:.2f}Bn" if v>=1e9 else f"{v/1e6:.0f}Mn"
@@ -48,19 +49,20 @@ now=datetime.now(wib).strftime("%H:%M WIB %d-%m")
 result = []
 running = []
 
-# ========== V8.3 FINAL LOCK - JANGAN DIUBAH! ==========
+# ========== V8.3 FINAL LOCK - FILTER 6% DRX FIX ==========
 for pair, d in tickers.items():
     if not pair.endswith('_idr') or pair in BLACKLIST: continue
     last = fnum(d.get('last')); low = fnum(d.get('low')); high = fnum(d.get('high')); vol = fnum(d.get('vol_idr'))
     if low <=0 or last <5 or vol < 35_000_000: continue
     pct_low = (last - low) / low * 100
     pct_high = (high - last) / high * 100
-    if 0.8 <= pct_low < 12 and pct_high >= 4:
+    # RUBAH: DULU 12% SEKARANG 5.8% BIAR DRX 5.98% MASUK
+    if 0.8 <= pct_low < 5.8 and pct_high >= 4:
         result.append({'cat': "AKUM EARLY", 'pair': pair, 'last': last, 'pct_low': pct_low, 'pct_high': pct_high, 'vol': vol})
-    elif 12 <= pct_low <= 150 and pct_high >= 1:
+    elif 5.8 <= pct_low <= 150 and pct_high >= 1:
         result.append({'cat': "BARU MAU PUMP", 'pair': pair, 'last': last, 'pct_low': pct_low, 'pct_high': pct_high, 'vol': vol})
 
-# ========== V9 RUNNING #11-15 - LOGIC QNT, 4% & 100JT FIX ==========
+# ========== V9 RUNNING #11-15 ==========
 for pair, d in tickers.items():
     if not pair.endswith('_idr') or pair in BLACKLIST: continue
     last = fnum(d.get('last')); low = fnum(d.get('low')); high = fnum(d.get('high')); vol = fnum(d.get('vol_idr'))
@@ -90,7 +92,7 @@ except Exception as e:
     print("CG error", e)
 
 # ========== KIRIM TELE ==========
-msg = f"EARLY {now}\nV8.4 FINAL+GLOBAL 46 block\n------\n"
+msg = f"EARLY {now}\nV8.5 FILTER 6% + 46 block\n------\n"
 if result:
     result.sort(key=lambda x: x['pct_low'], reverse=True)
     for c in result[:10]:
