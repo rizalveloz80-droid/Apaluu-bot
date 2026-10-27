@@ -1,8 +1,8 @@
-name: V8.6 EARLY 5M Monitor
+name: V9.1 EARLY 3M Memory
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,10 +17,18 @@ jobs:
           python-version: '3.10'
       
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests pytz
 
-      - name: Run Bot V8.6
+      - name: Run Bot V9.1
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
         run: python main.py
+
+      - name: Save Memory
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@bot.com"
+          git add price_memory.json || true
+          git commit -m "update memory" || true
+          git push || true
