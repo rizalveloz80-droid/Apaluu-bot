@@ -1,4 +1,4 @@
-# V15.2 DUAL - BLACKLIST V9.1 ASLI + MCAP+RATIO>=1X WAJIB
+# V15.3 FINAL - 10 COIN MAX - BANDAR VALID + TRENDING INDO 20%+ - CLEAN
 import requests, os, json
 from datetime import datetime, timezone, timedelta
 
@@ -6,7 +6,7 @@ TELE_TOKEN=os.getenv('TELE_TOKEN')
 TELE_CHAT_ID=os.getenv('TELE_CHAT_ID')
 CMC_API_KEY=os.getenv('CMC_API_KEY')
 
-# BLACKLIST V9.1 ASLI - CUMA INI AJA, BLUR BCH FET LINK GA DI BLACKLIST!
+# BLACKLIST V15.2 - V9.1 + DELISTING - INI WAJIB BAWA TERUS!
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
     'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -73,39 +73,41 @@ for pair,d in tickers.items():
         if sym_bin in binance_map: bn_chg=fnum(binance_map[sym_bin].get('priceChangePercent'))
     except: pass
 
-    # WAJIB MCAP+RATIO>=1X - INI FIX BUAT MCap Besar Ratio 0.0x GA MASUK!
+    # WAJIB MCAP+RATIO>=1X - GTC KEBawah MCap Besar Ratio 0.0x LANGSUNG BUANG!
     if mcap<=0 or ratio<1.0:
         continue
 
-    # TIER 1: BANDAR VALID - MCap<=50M Ratio>=1x 1H>=2% Vol5Mn
+    # TIER 1: BANDAR VALID - MCap<=50M Ratio>=1x 1H>=2% Vol5Mn - INI PRIORITAS!
     if mcap<=50_000_000 and chg1h>=2.0 and vol_idr>=5_000_000:
         cat_ratio="5x" if ratio>=5 else "3x" if ratio>=3 else "1x"
         cat_mcap="SPEC" if mcap<=10_000_000 else "MID"
         tag="TEBAL" if vol_idr>=500_000_000 else "TIPIS"
         result.append({'sort':ratio+100,'cat':f"BANDAR {cat_ratio} {cat_mcap} {tag}",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
 
-    # TIER 2: TRENDING VALID - MCap<=100M Ratio>=1x BIN>=3% Vol50Mn - BLUR BCH FET LINK BOLEH MASUK KLO VALID!
-    elif bn_chg>=3 and mcap<=100_000_000 and vol_idr>=50_000_000:
-        if bn_chg<10:
-            cat=f"AKUM {bn_chg:.0f}% BIN"
-        else:
-            cat=f"TRENDING {bn_chg:.0f}% BIN"
+    # TIER 2: TRENDING INDO 20%+ - GANTIIN GTC BMT TADI - INDO PUMP GEDE!
+    elif pct_low>=20 and vol_idr>=50_000_000:
+        result.append({'sort':pct_low,'cat':f"TRENDING INDO {pct_low:.0f}%",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
+
+    # TIER 3: AKUM BIN VALID - BIN>=5% Vol50Mn - BLUR BCH FET LINK MASIH BOLEH!
+    elif bn_chg>=5 and vol_idr>=50_000_000:
+        cat=f"AKUM {bn_chg:.0f}% BIN" if bn_chg<10 else f"TRENDING {bn_chg:.0f}% BIN"
         result.append({'sort':bn_chg,'cat':cat,'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
 
-# Pisah kuota BANDAR ga ketutup TRENDING
+# MAX 10 AJA BIAR GA PUSING! BANDAR 6 + TRENDING INDO/BIN 4
 bandar=[c for c in result if "BANDAR" in c['cat']]
-trending=[c for c in result if "BIN" in c['cat']]
-final=bandar[:10]+trending[:10]
-final=sorted(final,key=lambda x:x['sort'],reverse=True)
+trending_indo=[c for c in result if "INDO" in c['cat']]
+trending_bin=[c for c in result if "BIN" in c['cat']]
+final=bandar[:6]+trending_indo[:2]+trending_bin[:2]
+final=sorted(final,key=lambda x:x['sort'],reverse=True)[:10]
 
-msg=f"V15.2 MCAP+RATIO>=1X WAJIB {now}\n"
-msg+=f"T1 BANDAR: MCap<=50M Ratio>=1x 1H2% Vol5Mn | T2 BIN: MCap<=100M Ratio>=1x BIN>=3% Vol50Mn\n"
-msg+=f"Blacklist V9.1 only {len(BLACKLIST)} coin | BLUR BCH FET LINK VALID BOLEH MASUK\n------\n"
+msg=f"V15.3 10 MAX CLEAN {now}\n"
+msg+=f"BANDAR MCap<=50M Ratio>=1x 1H2% + TRENDING INDO 20%+ + BIN 5%+\n"
+msg+=f"Filter: MCap Besar Ratio 0.0x BUANG - Max 10 biar ga pusing\n------\n"
 if final:
-    for c in final[:20]:
+    for c in final:
         mcap_s=f"${c['mcap']/1e6:.1f}M"
         msg+=f"{c['cat']} | {c['pair'][:-4].upper()} Rp{c['last']:,.0f} Naik {c['pct']:.1f}% | {mcap_s} 1H {c['chg1h']:.1f}% Ratio {c['ratio']:.1f}x Vol {fmt_vol(c['vol'])} Bin {c['bn']:.0f}%\n"
 else:
-    msg+=f"Belum ada BANDAR VALID CMC {len(cmc_map)} BIN {len(binance_map)} flat - MCap Besar Ratio 0.0x sudah di-filter!\n"
-msg+=f"\n---- V15.2 {len(tickers)} block CMC {len(cmc_map)} BIN {len(binance_map)} ----"
+    msg+=f"Belum ada BANDAR/TRENDING VALID CMC {len(cmc_map)} BIN {len(binance_map)} flat\n"
+msg+=f"\n---- V15.3 {len(tickers)} block CMC {len(cmc_map)} BIN {len(binance_map)} Blacklist {len(BLACKLIST)} ----"
 print(msg); send_tele(msg)
