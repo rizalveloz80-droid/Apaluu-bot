@@ -1,4 +1,4 @@
-# V20.1 FIX - BANDAR TETAP MASUK + ANTI-CHASE (NO EMOJI FIX)
+# V21 FIX BLACKLIST DELISTING + BANDAR VALID
 import requests, os, json, time
 from datetime import datetime, timezone, timedelta
 
@@ -8,13 +8,19 @@ CMC_API_KEY=os.getenv('CMC_API_KEY')
 MEMORY_FILE="price_memory.json"
 COOLDOWN_FILE="cooldown.json"
 
-BLACKLIST={'usdt_idr','usdc_idr','btc_idr','eth_idr','bnb_idr','pepe_idr','xrp_idr','sol_idr','doge_idr','shib_idr','ada_idr'}
-ALIAS={'anime_idr':'anime','haedal_idr':'haedal','cyber_idr':'cyber','enj_idr':'enj','solv_idr':'solv','bsv_idr':'bsv','puffer_idr':'puffer'}
+# FULL BLACKLIST DELISTING + FAKE VOL
+BLACKLIST={
+    'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
+    'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
+    'pepe_idr','xrp_idr','sol_idr','hype_idr','dodo_idr','pippin_idr','bome_idr','ada_idr','doge_idr','ena_idr','anoa_idr','ana_idr','sui_idr','ondo_idr','enb_idr','pengu_idr','pump_idr','shib_idr','nom_idr','mpro_idr','amph_idr','uni_idr','unmd_idr','fanch_idr','kdag_idr',
+    'bal_idr','collat_idr','dupe_idr','ladys_idr','perp_idr','poly_idr','rfc_idr','dlc_idr','voxel_idr','yfii_idr','moonpig_idr','doge2_idr','mshd_idr','vbg_idr','vra_idr','cht_idr','krd_idr','strm_idr','slp_idr','d_idr','bone_idr','aura_idr','honey_idr','lrc_idr','zeta_idr','shred_idr','h2o_idr','ern_idr',
+    'luna_idr','lunc_idr','ftt_idr','ustc_idr',
+}
+ALIAS={'anime_idr':'anime','haedal_idr':'haedal','cyber_idr':'cyber','enj_idr':'enj','solv_idr':'solv','bsv_idr':'bsv','puffer_idr':'puffer','tag_idr':'tag','onl_idr':'onl'}
 
 def send_tele(msg):
     try:
-        url=f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id":TELE_CHAT_ID,"text":msg}, timeout=15)
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id":TELE_CHAT_ID,"text":msg}, timeout=15)
     except:
         pass
 
@@ -120,15 +126,18 @@ for pair,d in tickers.items():
     if 0<=pct_high<=10 and pct_low>=20 and vol_idr>=80_000_000:
         new_cooldown[pair]=now_ts
 
-    # TIER1 BANDAR TETAP MASUK - BYPASS COOLDOWN
-    if ((mcap>0 and mcap<=100_000_000 and ratio>=0.8 and chg1h>=1.0) or bin_chg1h>=2.0) and vol_idr>=3_000_000:
+    # TIER1 BANDAR TETAP MASUK TAPI WAJIB RATIO >0 DAN MCap VALID
+    if mcap>0 and ratio>=0.8 and mcap<=100_000_000 and chg1h>=1.0 and vol_idr>=3_000_000:
         label="FRESH" if pct_low<15 else "RE-ENTRY"
-        result_akum.append({'sort':ratio if ratio>0 else bin_chg1h,'label':label,'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bin':bin_chg1h})
+        result_akum.append({'sort':ratio,'label':label,'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr})
+    elif bin_chg1h>=5.0 and ratio>=0.8 and mcap>0 and vol_idr>=3_000_000:
+        label="FRESH BIN" if pct_low<15 else "RE-ENTRY BIN"
+        result_akum.append({'sort':ratio,'label':label,'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bin':bin_chg1h})
 
     if not is_cooldown and pct_low<25 and early_pct>=1.5 and vol_idr>=50_000_000:
         result_early.append({'sort':early_pct,'pair':pair,'last':last,'pct':pct_low,'vol':vol_idr,'ratio':ratio,'early':early_pct})
 
-    if 0<=pct_high<=10 and pct_low>=3 and vol_idr>=80_000_000:
+    if not is_cooldown and 0<=pct_high<=10 and pct_low>=3 and vol_idr>=80_000_000:
         lab="JANGAN KEJAR +20%" if pct_low>=20 else "RUNNING"
         result_running.append({'sort':vol_idr,'lab':lab,'pair':pair,'last':last,'pct':pct_low,'jauh':pct_high,'vol':vol_idr})
 
@@ -136,18 +145,17 @@ result_akum=sorted(result_akum,key=lambda x:x['sort'],reverse=True)[:6]
 result_early=sorted(result_early,key=lambda x:x['sort'],reverse=True)[:6]
 result_running=sorted(result_running,key=lambda x:x['sort'],reverse=True)[:8]
 
-msg=f"V20.1 FIX BANDAR TETAP MASUK {now}\n"
-msg+=f"T1 BANDAR 100M 0.8x BYPASS COOLDOWN | T2 FRESH <25% | T3 ANTI-CHASE\n"
+msg=f"V21 BLACKLIST FIX {now}\n"
+msg+=f"Blacklist {len(BLACKLIST)} coin delisting removed | T1 Ratio>0 valid only\n"
 msg+=f"------\n"
 
 if result_akum:
-    msg+=f"--- TIER1 BANDAR TETAP MASUK ---\n"
+    msg+=f"--- TIER1 BANDAR VALID ---\n"
     for c in result_akum:
-        if c['mcap']>0:
-            mcap_s=f"${c['mcap']/1e6:.1f}M"
-        else:
-            mcap_s=f"BIN {c['bin']:.1f}%"
+        mcap_s=f"${c['mcap']/1e6:.1f}M"
         msg+=f"AKUM {c['label']} {c['pair'][:-4].upper()} Rp{c['last']:,.0f} +{c['pct']:.1f}% | {mcap_s} 1H {c['chg1h']:.1f}% Ratio {c['ratio']:.1f}x Vol {fmt_vol(c['vol'])}\n"
+else:
+    msg+=f"--- TIER1 BANDAR VALID: Kosong (bagus, ga ada delisting) ---\n"
 
 if result_early:
     msg+=f"--- EARLY FRESH ---\n"
@@ -155,7 +163,7 @@ if result_early:
         msg+=f"EARLY {c['early']:.1f}% {c['pair'][:-4].upper()} Rp{c['last']:,.0f} +{c['pct']:.1f}% Vol {fmt_vol(c['vol'])}\n"
 
 if result_running:
-    msg+=f"--- RUNNING ---\n"
+    msg+=f"--- RUNNING VALID ---\n"
     for i,c in enumerate(result_running,11):
         msg+=f"#{i} {c['lab']} {c['pair'][:-4].upper()} Rp{int(c['last']):,} +{c['pct']:.1f}% Jauh {c['jauh']:.0f}% Vol {fmt_vol(c['vol'])}\n"
 
