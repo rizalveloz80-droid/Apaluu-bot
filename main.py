@@ -1,5 +1,5 @@
-# V15.4 EARLY FIX FINAL - BANDAR ONLY + TIER1 EARLY + GTC GENIUS NO BLOCK
-# Pakai BLACKLIST & ALIAS asli punya lu min!
+# V15.5 ADA BUYER - BANDAR + TIER1 + DINI BUYER - GTC GENIUS NO BLOCK
+# Main() baru sesuai request lu min!
 import os, requests
 from datetime import datetime
 import pytz
@@ -9,7 +9,6 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 CMC_API_KEY = os.getenv('CMC_API_KEY')
 
-# BLACKLIST PUNYA LU - GTC & GENIUS GA ADA = GA DIBLOCK!
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
     'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -114,3 +113,5 @@ def main():
 
     footer=f"\n--- V15.5 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
     send_tele(header+body+footer)
+
+if __name__=="__main__": main()
