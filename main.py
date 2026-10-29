@@ -1,12 +1,15 @@
-# V15.3 FINAL - 10 COIN MAX - BANDAR VALID + TRENDING INDO 20%+ - CLEAN
-import requests, os, json
-from datetime import datetime, timezone, timedelta
+# V15.4 EARLY FIX FINAL - BANDAR ONLY + TIER1 EARLY + GTC GENIUS NO BLOCK
+# Pakai BLACKLIST & ALIAS asli punya lu min!
+import os, requests
+from datetime import datetime
+import pytz
 
-TELE_TOKEN=os.getenv('TELE_TOKEN')
-TELE_CHAT_ID=os.getenv('TELE_CHAT_ID')
-CMC_API_KEY=os.getenv('CMC_API_KEY')
+WIB = pytz.timezone('Asia/Jakarta')
+TELE_TOKEN = os.getenv('TELE_TOKEN')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
+CMC_API_KEY = os.getenv('CMC_API_KEY')
 
-# BLACKLIST V15.2 - V9.1 + DELISTING - INI WAJIB BAWA TERUS!
+# BLACKLIST PUNYA LU - GTC & GENIUS GA ADA = GA DIBLOCK!
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
     'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -23,91 +26,93 @@ ALIAS={
 
 def send_tele(msg):
     try:
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id":TELE_CHAT_ID,"text":msg}, timeout=15)
-    except: pass
-def fnum(v):
-    try: return float(str(v).replace(',',''))
-    except: return 0.0
-def fmt_vol(v): return f"{v/1e9:.2f}Bn" if v>=1e9 else f"{v/1e6:.0f}Mn"
+        url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+    except: print(msg)
 
-try: tickers=requests.get("https://indodax.com/api/tickers",timeout=15).json().get('tickers',{})
-except: tickers={}
+def get_indodax():
+    try: return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers',{})
+    except: return {}
 
-cmc_map={}
-if CMC_API_KEY:
+def get_cmc():
+    if not CMC_API_KEY: return {}
     try:
-        url="https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
-        headers={'X-CMC_PRO_API_KEY':CMC_API_KEY}
-        params={'start':'1','limit':'400','convert':'USD','market_cap_max':'150000000','sort':'percent_change_1h','sort_dir':'desc'}
-        r=requests.get(url,headers=headers,params=params,timeout=20).json()
-        for coin in r.get('data',[]):
-            sym=coin['symbol'].lower(); q=coin.get('quote',{}).get('USD',{})
-            cmc_map[sym]={'mcap':fnum(q.get('market_cap')),'vol24':fnum(q.get('volume_24h')),'chg1h':fnum(q.get('percent_change_1h'))}
-            for pair, al in ALIAS.items():
-                if al.lower()==sym: cmc_map[pair[:-4]]=cmc_map[sym]
-    except: pass
+        h={'X-CMC_PRO_API_KEY': CMC_API_KEY}
+        r=requests.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest", headers=h, params={'start':'1','limit':'400','convert':'USD'}, timeout=20).json()
+        d={}
+        for c in r.get('data',[]):
+            sym=c['symbol'].lower()
+            q=c['quote']['USD']
+            mcap=q.get('market_cap',0) or 0
+            vol=q.get('volume_24h',0) or 0
+            p1h=q.get('percent_change_1h',0) or 0
+            ratio=vol/mcap if mcap>0 else 0
+            d[sym]={'mcap':mcap,'ratio':ratio,'p1h':p1h}
+            d[sym+'_idr']={'mcap':mcap,'ratio':ratio,'p1h':p1h}
+        return d
+    except: return {}
 
-binance_map={}
-try:
-    b=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",timeout=15).json()
-    for x in b:
-        if x['symbol'].endswith('USDT'): binance_map[x['symbol'].replace('USDT','').lower()]=x
-except: pass
-
-result=[]
-wib=timezone(timedelta(hours=7))
-now=datetime.now(wib).strftime("%H:%M WIB %d-%m")
-
-for pair,d in tickers.items():
-    if pair in BLACKLIST or not pair.endswith('_idr'): continue
-    last=fnum(d.get('last')); low=fnum(d.get('low')); vol_idr=fnum(d.get('vol_idr'))
-    if last<1: continue
-    base=pair[:-4]
-    cmc=cmc_map.get(base) or cmc_map.get(ALIAS.get(pair,'').lower(),{})
-    mcap=cmc.get('mcap',0) if cmc else 0; vol24=cmc.get('vol24',0) if cmc else 0; chg1h=cmc.get('chg1h',0) if cmc else 0
-    ratio=vol24/mcap if mcap>0 else 0
-    pct_low=(last-low)/low*100 if low>0 else 0
-    bn_chg=0
+def get_binance():
     try:
-        sym_bin=ALIAS.get(pair,base).lower()
-        if sym_bin in binance_map: bn_chg=fnum(binance_map[sym_bin].get('priceChangePercent'))
-    except: pass
+        r=requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=15).json()
+        return {c['symbol'].replace('USDT','').lower()+'_idr': float(c['priceChangePercent']) for c in r if c['symbol'].endswith('USDT')}
+    except: return {}
 
-    # WAJIB MCAP+RATIO>=1X - GTC KEBawah MCap Besar Ratio 0.0x LANGSUNG BUANG!
-    if mcap<=0 or ratio<1.0:
-        continue
+def main():
+    now=datetime.now(WIB).strftime("%H:%M WIB %d-%m")
+    tickers=get_indodax()
+    cmc=get_cmc()
+    binance=get_binance()
+    block_cmc=0
+    bandar=[]
 
-    # TIER 1: BANDAR VALID - MCap<=50M Ratio>=1x 1H>=2% Vol5Mn - INI PRIORITAS!
-    if mcap<=50_000_000 and chg1h>=2.0 and vol_idr>=5_000_000:
-        cat_ratio="5x" if ratio>=5 else "3x" if ratio>=3 else "1x"
-        cat_mcap="SPEC" if mcap<=10_000_000 else "MID"
-        tag="TEBAL" if vol_idr>=500_000_000 else "TIPIS"
-        result.append({'sort':ratio+100,'cat':f"BANDAR {cat_ratio} {cat_mcap} {tag}",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
+    for pair,t in tickers.items():
+        if not pair.endswith('_idr'): continue
+        if pair in BLACKLIST: continue
+        coin=pair.replace('_idr','')
+        # alias
+        real=ALIAS.get(pair, coin)
+        
+        c=cmc.get(real.lower()) or cmc.get(coin) or cmc.get(pair)
+        if not c:
+            block_cmc+=1; continue
+        
+        mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']
+        if mcap>50_000_000 and ratio<0.3: continue
+        
+        try:
+            price=float(t.get('last',0)); vol_idr=float(t.get('vol_idr',0)); low=float(t.get('low',0))
+            if low==0 or price==0: continue
+            naik=((price-low)/low*100)
+        except: continue
+        
+        if vol_idr<40_000_000: continue
+        
+        # V15.4 EARLY FIX
+        is_normal = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
+        is_tier1 = (mcap<=50_000_000 and ratio>=1.8 and p1h>=0.5 and vol_idr>=50_000_000)
+        
+        if not (is_normal or is_tier1): continue
+        
+        mid_type = "MID TEBAL" if vol_idr>=300_000_000 else "MID TIPIS"
+        if is_tier1: mid_type=f"TIER1 EARLY {mid_type}"
+        
+        bandar.append({'coin':coin.upper(),'price':price,'naik':naik,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'bin':binance.get(pair,0),'type':mid_type,'tier1':is_tier1})
 
-    # TIER 2: TRENDING INDO 20%+ - GANTIIN GTC BMT TADI - INDO PUMP GEDE!
-    elif pct_low>=20 and vol_idr>=50_000_000:
-        result.append({'sort':pct_low,'cat':f"TRENDING INDO {pct_low:.0f}%",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
+    bandar.sort(key=lambda x: (x['tier1'], x['ratio'], x['p1h']), reverse=True)
+    final=bandar[:10]
 
-    # TIER 3: AKUM BIN VALID - BIN>=5% Vol50Mn - BLUR BCH FET LINK MASIH BOLEH!
-    elif bn_chg>=5 and vol_idr>=50_000_000:
-        cat=f"AKUM {bn_chg:.0f}% BIN" if bn_chg<10 else f"TRENDING {bn_chg:.0f}% BIN"
-        result.append({'sort':bn_chg,'cat':cat,'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bn':bn_chg})
+    header=f"V15.4 EARLY FIX {now}\nBANDAR MCap<=50M Ratio>=1x 1H0.8% + TIER1 EARLY 1.8x\nFilter: MCap Besar Ratio 0.0x BUANG Max 10 GTC GENIUS NO BLOCK\n-----\n"
+    
+    if not final:
+        msg=header+f"Belum ada BANDAR/TRENDING VALID\nCMC {len(cmc)} BIN {len(binance)} flat\n--- V15.4 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
+        send_tele(msg); print(msg); return
 
-# MAX 10 AJA BIAR GA PUSING! BANDAR 6 + TRENDING INDO/BIN 4
-bandar=[c for c in result if "BANDAR" in c['cat']]
-trending_indo=[c for c in result if "INDO" in c['cat']]
-trending_bin=[c for c in result if "BIN" in c['cat']]
-final=bandar[:6]+trending_indo[:2]+trending_bin[:2]
-final=sorted(final,key=lambda x:x['sort'],reverse=True)[:10]
+    body=""
+    for b in final:
+        body+=f"BANDAR {b['ratio']:.1f}x {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn Bin {b['bin']:.0f}%\n"
+    
+    footer=f"\n--- V15.4 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
+    send_tele(header+body+footer)
 
-msg=f"V15.3 10 MAX CLEAN {now}\n"
-msg+=f"BANDAR MCap<=50M Ratio>=1x 1H2% + TRENDING INDO 20%+ + BIN 5%+\n"
-msg+=f"Filter: MCap Besar Ratio 0.0x BUANG - Max 10 biar ga pusing\n------\n"
-if final:
-    for c in final:
-        mcap_s=f"${c['mcap']/1e6:.1f}M"
-        msg+=f"{c['cat']} | {c['pair'][:-4].upper()} Rp{c['last']:,.0f} Naik {c['pct']:.1f}% | {mcap_s} 1H {c['chg1h']:.1f}% Ratio {c['ratio']:.1f}x Vol {fmt_vol(c['vol'])} Bin {c['bn']:.0f}%\n"
-else:
-    msg+=f"Belum ada BANDAR/TRENDING VALID CMC {len(cmc_map)} BIN {len(binance_map)} flat\n"
-msg+=f"\n---- V15.3 {len(tickers)} block CMC {len(cmc_map)} BIN {len(binance_map)} Blacklist {len(BLACKLIST)} ----"
-print(msg); send_tele(msg)
+if __name__=="__main__": main()
