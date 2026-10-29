@@ -1,4 +1,4 @@
-# V16.2 ALL COIN SCAN BAWAH - BUAT SEMUA KOIN BUKAN CUMA BEAT
+# V16.3 ALL COIN NO BLOCK - SEMUA KOIN KEDETEK BUKAN CUMA BEAT
 import os, requests
 from datetime import datetime
 import pytz
@@ -7,16 +7,11 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 CMC_API_KEY = os.getenv('CMC_API_KEY')
 
-# BLACKLIST MINIMAL - CUMA STABLECOIN + BTC/ETH/BNB + SAMPAH BENERAN AJA!
-# BEAT, SHELL, BLUR, GTC, ORDERLY, ANIME, RAD, SEMUA GUA BUKA BIAR KEDETEK!
-BLACKLIST={
+BLACKLIST={ # MINIMAL AJA! SEMUA KOIN KECIL DIBUKA!
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
-    'btc_idr','eth_idr','bnb_idr', # cuma 3 besar aja yang block
-    'luna_idr','lunc_idr','ftt_idr','ustc_idr' # coin mati
+    'btc_idr','eth_idr','bnb_idr',
+    'luna_idr','lunc_idr','ftt_idr','ustc_idr'
 }
-# DULU lu block: pepe, xrp, sol, ada, doge, shib, hype, dodo, kdag, bal, collat, dupe, lady, perp, poly, rfc, dlc, voxel, yfii, moonpig, doge2, mshd, vbg, vra, cht, krd, strm, slp, d, bone, aura, honey, lrc, zeta, shred, h2o, ern, enb, pengu, pump, nom, mpro, amph, uni, unmd, fanch, beat, shell, blur, etc
-# SEKARANG GUA BUKA SEMUA BIAR KEDETEK! Kalo ratio nya bagus ya BANDAR!
-
 ALIAS={'velodrome_idr':'velo','orderly_idr':'order','anime_idr':'anime','haedal_idr':'haedal','rez_idr':'rez','tag_idr':'tag','moca_idr':'moca','useless_idr':'useless','wld_idr':'wld','solv_idr':'solv','bsv_idr':'bsv','velofin_idr':'velo','puffer_idr':'puffer','cyber_idr':'cyber','enj_idr':'enj','beat_idr':'beat','shell_idr':'shell','blur_idr':'blur','bch_idr':'bch','fet_idr':'fet','link_idr':'link','gtc_idr':'gtc','comp_idr':'comp','icnt_idr':'icnt'}
 
 def send_tele(msg):
@@ -59,36 +54,45 @@ def main():
         real=ALIAS.get(pair, coin)
         c=cmc.get(real.lower()) or cmc.get(coin) or cmc.get(pair)
         if not c:
-            block_cmc+=1; continue
-        mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']; bin_pct=binance.get(pair,0)
-        if mcap>100_000_000 and ratio<=0.2: continue
+            block_cmc+=1
+            mcap=0; ratio=0; p1h=0 # GA CONTINUE! BIAR TETEP DICEK!
+        else:
+            mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']
+            if mcap>100_000_000 and ratio<=0.2: continue
         if vol_idr<80_000_000: continue
-        # 4 JENIS BANDAR - UNTUK SEMUA KOIN!
-        is_global = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
-        is_tier1 = (mcap<=50_000_000 and ratio>=1.8 and p1h>=0.5)
-        is_binance = (bin_pct>=5.0 and vol_idr>=100_000_000 and mcap<=100_000_000 and naik>=2 and naik<=25 and pos<=75)
-        is_indodax_local = (vol_idr>=250_000_000 and ratio>=0.2 and naik>=2 and naik<=25 and pos>=5 and pos<=75 and mcap<=100_000_000 and p1h>=0.2)
-        is_serok = (mcap<=80_000_000 and ratio>=0.6 and p1h>=0.2 and p1h<=5.0 and naik>=2 and naik<=25 and pos>=5 and pos<=75 and vol_idr>=100_000_000)
-        if not (is_global or is_tier1 or is_binance or is_indodax_local or is_serok): continue
-        if is_global or is_tier1: label = "BANDAR GLOBAL"
-        elif is_binance: label = "BANDAR BINANCE"
-        elif is_indodax_local: label = "BANDAR INDODAX"
-        else: label = "SEROK BAWAH"
-        mid_type = "MID TEBAL" if vol_idr>=300_000_000 else "MID TIPIS"
-        if vol_idr>=1_000_000_000: mid_type="MID TEBAL SUPER" # Kaya BEAT 7.56Bn!
+        bin_pct=binance.get(pair,0)
+        # CEK GLOBAL KALO ADA CMC
+        if c:
+            is_global = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
+            is_tier1 = (mcap<=50_000_000 and ratio>=1.8 and p1h>=0.5)
+            is_serok = (mcap<=80_000_000 and ratio>=0.6 and p1h>=0.2 and p1h<=5.0 and naik>=2 and naik<=25 and pos>=5 and pos<=75 and vol_idr>=100_000_000)
+        else:
+            is_global=False; is_tier1=False; is_serok=False
+        # BANDAR INDODAX & BINANCE - GA BUTUH CMC! JADI SEMUA KOIN BISA MASUK!
+        is_binance = (bin_pct>=3.0 and vol_idr>=150_000_000 and naik>=2 and naik<=30 and pos<=80)
+        is_indodax = (vol_idr>=250_000_000 and naik>=2 and naik<=30 and pos>=5 and pos<=80)
+        if c:
+            is_binance = is_binance and mcap<=100_000_000
+            is_indodax = is_indodax and mcap<=100_000_000
+        if not (is_global or is_tier1 or is_binance or is_indodax or is_serok): continue
+        if is_global or is_tier1: label="BANDAR GLOBAL"
+        elif is_binance: label="BANDAR BINANCE"
+        elif is_indodax: label="BANDAR INDODAX"
+        else: label="SEROK BAWAH"
+        mid_type="MID TEBAL" if vol_idr>=300_000_000 else "MID TIPIS"
+        if vol_idr>=1_000_000_000: mid_type="MID TEBAL SUPER"
         if is_tier1: mid_type=f"TIER1 EARLY {mid_type}"
-        bandar.append({'coin':coin.upper(),'label':label,'price':price,'naik':naik,'pos':pos,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'bin':bin_pct,'type':mid_type,'score': ratio + (bin_pct/10) + p1h + (vol_idr/1e9)})
-
+        bandar.append({'coin':coin.upper(),'label':label,'price':price,'naik':naik,'pos':pos,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'bin':bin_pct,'type':mid_type,'score': vol_idr + ratio*1e8 + bin_pct*1e7})
     bandar.sort(key=lambda x: x['score'], reverse=True)
     final=bandar[:10]
-    header=f"V16.2 ALL COIN {now}\nGLOBAL>=1.0x BINANCE>=5% INDODAX>=0.2x 250Mn\nBLACKLIST MINIMAL - SEMUA KOIN KEDETEK!\n-----\n"
+    header=f"V16.3 ALL COIN {now}\nGLOBAL>=1.0x BINANCE>=3% INDODAX>=250Mn NO BLOCK CMC\n-----\n"
     body=""
     if final:
         for b in final:
             body+=f"{b['label']} {b['ratio']:.1f}x {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn Bin {b['bin']:.0f}%\n"
     else:
-        body+=f"Belum ada BANDAR VALID\nCMC {len(cmc)} BIN {len(binance)}\n"
-    footer=f"\n--- V16.2 ALL COIN {block_cmc} block CMC {len(cmc)} BIN {len(binance)} ---"
+        body+=f"Belum ada BANDAR VALID\nCMC {len(cmc)} BIN {len(binance)} block {block_cmc}\n"
+    footer=f"\n--- V16.3 {block_cmc} block CMC {len(cmc)} BIN {len(binance)} ---"
     send_tele(header+body+footer)
 
 if __name__=="__main__": main()
