@@ -70,49 +70,47 @@ def main():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
         coin=pair.replace('_idr','')
-        # alias
         real=ALIAS.get(pair, coin)
-        
+
         c=cmc.get(real.lower()) or cmc.get(coin) or cmc.get(pair)
         if not c:
             block_cmc+=1; continue
-        
+
         mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']
         if mcap>50_000_000 and ratio<0.3: continue
-        
+
         try:
             price=float(t.get('last',0)); vol_idr=float(t.get('vol_idr',0)); low=float(t.get('low',0))
             if low==0 or price==0: continue
             naik=((price-low)/low*100)
         except: continue
-        
+
         if vol_idr<40_000_000: continue
-        
-        # V15.4 EARLY FIX
+
         is_normal = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
         is_tier1 = (mcap<=50_000_000 and ratio>=1.8 and p1h>=0.5 and vol_idr>=50_000_000)
-        
-        if not (is_normal or is_tier1): continue
-        
+        is_buyer = (naik>=2.0 and naik<=20.0 and vol_idr>=50_000_000 and mcap<=100_000_000)
+
+        if not (is_normal or is_tier1 or is_buyer): continue
+
         mid_type = "MID TEBAL" if vol_idr>=300_000_000 else "MID TIPIS"
         if is_tier1: mid_type=f"TIER1 EARLY {mid_type}"
-        
+        elif is_buyer and not is_normal: mid_type=f"⚡ ADA BUYER {mid_type}"
+
         bandar.append({'coin':coin.upper(),'price':price,'naik':naik,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'bin':binance.get(pair,0),'type':mid_type,'tier1':is_tier1})
 
     bandar.sort(key=lambda x: (x['tier1'], x['ratio'], x['p1h']), reverse=True)
     final=bandar[:10]
 
-    header=f"V15.4 EARLY FIX {now}\nBANDAR MCap<=50M Ratio>=1x 1H0.8% + TIER1 EARLY 1.8x\nFilter: MCap Besar Ratio 0.0x BUANG Max 10 GTC GENIUS NO BLOCK\n-----\n"
-    
+    header=f"V15.5 ADA BUYER {now}\nBANDAR MCap<=50M Ratio>=1x 1H0.8% + TIER1 1.8x + DINI BUYER\nFilter: MCap Besar Ratio 0.0x BUANG Max 10 GTC GENIUS NO BLACKLIST\n-----\n"
+
     if not final:
-        msg=header+f"Belum ada BANDAR/TRENDING VALID\nCMC {len(cmc)} BIN {len(binance)} flat\n--- V15.4 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
+        msg=header+f"Belum ada BANDAR/TRENDING/DINI VALID\nCMC {len(cmc)} BIN {len(binance)} flat\n--- V15.5 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
         send_tele(msg); print(msg); return
 
     body=""
     for b in final:
         body+=f"BANDAR {b['ratio']:.1f}x {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn Bin {b['bin']:.0f}%\n"
-    
-    footer=f"\n--- V15.4 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
-    send_tele(header+body+footer)
 
-if __name__=="__main__": main()
+    footer=f"\n--- V15.5 {block_cmc} block CMC {len(cmc)} Blacklist {len(BLACKLIST)} ---"
+    send_tele(header+body+footer)
