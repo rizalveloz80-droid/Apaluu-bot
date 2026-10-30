@@ -1,4 +1,4 @@
-# V16.5 GLOBAL ALL EXCHANGE - FINAL ALL COIN NO ALIAS
+# V16.6 GLOBAL ALL EXCHANGE + RUMUS 2/3 MCAP TEMEN LU - FINAL FULL COPAS
 import os, requests
 from datetime import datetime
 import pytz
@@ -7,13 +7,13 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 CMC_API_KEY = os.getenv('CMC_API_KEY')
 
-# BLACKLIST + DELISTING DARI VERSI SEBELUMNYA - MASUKIN SEMUA BIAR AMAN!
+# BLACKLIST + DELISTING DARI VERSI SEBELUMNYA - MASUKIN SEMUA BIAR AMAN! LENGKAP!
 BLACKLIST={
-    # Stablecoin & Wrapped
+    # Stablecoin & Wrapped - LENGKAP
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr','wbtc_idr',
     # Big Cap - ga usah di scan bandar
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
-    # Delisting / Coin Mati / Luna dkk
+    # Delisting / Coin Mati / Luna dkk - LENGKAP!
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     # Meme berat sampah volume tipis
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr'
@@ -39,7 +39,7 @@ def get_cmc():
         return d
     except: return {}
 
-# --- GLOBAL ALL EXCHANGE - INI YANG TEMEN LU CEK MANUAL! ---
+# --- GLOBAL ALL EXCHANGE - INI YANG TEMEN LU CEK MANUAL! 6 EXCHANGE = 5972 KOIN ---
 def get_binance():
     try:
         r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=10).json()
@@ -100,7 +100,6 @@ def main():
             naik=((price-low)/low*100); pos = ((price-low)/(high-low)*100) if high>low else 0
         except: continue
         
-        # NO ALIAS - LANGSUNG PAKE SYMBOL ASLI!
         c=cmc.get(coin) or cmc.get(pair)
         if not c:
             block_cmc+=1
@@ -108,9 +107,19 @@ def main():
         else:
             mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']
             if mcap>100_000_000 and ratio<=0.2: continue
+
+        # === V16.6 FIX BIAR GA NEMPEL SEHARIAN ===
+        if mcap==0:
+            # NO CMC kaya ZEREBRO/HAEDAL - CUMA SUPER 1Bn+ YANG LOLOS!
+            if vol_idr < 1_000_000_000: continue
+            if naik < 1.5: continue
+        else:
+            # ADA CMC - kalo ratio kecil + vol kecil skip biar ganti-ganti
+            if ratio < 0.25 and vol_idr < 500_000_000: continue
+        
         if vol_idr<80_000_000: continue
         
-        g_pct=global_all.get(pair,0) # INI DARI 6 EXCHANGE GABUNGAN!
+        g_pct=global_all.get(pair,0)
         
         if c:
             is_global = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
@@ -119,8 +128,10 @@ def main():
         else:
             is_global=False; is_tier1=False; is_serok=False
         
-        # BANDAR GLOBAL ALL EXCHANGE - INI YANG TEMEN LU CEK DI BINGX/BYBIT/GATE DLL!
-        is_global_ex = (g_pct>=3.0 and vol_idr>=150_000_000 and naik>=2 and naik<=30 and pos<=80)
+        # === RUMUS TEMEN LU 2/3 x MCAP ===
+        is_akumulasi_tinggi = (c and ratio >= 0.66)  # VOL = 2/3 MCAP!
+        
+        is_global_ex = (g_pct>=3.0 and vol_idr>=150_000_000 and naik>=2 and naik<=35 and pos<=80)
         is_indodax = (vol_idr>=250_000_000 and naik>=2 and naik<=30 and pos>=5 and pos<=80)
         if c:
             is_global_ex = is_global_ex and mcap<=100_000_000
@@ -128,14 +139,12 @@ def main():
         
         if not (is_global or is_tier1 or is_global_ex or is_indodax or is_serok): continue
         
-        # LABEL
         if is_global or is_tier1: label="BANDAR GLOBAL"
         elif is_global_ex: label="BANDAR GLOBAL-ALL"
         elif is_indodax: label="BANDAR INDODAX"
         else: label="SEROK BAWAH"
         
         # MID TEBAL / MID TIPIS / TRENDING DARI V15.3 - TETEP ADA!
-        # V15.3 logic: Vol >=300Mn = TEBAL, <300Mn = TIPIS, >=1Bn = TEBAL SUPER
         if vol_idr>=1_000_000_000:
             mid_type="MID TEBAL SUPER"
         elif vol_idr>=300_000_000:
@@ -144,25 +153,29 @@ def main():
             mid_type="MID TIPIS"
         if is_tier1:
             mid_type=f"TIER1 EARLY {mid_type}"
-        # TRENDING dari V15.3 kalo naik udah tinggi tapi vol masih tebal
         if naik>=30:
             mid_type=f"{mid_type} TRENDING"
+        # LABEL AKUMULASI RUMUS TEMEN LU 2/3!
+        if is_akumulasi_tinggi:
+            mid_type=f"{ratio:.1f}x AKUMULASI {mid_type}"
         
-        bandar.append({'coin':coin.upper(),'label':label,'price':price,'naik':naik,'pos':pos,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'g_pct':g_pct,'type':mid_type,'score': vol_idr + ratio*1e8 + g_pct*1e7})
+        score = vol_idr + ratio*5e8 + g_pct*1e7 + (1e9 if is_akumulasi_tinggi else 0)
+        
+        bandar.append({'coin':coin.upper(),'label':label,'price':price,'naik':naik,'pos':pos,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'g_pct':g_pct,'type':mid_type,'score':score})
 
     bandar.sort(key=lambda x: x['score'], reverse=True)
     final=bandar[:10]
-    header=f"V16.5 GLOBAL-ALL {now}\nBINANCE+BYBIT+GATE+MEXC+BINGX+BITGET GLOBAL>=3% INDODAX>=250Mn\n-----\n"
+    header=f"V16.6 GLOBAL-ALL+AKUMULASI {now}\nBINANCE+BYBIT+GATE+MEXC+BINGX+BITGET GLOBAL>=3% | RUMUS 2/3 MCAP>=0.66x\n-----\n"
     body=""
     if final:
         for b in final:
             if b['mcap']==0:
                 body+=f"{b['label']} {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | NO CMC Vol {b['vol']/1e6:.0f}Mn GLOBAL {b['g_pct']:.0f}%\n"
             else:
-                body+=f"{b['label']} {b['ratio']:.1f}x {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn GLOBAL {b['g_pct']:.0f}%\n"
+                body+=f"{b['label']} {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn GLOBAL {b['g_pct']:.0f}%\n"
     else:
         body+=f"Belum ada BANDAR VALID\nCMC {len(cmc)} GLOBAL {len(global_all)} block {block_cmc}\n"
-    footer=f"\n--- V16.5 {block_cmc} block CMC {len(cmc)} GLOBAL {len(global_all)} ---"
+    footer=f"\n--- V16.6 {block_cmc} block CMC {len(cmc)} GLOBAL {len(global_all)} ---"
     send_tele(header+body+footer)
 
 if __name__=="__main__": main()
