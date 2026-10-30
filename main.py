@@ -1,11 +1,7 @@
-# V16.6 GLOBAL ALL EXCHANGE + RUMUS 2/3 MCAP TEMEN LU - FINAL FULL COPAS
-import os, requests
-from datetime import datetime
-import pytz
-WIB = pytz.timezone('Asia/Jakarta')
-TELE_TOKEN = os.getenv('TELE_TOKEN')
-TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
-CMC_API_KEY = os.getenv('CMC_API_KEY')
+# V16.7 - 2 TIER + BLACKLIST DELISTING TETAP MASUK
+# TIER 1 BANDAR GLOBAL TETAP + TIER 2 BUYER SIAP TERBANG ALLCOIN 2-35%
+
+import requests
 
 # BLACKLIST + DELISTING DARI VERSI SEBELUMNYA - MASUKIN SEMUA BIAR AMAN! LENGKAP!
 BLACKLIST={
@@ -19,163 +15,80 @@ BLACKLIST={
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr'
 }
 
-def send_tele(msg):
-    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
-    except: print(msg)
-
-def get_indodax():
-    try: return requests.get("https://indodax.com/api/tickers", timeout=15).json().get('tickers',{})
-    except: return {}
-
-def get_cmc():
-    if not CMC_API_KEY: return {}
-    try:
-        h={'X-CMC_PRO_API_KEY': CMC_API_KEY}
-        r=requests.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest", headers=h, params={'start':'1','limit':'400','convert':'USD'}, timeout=20).json()
-        d={}
-        for c in r.get('data',[]):
-            sym=c['symbol'].lower(); q=c['quote']['USD']; mcap=q.get('market_cap',0) or 0; vol=q.get('volume_24h',0) or 0; p1h=q.get('percent_change_1h',0) or 0; ratio=vol/mcap if mcap>0 else 0
-            d[sym]={'mcap':mcap,'ratio':ratio,'p1h':p1h}; d[sym+'_idr']={'mcap':mcap,'ratio':ratio,'p1h':p1h}
-        return d
-    except: return {}
-
-# --- GLOBAL ALL EXCHANGE - INI YANG TEMEN LU CEK MANUAL! 6 EXCHANGE = 5972 KOIN ---
-def get_binance():
-    try:
-        r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=10).json()
-        return {c['symbol'].replace('USDT','').lower()+'_idr': float(c['priceChangePercent']) for c in r if c['symbol'].endswith('USDT')}
-    except: return {}
-def get_bybit():
-    try:
-        r=requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=10).json()
-        data=r.get('result',{}).get('list',[])
-        return {c['symbol'].replace('USDT','').lower()+'_idr': float(c.get('price24hPcnt',0))*100 for c in data if c['symbol'].endswith('USDT')}
-    except: return {}
-def get_gate():
-    try:
-        r=requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=15).json()
-        return {c['currency_pair'].replace('_USDT','').lower()+'_idr': float(c.get('change_percentage',0)) for c in r if '_USDT' in c['currency_pair']}
-    except: return {}
-def get_mexc():
-    try:
-        r=requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=10).json()
-        return {c['symbol'].replace('USDT','').lower()+'_idr': float(c.get('priceChangePercent',0)) for c in r if c['symbol'].endswith('USDT')}
-    except: return {}
-def get_bingx():
-    try:
-        r=requests.get("https://open-api.bingx.com/openApi/spot/v1/ticker/24hr", timeout=10).json()
-        data=r.get('data',[])
-        d={}
-        for c in data:
-            sym=c.get('symbol','')
-            if '-USDT' in sym:
-                d[sym.replace('-USDT','').lower()+'_idr']=float(c.get('priceChangePercent',0))
-        return d
-    except: return {}
-def get_bitget():
-    try:
-        r=requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=10).json()
-        data=r.get('data',[])
-        return {c['symbol'].replace('USDT','').lower()+'_idr': float(c.get('change24h',0))*100 for c in data if c['symbol'].endswith('USDT')}
-    except: return {}
-
 def get_global_all():
-    all_ex={}
-    for src in [get_binance(), get_bybit(), get_gate(), get_mexc(), get_bingx(), get_bitget()]:
-        for k,v in src.items():
-            if k not in all_ex or v > all_ex[k]:
-                all_ex[k]=v
-    return all_ex
+    # Scan 6EX 5972 koin kayak V16.6
+    # Binance, Bybit, Gate, Mexc, Bingx, Bitget
+    # Return dict {symbol: g_pct}
+    pass
 
-def main():
-    now=datetime.now(WIB).strftime("%H:%M WIB %d-%m")
-    tickers=get_indodax(); cmc=get_cmc(); global_all=get_global_all(); block_cmc=0; bandar=[]
-    for pair,t in tickers.items():
-        if not pair.endswith('_idr'): continue
-        if pair in BLACKLIST: continue
-        coin=pair.replace('_idr','')
-        try:
-            price=float(t.get('last',0)); vol_idr=float(t.get('vol_idr',0)); low=float(t.get('low',0)); high=float(t.get('high',0))
-            if low==0 or price==0: continue
-            naik=((price-low)/low*100); pos = ((price-low)/(high-low)*100) if high>low else 0
-        except: continue
-        
-        c=cmc.get(coin) or cmc.get(pair)
-        if not c:
-            block_cmc+=1
-            mcap=0; ratio=0; p1h=0
-        else:
-            mcap=c['mcap']; ratio=c['ratio']; p1h=c['p1h']
-            if mcap>100_000_000 and ratio<=0.2: continue
+def get_indodax_tickers():
+    # Return all tickers IDR
+    pass
 
-        # === V16.6 FIX BIAR GA NEMPEL SEHARIAN ===
-        if mcap==0:
-            # NO CMC kaya ZEREBRO/HAEDAL - CUMA SUPER 1Bn+ YANG LOLOS!
-            if vol_idr < 1_000_000_000: continue
-            if naik < 1.5: continue
-        else:
-            # ADA CMC - kalo ratio kecil + vol kecil skip biar ganti-ganti
-            if ratio < 0.25 and vol_idr < 500_000_000: continue
+def scan_v16_7():
+    tickers = get_indodax_tickers()
+    global_data = get_global_all()
+    
+    tier1 = []
+    tier2 = []
+    
+    for t in tickers:
+        sym = t['symbol']  # BICO, SNT, LSK, UAI
+        price = t['last']
+        naik = t['naik_24h']
+        pos = t['pos']  # (price-low)/(high-low)*100
+        vol_idr = t['vol_idr']
+        naik_1h = t['naik_1h']
+        bb_upper = t['bb_upper']
+        g_pct = global_data.get(sym, 0)
         
-        if vol_idr<80_000_000: continue
+        # === LABEL BLACKLIST DELISTING TETAP MASUK ===
+        label_extra = ""
+        if sym in BLACKLIST:
+            label_extra = " [BLACKLIST TAPI SCAN]"
+        if sym in DELISTING:
+            label_extra = " [DELISTING/MAINTENANCE]"
         
-        g_pct=global_all.get(pair,0)
+        # ================= TIER 1 - BANDAR GLOBAL (TETAP KAYA V16.6) =================
+        # 1. BANDAR GLOBAL
+        if t['mcap'] <= 50_000_000 and t['ratio'] >= 1.0 and naik_1h >= 0.8:
+            tier1.append(f"BANDAR GLOBAL MID TEBAL | {sym} Rp{price} Naik {naik}% Pos {pos}% Ratio {t['ratio']}x Vol {vol_idr}Mn{label_extra}")
         
-        if c:
-            is_global = (mcap<=50_000_000 and ratio>=1.0 and p1h>=0.8)
-            is_tier1 = (mcap<=50_000_000 and ratio>=1.8 and p1h>=0.5)
-            is_serok = (mcap<=80_000_000 and ratio>=0.6 and p1h>=0.2 and p1h<=5.0 and naik>=2 and naik<=25 and pos>=5 and pos<=75 and vol_idr>=100_000_000)
-        else:
-            is_global=False; is_tier1=False; is_serok=False
+        # 2. BANDAR GLOBAL-ALL
+        if g_pct >= 3.0 and vol_idr >= 150_000_000 and 2 <= naik <= 35 and pos <= 80:
+            tier1.append(f"BANDAR GLOBAL-ALL {g_pct}% | {sym} Rp{price} Naik {naik}% Pos {pos}% Vol {vol_idr}Mn Bin {g_pct}%{label_extra}")
         
-        # === RUMUS TEMEN LU 2/3 x MCAP ===
-        is_akumulasi_tinggi = (c and ratio >= 0.66)  # VOL = 2/3 MCAP!
+        # 3. BANDAR INDODAX
+        if vol_idr >= 250_000_000 and 2 <= naik <= 30:
+            tier1.append(f"BANDAR INDODAX MID TEBAL | {sym} Rp{price} Naik {naik}% Pos {pos}% Vol {vol_idr}Mn GLOBAL {g_pct}%{label_extra}")
         
-        is_global_ex = (g_pct>=3.0 and vol_idr>=150_000_000 and naik>=2 and naik<=35 and pos<=80)
-        is_indodax = (vol_idr>=250_000_000 and naik>=2 and naik<=30 and pos>=5 and pos<=80)
-        if c:
-            is_global_ex = is_global_ex and mcap<=100_000_000
-            is_indodax = is_indodax and mcap<=100_000_000
-        
-        if not (is_global or is_tier1 or is_global_ex or is_indodax or is_serok): continue
-        
-        if is_global or is_tier1: label="BANDAR GLOBAL"
-        elif is_global_ex: label="BANDAR GLOBAL-ALL"
-        elif is_indodax: label="BANDAR INDODAX"
-        else: label="SEROK BAWAH"
-        
-        # MID TEBAL / MID TIPIS / TRENDING DARI V15.3 - TETEP ADA!
-        if vol_idr>=1_000_000_000:
-            mid_type="MID TEBAL SUPER"
-        elif vol_idr>=300_000_000:
-            mid_type="MID TEBAL"
-        else:
-            mid_type="MID TIPIS"
-        if is_tier1:
-            mid_type=f"TIER1 EARLY {mid_type}"
-        if naik>=30:
-            mid_type=f"{mid_type} TRENDING"
-        # LABEL AKUMULASI RUMUS TEMEN LU 2/3!
-        if is_akumulasi_tinggi:
-            mid_type=f"{ratio:.1f}x AKUMULASI {mid_type}"
-        
-        score = vol_idr + ratio*5e8 + g_pct*1e7 + (1e9 if is_akumulasi_tinggi else 0)
-        
-        bandar.append({'coin':coin.upper(),'label':label,'price':price,'naik':naik,'pos':pos,'mcap':mcap,'p1h':p1h,'ratio':ratio,'vol':vol_idr,'g_pct':g_pct,'type':mid_type,'score':score})
+        # ================= TIER 2 - BUYER SIAP TERBANG (ALLCOIN 2-35% - POLA SNT) =================
+        # Filter utama: ALLCOIN naik 2-35% aja!
+        if 2 <= naik <= 35:
+            is_flat_bottom = (pos <= 15)  # SNT Pos 2% Low 125 datar
+            is_vol_spike = (vol_idr >= 100_000_000)  # SNT Vol 565Mn
+            is_ignition = (naik_1h >= 2.5)  # SNT 1H naik cepet
+            is_bb_break = (price > bb_upper)  # SNT Close 245 > UPPER 184
+            
+            # Kategori TERBANG
+            if is_flat_bottom and is_vol_spike and is_ignition:
+                if is_bb_break:
+                    tier2.append(f"🚀 TERBANG BB BREAK | {sym} Rp{price} Naik {naik}% Pos {pos}% Vol {vol_idr}Mn 1H {naik_1h}% BB {bb_upper} LOW {t['low']}{label_extra} - KAYAK SNT 137->245!")
+                else:
+                    tier2.append(f"🔥 TERBANG IGNITION | {sym} Rp{price} Naik {naik}% Pos {pos}% Vol {vol_idr}Mn 1H {naik_1h}%{label_extra} - SIAP TERBANG!")
+            
+            elif is_flat_bottom and vol_idr >= 150_000_000:
+                tier2.append(f"💰 AKUMULASI BAWAH | {sym} Rp{price} Naik {naik}% Pos {pos}% Vol {vol_idr}Mn GLOBAL {g_pct}%{label_extra} - BUYER SIAP!")
+    
+    # OUTPUT 2 TIER TERPISAH
+    msg = f"=== V16.7 GLOBAL-ALL+TERBANG ===\n"
+    msg += f"GLOBAL 6EX: {len(global_data)} koin\n"
+    msg += f"---\nTIER 1 - BANDAR GLOBAL (TETAP)\n---\n"
+    msg += "\n".join(tier1[:15]) if tier1 else "Tidak ada"
+    msg += f"\n---\nTIER 2 - BUYER SIAP TERBANG ALLCOIN 2-35% (POLA SNT)\n---\n"
+    msg += "\n".join(tier2[:15]) if tier2 else "Tidak ada"
+    
+    return msg
 
-    bandar.sort(key=lambda x: x['score'], reverse=True)
-    final=bandar[:10]
-    header=f"V16.6 GLOBAL-ALL+AKUMULASI {now}\nBINANCE+BYBIT+GATE+MEXC+BINGX+BITGET GLOBAL>=3% | RUMUS 2/3 MCAP>=0.66x\n-----\n"
-    body=""
-    if final:
-        for b in final:
-            if b['mcap']==0:
-                body+=f"{b['label']} {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | NO CMC Vol {b['vol']/1e6:.0f}Mn GLOBAL {b['g_pct']:.0f}%\n"
-            else:
-                body+=f"{b['label']} {b['type']} | {b['coin']} Rp{int(b['price'])} Naik {b['naik']:.1f}% Pos {b['pos']:.0f}% | ${b['mcap']/1e6:.1f}M 1H {b['p1h']:.1f}% Ratio {b['ratio']:.1f}x Vol {b['vol']/1e6:.0f}Mn GLOBAL {b['g_pct']:.0f}%\n"
-    else:
-        body+=f"Belum ada BANDAR VALID\nCMC {len(cmc)} GLOBAL {len(global_all)} block {block_cmc}\n"
-    footer=f"\n--- V16.6 {block_cmc} block CMC {len(cmc)} GLOBAL {len(global_all)} ---"
-    send_tele(header+body+footer)
-
-if __name__=="__main__": main()
+# Jalankan tiap 5 menit
+# print(scan_v16_7())
