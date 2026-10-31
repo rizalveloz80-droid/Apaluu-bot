@@ -79,13 +79,19 @@ def get_global():
     except: pass
     return g
 
-def detect_ob(t):
-    # OB SIMPLE - FIX PIEVERSE 50%!
-    # Kalo Pos masih kecil + Naik udah mulai = Baru ninggalin Order Block
-    if t['pos'] <= 25 and t['naik'] >= 15 and t['vol'] >= 80_000_000:
-        ob_low = t['low'] * 0.98
-        ob_high = t['low'] * 1.12
-        return f"OB {ob_low:.0f}-{ob_high:.0f}"
+def detect_ob(t, tier="global"):
+    # OB untuk NEW LAUNCH & IGNITION = ketat (Pos <=25%)
+    # OB untuk BANDAR GLOBAL = longgar (Pos <=55%) biar BIRB ke-detek!
+    low = t['low']; pos = t['pos']; naik = t['naik']; vol = t['vol']
+    
+    if tier == "global":
+        # Global: Pos boleh sampai 55% (bandar global masih akumulasi di tengah)
+        if pos <= 55 and naik >= 5 and vol >= 150_000_000:
+            return f"OB {low*0.98:.0f}-{low*1.15:.0f}"
+    else:
+        # Tier 0 & Tier 2: Harus masih deket low (Pos <=25%)
+        if pos <= 25 and naik >= 10 and vol >= 80_000_000:
+            return f"OB {low*0.98:.0f}-{low*1.12:.0f}"
     return None
 
 def scan():
