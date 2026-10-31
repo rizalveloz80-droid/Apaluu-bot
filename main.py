@@ -9,7 +9,8 @@ BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
-    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
+    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr','ondo'
+    _idr','Hype_idr','sui_idr','pepe_idr','dodo_idr','bome_','nom_idr',mpro_idr',amp_idr','unmd_idr','kdag_idr',
 }
 
 def send_tele(msg):
