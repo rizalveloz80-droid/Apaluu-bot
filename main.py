@@ -98,31 +98,33 @@ def scan():
         naik=t['naik']; pos=t['pos']; vol=t['vol']; bb=t['bb']
         gp=gdata.get(t['pair'], 0)
         sup = f"{low*1.02:.0f}-{bb*0.98:.0f}"
-        ob = detect_ob(t)
+        ob = detect_ob(t)  # OB DETECTOR
 
-        # TIER 0 - NEW LAUNCH FIX PIEVERSE 50%! Low <1000
+        # TIER 0 - NEW LAUNCH + OB
         if low < 1000 and vol>=80_000_000 and 20<=naik<=1200 and pos<=80:
             ob_txt = f" + {ob}" if ob else ""
             tier0.append(f"💥 NEW {naik:.0f}%{ob_txt} | {sym} Rp{price} | Entry {sup} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1A - MID TEBAL UAI/BICO/BEAT
+        # TIER 1A - MID TEBAL + OB
         if vol>=150_000_000 and 0.8<=naik<=8 and pos<=30:
-            tier1_mid.append(f"BANDAR MID TEBAL | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            ob_txt = f" {ob}" if ob else ""
+            tier1_mid.append(f"BANDAR MID TEBAL{ob_txt} | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1B - BANDAR GLOBAL 6 EXCH
-        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=80:
-            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}% | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        # TIER 1B - BANDAR GLOBAL 6 EXCH + OB (INI YANG LU TANYA!)
+        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=50:  # Pos gua turunin jadi 50% biar ga tinggi!
+            ob_txt = f" {ob}" if ob else " (NO OB - JANGAN SEROK PUCUK)"
+            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}%{ob_txt} | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 2 - IGNITION / BB BREAK (MAX 50% BIAR KEDETEK!)
+        # TIER 2 - IGNITION + OB
         if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
             label = "🚀 BB BREAK" if price>bb else "🔥 IGNITION"
             ob_txt = f" {ob}" if ob else ""
             tier2.append(f"{label}{ob_txt} | {sym} Rp{price} | ENTRY {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-    msg=f"=== V17.1 FIX SYNTAX + PIEVERSE + OB ===\n"
-    msg+=f"TIER 0 - NEW LAUNCH (PIEVERSE 50% KEDETEK):\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1A - MID TEBAL:\n"+("\n".join(tier1_mid[:10]) if tier1_mid else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1B - BANDAR GLOBAL 6 EXCH:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg=f"=== V17.2 GLOBAL + OB ALL TIER ===\n"
+    msg+=f"TIER 0 - NEW LAUNCH + OB:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"TIER 1A - MID TEBAL + OB:\n"+("\n".join(tier1_mid[:10]) if tier1_mid else "Tidak ada")+"\n\n"
+    msg+=f"TIER 1B - BANDAR GLOBAL 6 EXCH + OB:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
     msg+=f"TIER 2 - IGNITION + OB:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")
     return msg
 
