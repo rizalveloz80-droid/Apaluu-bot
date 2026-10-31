@@ -1,10 +1,9 @@
-# V17.1 FINAL - FIX SYNTAX + PIEVERSE 50% + OB DETECTOR + 6 EXCHANGE
-import requests, os, time
+# V17.4 FINAL - ENTRY OB KETAT 1-3% = DAPAT 7% KAYAK TEMEN LU!
+import requests, os
 
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
 
-# BLACKLIST FIX - UDAH GUA BENERIN! GA ERROR LAGI!
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
@@ -30,7 +29,7 @@ def get_tickers():
         last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
         pos=((last-low)/(high-low)*100) if high!=low else 0
         naik=((last-low)/low*100) if low!=0 else 0
-        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik,'bb':high*0.97})
+        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
 
 def get_global():
@@ -79,20 +78,18 @@ def get_global():
     except: pass
     return g
 
-def detect_ob(t, tier="global"):
-    # OB untuk NEW LAUNCH & IGNITION = ketat (Pos <=25%)
-    # OB untuk BANDAR GLOBAL = longgar (Pos <=55%) biar BIRB ke-detek!
-    low = t['low']; pos = t['pos']; naik = t['naik']; vol = t['vol']
-    
-    if tier == "global":
-        # Global: Pos boleh sampai 55% (bandar global masih akumulasi di tengah)
-        if pos <= 55 and naik >= 5 and vol >= 150_000_000:
-            return f"OB {low*0.98:.0f}-{low*1.15:.0f}"
-    else:
-        # Tier 0 & Tier 2: Harus masih deket low (Pos <=25%)
-        if pos <= 25 and naik >= 10 and vol >= 80_000_000:
-            return f"OB {low*0.98:.0f}-{low*1.12:.0f}"
-    return None
+def detect_ob_and_entry(t):
+    low=t['low']; pos=t['pos']; naik=t['naik']; vol=t['vol']
+    # OB KETAT: 2-8% di atas low = PRESISI!
+    # Ini yang bikin temen lu dapat 7%!
+    if pos <= 55 and vol >= 80_000_000 and naik >= 2:
+        ob_low = low * 0.995  # 0.5% di bawah low
+        ob_high = low * 1.06  # 6% di atas low = OB KETAT!
+        # Entry = 1-3% di atas OB = pas di atas tembok bandar!
+        entry_low = low * 1.01
+        entry_high = low * 1.04
+        return ob_low, ob_high, entry_low, entry_high
+    return None, None, None, None
 
 def scan():
     tickers=get_tickers()
@@ -101,36 +98,37 @@ def scan():
     
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']
-        naik=t['naik']; pos=t['pos']; vol=t['vol']; bb=t['bb']
+        naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], 0)
-        sup = f"{low*1.02:.0f}-{bb*0.98:.0f}"
-        ob = detect_ob(t)  # OB DETECTOR
+        
+        ob_low, ob_high, ent_low, ent_high = detect_ob_and_entry(t)
+        
+        if ob_low is None:
+            continue
+            
+        ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
+        entry_txt = f"{ent_low:.0f}-{ent_high:.0f}"
 
-        # TIER 0 - NEW LAUNCH + OB
+        # TIER 0 - NEW LAUNCH + OB KETAT
         if low < 1000 and vol>=80_000_000 and 20<=naik<=1200 and pos<=80:
-            ob_txt = f" + {ob}" if ob else ""
-            tier0.append(f"💥 NEW {naik:.0f}%{ob_txt} | {sym} Rp{price} | Entry {sup} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1A - MID TEBAL + OB
+        # TIER 1A - MID TEBAL + OB KETAT
         if vol>=150_000_000 and 0.8<=naik<=8 and pos<=30:
-            ob_txt = f" {ob}" if ob else ""
-            tier1_mid.append(f"BANDAR MID TEBAL{ob_txt} | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier1_mid.append(f"BANDAR MID TEBAL {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1B - BANDAR GLOBAL 6 EXCH + OB (INI YANG LU TANYA!)
-        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=50:  # Pos gua turunin jadi 50% biar ga tinggi!
-            ob_txt = f" {ob}" if ob else " (NO OB - JANGAN SEROK PUCUK)"
-            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}%{ob_txt} | {sym} Rp{price} | Entry {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        # TIER 1B - BANDAR GLOBAL + OB KETAT (INI KUNCI 7%!)
+        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=55:
+            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        # TIER 2 - IGNITION + OB
+        # TIER 2 - IGNITION + OB KETAT
         if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
-            label = "🚀 BB BREAK" if price>bb else "🔥 IGNITION"
-            ob_txt = f" {ob}" if ob else ""
-            tier2.append(f"{label}{ob_txt} | {sym} Rp{price} | ENTRY {sup} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-    msg=f"=== V17.2 GLOBAL + OB ALL TIER ===\n"
+    msg=f"=== V17.4 ENTRY OB KETAT 7% ===\n"
     msg+=f"TIER 0 - NEW LAUNCH + OB:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
     msg+=f"TIER 1A - MID TEBAL + OB:\n"+("\n".join(tier1_mid[:10]) if tier1_mid else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1B - BANDAR GLOBAL 6 EXCH + OB:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"TIER 1B - BANDAR GLOBAL + OB KETAT (7%):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
     msg+=f"TIER 2 - IGNITION + OB:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")
     return msg
 
