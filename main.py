@@ -1,4 +1,4 @@
-# V17.4 FINAL - ENTRY OB KETAT 1-3% = DAPAT 7% KAYAK TEMEN LU!
+# V17.5 FINAL - ENTRY DINAMIS ANTI KETINGGALAN!
 import requests, os
 
 TELE_TOKEN = os.getenv('TELE_TOKEN')
@@ -79,17 +79,25 @@ def get_global():
     return g
 
 def detect_ob_and_entry(t):
-    low=t['low']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    # OB KETAT: 2-8% di atas low = PRESISI!
-    # Ini yang bikin temen lu dapat 7%!
+    low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
+    
     if pos <= 55 and vol >= 80_000_000 and naik >= 2:
-        ob_low = low * 0.995  # 0.5% di bawah low
-        ob_high = low * 1.06  # 6% di atas low = OB KETAT!
-        # Entry = 1-3% di atas OB = pas di atas tembok bandar!
-        entry_low = low * 1.01
-        entry_high = low * 1.04
-        return ob_low, ob_high, entry_low, entry_high
-    return None, None, None, None
+        ob_low = low * 0.995
+        ob_high = low * 1.06
+        
+        # FIX ANTI KETINGGALAN!
+        if pos > 25 or naik > 60:
+            # Udah terbang, entry retest 3-6% di bawah harga sekarang!
+            entry_low = last * 0.93
+            entry_high = last * 0.97
+            entry_type = "RETEST"
+        else:
+            # Masih bawah, pakai OB ketat asli
+            entry_low = low * 1.01
+            entry_high = low * 1.04
+            entry_type = "OB"
+        return ob_low, ob_high, entry_low, entry_high, entry_type
+    return None, None, None, None, None
 
 def scan():
     tickers=get_tickers()
@@ -101,34 +109,33 @@ def scan():
         naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], 0)
         
-        ob_low, ob_high, ent_low, ent_high = detect_ob_and_entry(t)
+        ob_low, ob_high, ent_low, ent_high, ent_type = detect_ob_and_entry(t)
         
         if ob_low is None:
             continue
             
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
-        entry_txt = f"{ent_low:.0f}-{ent_high:.0f}"
+        if ent_type == "RETEST":
+            entry_txt = f"{ent_low:.0f}-{ent_high:.0f} RETEST"
+        else:
+            entry_txt = f"{ent_low:.0f}-{ent_high:.0f}"
 
-        # TIER 0 - NEW LAUNCH + OB KETAT
         if low < 1000 and vol>=80_000_000 and 20<=naik<=1200 and pos<=80:
-            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1A - MID TEBAL + OB KETAT
         if vol>=150_000_000 and 0.8<=naik<=8 and pos<=30:
-            tier1_mid.append(f"BANDAR MID TEBAL {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier1_mid.append(f"BANDAR MID TEBAL {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 1B - BANDAR GLOBAL + OB KETAT (INI KUNCI 7%!)
         if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=55:
-            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        # TIER 2 - IGNITION + OB KETAT
         if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
-            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price} | ENTRY OB {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-    msg=f"=== V17.4 ENTRY OB KETAT 7% ===\n"
+    msg=f"=== V17.5 ENTRY DINAMIS ANTI KETINGGALAN ===\n"
     msg+=f"TIER 0 - NEW LAUNCH + OB:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
     msg+=f"TIER 1A - MID TEBAL + OB:\n"+("\n".join(tier1_mid[:10]) if tier1_mid else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1B - BANDAR GLOBAL + OB KETAT (7%):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"TIER 1B - BANDAR GLOBAL + OB:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
     msg+=f"TIER 2 - IGNITION + OB:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")
     return msg
 
