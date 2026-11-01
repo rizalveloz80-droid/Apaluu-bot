@@ -1,4 +1,4 @@
-name: V10 BANDAR CMC FINAL
+name: V17.9 FINAL BERSIH SEPI HUNTER
 
 on:
   schedule:
@@ -19,17 +19,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests pytz
 
-      - name: Run Bot V10 BANDAR CMC
+      - name: Run Bot V17.9 Sepi Hunter
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
-          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
         run: python main.py
-
-      - name: Save Memory
-        run: |
-          git config --global user.name "bot"
-          git config --global user.email "bot@bot.com"
-          git add price_memory.json || true
-          git commit -m "update memory V10" || true
-          git push || true
