@@ -1,4 +1,5 @@
-# V17.5 FINAL - ENTRY DINAMIS ANTI KETINGGALAN!
+# V17.7 REVISI FINAL - SEPI HUNTER VOL 10Mn + TIER 1A DIHAPUS
+# ENTRY SAAT SEPI DI INDODAX, GLOBAL UDAH NAIK! - MAU BANGETT EDITION
 import requests, os
 
 TELE_TOKEN = os.getenv('TELE_TOKEN')
@@ -15,7 +16,7 @@ BLACKLIST={
 def send_tele(msg):
     try:
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=15)
+        requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=15)
     except: pass
 
 def get_tickers():
@@ -34,6 +35,7 @@ def get_tickers():
 
 def get_global():
     g = {}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=6).json()
         for x in r['result']['list']:
@@ -63,80 +65,87 @@ def get_global():
                 g[key] = max(g.get(key, -100), float(x['change24h'])*100)
     except: pass
     try:
-        r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6).json()
+        r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
         for x in r:
             if x['symbol'].endswith('USDT'):
                 key = x['symbol'].replace('USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
     except: pass
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6).json()
+        r = requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=6, headers=headers).json()
         for x in r:
             if x['symbol'].endswith('USDT'):
                 key = x['symbol'].replace('USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
-    except: pass
+    except:
+        try:
+            r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+            for x in r:
+                if x['symbol'].endswith('USDT'):
+                    key = x['symbol'].replace('USDT','').lower()+'_idr'
+                    g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+        except: pass
     return g
 
 def detect_ob_and_entry(t):
     low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    
-    if pos <= 55 and vol >= 80_000_000 and naik >= 2:
+    # FIX: Vol minimal 10Mn biar sepi ke-detect!
+    if pos <= 65 and vol >= 10_000_000 and naik >= 0:
         ob_low = low * 0.995
         ob_high = low * 1.06
-        
-        # FIX ANTI KETINGGALAN!
-        if pos > 25 or naik > 60:
-            # Udah terbang, entry retest 3-6% di bawah harga sekarang!
+        if pos > 20 or naik > 60:
             entry_low = last * 0.93
             entry_high = last * 0.97
             entry_type = "RETEST"
         else:
-            # Masih bawah, pakai OB ketat asli
             entry_low = low * 1.01
             entry_high = low * 1.04
             entry_type = "OB"
-        return ob_low, ob_high, entry_low, entry_high, entry_type
-    return None, None, None, None, None
+        sl = ob_low * 0.95
+        return ob_low, ob_high, entry_low, entry_high, entry_type, sl
+    return None, None, None, None, None, None
 
 def scan():
     tickers=get_tickers()
     gdata=get_global()
-    tier0=[]; tier1_mid=[]; tier1_global=[]; tier2=[]
-    
+    tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
+
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']
         naik=t['naik']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'], 0)
+        gp=gdata.get(t['pair'], -100)
         
-        ob_low, ob_high, ent_low, ent_high, ent_type = detect_ob_and_entry(t)
-        
-        if ob_low is None:
-            continue
-            
+        if gp < -2: continue
+        ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
+        if ob_low is None: continue
+        if price < sl: continue
+
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
-        if ent_type == "RETEST":
-            entry_txt = f"{ent_low:.0f}-{ent_high:.0f} RETEST"
-        else:
-            entry_txt = f"{ent_low:.0f}-{ent_high:.0f}"
+        entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        if low < 1000 and vol>=80_000_000 and 20<=naik<=1200 and pos<=80:
-            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        # === TIER SEPI HUNTER - REVISI VOL 10Mn! (ALA TEMEN LU) ===
+        if gp >= 3.5 and naik <= 2.5 and pos <= 20 and 10_000_000 <= vol <= 250_000_000:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Indo Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+            continue
 
-        if vol>=150_000_000 and 0.8<=naik<=8 and pos<=30:
-            tier1_mid.append(f"BANDAR MID TEBAL {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        # TIER 0 - NEW LAUNCH - REVISI Naik 2% biar MARSCOIN 3% masuk!
+        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80 and gp >= -1:
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
+        # TIER 1B - BANDAR GLOBAL
         if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=55:
-            tier1_global.append(f"BANDAR GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
-            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        # TIER 2 - IGNITION
+        if 2<=naik<=50 and pos<=15 and vol>=100_000_000 and gp >=0:
+            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V17.5 ENTRY DINAMIS ANTI KETINGGALAN ===\n"
-    msg+=f"TIER 0 - NEW LAUNCH + OB:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1A - MID TEBAL + OB:\n"+("\n".join(tier1_mid[:10]) if tier1_mid else "Tidak ada")+"\n\n"
-    msg+=f"TIER 1B - BANDAR GLOBAL + OB:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"TIER 2 - IGNITION + OB:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")
+    msg=f"=== V17.7 REVISI FINAL - SEPI HUNTER VOL 10Mn ===\n"
+    msg+=f"🤫 TIER SEPI - GLOBAL NAIK, INDO SEPI (BURU!):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada yang sepi - tunggu global pump jam 06:00!")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL 6 EXCH:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
+    msg+=f"NOTE: Tier 1A Mid Tebal DIHAPUS! Fokus Sepi Hunter Vol 10-250Mn!"
     return msg
 
 if __name__=="__main__":
