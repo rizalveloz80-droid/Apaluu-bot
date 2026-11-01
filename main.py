@@ -1,11 +1,21 @@
-# V17.7 REVISI FINAL - SEPI HUNTER VOL 10Mn + TIER 1A DIHAPUS
-# ENTRY SAAT SEPI DI INDODAX, GLOBAL UDAH NAIK! - MAU BANGETT EDITION
-import requests, os
+# === V17.11 CMC FINAL - BLACKLIST BENER V17.4-V17.7 + SEPI HUNTER ===
+# by Min - 1 Nov 2026 - FIX BLACKLIST SALAH!
 
+import os
+import requests
+import json
+import time
+from datetime import datetime
+import pytz
+
+# === CONFIG ===
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
+CMC_API_KEY = os.getenv('CMC_API_KEY')
+WIB = pytz.timezone('Asia/Jakarta')
 
-BLACKLIST={
+# === 1. BLACKLIST BENER DARI V17.4 - V17.7 LU! ===
+BLACKLIST = {
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
@@ -13,142 +23,141 @@ BLACKLIST={
     'ondo_idr','hype_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
 
+VOL_SEPI_MIN = 10_000_000
+VOL_SEPI_MAX = 250_000_000
+VOL_NEW_MIN = 100_000_000
+
 def send_tele(msg):
     try:
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=15)
-    except: pass
+        data = {"chat_id": TELE_CHAT_ID, "text": msg}
+        requests.post(url, data=data, timeout=10)
+    except Exception as e:
+        print(f"Tele error: {e}")
 
-def get_tickers():
-    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
-    out=[]
-    for pair,d in r.items():
-        if not pair.endswith('_idr'): continue
-        if pair in BLACKLIST: continue
-        if float(d['vol_idr']) < 10_000_000: continue
-        if float(d['last']) == 0: continue
-        last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
-        pos=((last-low)/(high-low)*100) if high!=low else 0
-        naik=((last-low)/low*100) if low!=0 else 0
-        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
-    return out
+def get_indodax_data():
+    try:
+        r = requests.get("https://indodax.com/api/tickers", timeout=15)
+        data = r.json()['tickers']
+        coins = []
+        for pair, ticker in data.items():
+            if pair in BLACKLIST:  # <-- LANGSUNG SKIP BLACKLIST!
+                continue
+            if not pair.endswith('_idr'):
+                continue
+            symbol = pair.replace('_idr','').upper()
+            price = float(ticker['last'])
+            vol_idr = float(ticker['vol_idr'])
+            high = float(ticker['high'])
+            low = float(ticker['low'])
+            if low > 0:
+                pos = ((price - low) / (high - low) * 100) if high != low else 50
+                naik_24h = ((price - low) / low * 100) if low>0 else 0
+            else:
+                pos = 50
+                naik_24h = 0
+            ob_low = int(low + (high-low)*0.2)
+            ob_high = int(low + (high-low)*0.35)
+            coins.append({
+                'symbol': symbol,
+                'pair': pair,
+                'price': price,
+                'vol_idr': vol_idr,
+                'pos': round(pos,1),
+                'naik_24h': round(naik_24h,1),
+                'ob_low': ob_low,
+                'ob_high': ob_high,
+            })
+        return coins
+    except Exception as e:
+        print(f"Indodax error: {e}")
+        return []
 
-def get_global():
-    g = {}
-    headers = {"User-Agent": "Mozilla/5.0"}
+def get_global_pump_cmc(symbol):
+    if not CMC_API_KEY:
+        return 0
     try:
-        r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=6).json()
-        for x in r['result']['list']:
-            if x['symbol'].endswith('USDT'):
-                key = x['symbol'].replace('USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['price24hPcnt'])*100)
-    except: pass
-    try:
-        r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=6).json()
-        for x in r:
-            if x['currency_pair'].endswith('_USDT'):
-                key = x['currency_pair'].replace('_USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['change_percentage']))
-    except: pass
-    try:
-        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=6).json()
-        for x in r['data']['ticker']:
-            if x['symbol'].endswith('-USDT'):
-                key = x['symbol'].replace('-USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['changeRate'])*100)
-    except: pass
-    try:
-        r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=6).json()
-        for x in r['data']:
-            if x['symbol'].endswith('USDT'):
-                key = x['symbol'].replace('USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['change24h'])*100)
-    except: pass
-    try:
-        r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
-        for x in r:
-            if x['symbol'].endswith('USDT'):
-                key = x['symbol'].replace('USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
-    except: pass
-    try:
-        r = requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=6, headers=headers).json()
-        for x in r:
-            if x['symbol'].endswith('USDT'):
-                key = x['symbol'].replace('USDT','').lower()+'_idr'
-                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+        url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+        headers = {'X-CMC_PRO_API_KEY': CMC_API_KEY}
+        params = {'symbol': symbol, 'convert': 'USD'}
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        data = r.json()
+        if 'data' in data and symbol in data['data']:
+            change = data['data'][symbol]['quote']['USD']['percent_change_24h']
+            return float(change) if change else 0
+        return 0
     except:
-        try:
-            r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
-            for x in r:
-                if x['symbol'].endswith('USDT'):
-                    key = x['symbol'].replace('USDT','').lower()+'_idr'
-                    g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
-        except: pass
-    return g
-
-def detect_ob_and_entry(t):
-    low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    # FIX: Vol minimal 10Mn biar sepi ke-detect!
-    if pos <= 65 and vol >= 10_000_000 and naik >= 0:
-        ob_low = low * 0.995
-        ob_high = low * 1.06
-        if pos > 20 or naik > 60:
-            entry_low = last * 0.93
-            entry_high = last * 0.97
-            entry_type = "RETEST"
-        else:
-            entry_low = low * 1.01
-            entry_high = low * 1.04
-            entry_type = "OB"
-        sl = ob_low * 0.95
-        return ob_low, ob_high, entry_low, entry_high, entry_type, sl
-    return None, None, None, None, None, None
+        return 0
 
 def scan():
-    tickers=get_tickers()
-    gdata=get_global()
-    tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
-
-    for t in tickers:
-        sym=t['sym']; price=t['last']; low=t['low']
-        naik=t['naik']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'], -100)
-        
-        if gp < -2: continue
-        ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
-        if ob_low is None: continue
-        if price < sl: continue
-
-        ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
-        entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
-
-        # === TIER SEPI HUNTER - REVISI VOL 10Mn! (ALA TEMEN LU) ===
-        if gp >= 3.5 and naik <= 2.5 and pos <= 20 and 10_000_000 <= vol <= 250_000_000:
-            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Indo Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+    now = datetime.now(WIB).strftime("%H:%M:%S")
+    print(f"Scan {now}...")
+    indodax_coins = get_indodax_data()
+    print(f"Dapat {len(indodax_coins)} koin (setelah blacklist {len(BLACKLIST)} koin dihapus)")
+    
+    results = {'SEPI': [], 'NEW': [], 'BANDAR_INDO': [], 'BANDAR_GLOBAL': [], 'IGNITION': []}
+    
+    for coin in indodax_coins:
+        symbol = coin['symbol']
+        if coin['vol_idr'] < VOL_SEPI_MIN:
             continue
+        
+        global_pct = get_global_pump_cmc(symbol)
+        time.sleep(0.3)
+        
+        price = coin['price']
+        vol = coin['vol_idr']
+        pos = coin['pos']
+        naik = coin['naik_24h']
+        ob_low = coin['ob_low']
+        ob_high = coin['ob_high']
+        
+        # 🤫 SEPI
+        if (global_pct >= 5.0 and naik < 2.0 and pos <= 5 and VOL_SEPI_MIN <= vol <= VOL_SEPI_MAX):
+            results['SEPI'].append(f"🤫 SEPI! GLOBAL {global_pct:.1f}% | {symbol} Rp{int(price)} | ENTRY {ob_low}-{ob_high} OB | Indo Naik {naik}% Pos {pos}% Vol {int(vol//1_000_000)}Mn | Global {global_pct:.1f}% | BURU!")
+        
+        # 💥 NEW
+        is_new = pos < 20 and vol >= VOL_NEW_MIN and naik < 30
+        if (is_new and global_pct > 3.0 and pos < 20 and naik < 30):
+            entry_type = "OB" if pos < 10 else "RETEST"
+            entry = f"{ob_low}-{ob_high} {entry_type}" if entry_type=="OB" else f"{int(ob_low*0.95)}-{int(ob_high*0.95)} {entry_type}"
+            results['NEW'].append(f"💥 NEW {naik}% + OB {ob_low}-{ob_high} | {symbol} Rp{int(price)} | ENTRY {entry} | Pos {pos}% Vol {int(vol//1_000_000)}Mn | Global {global_pct:.1f}%")
+        
+        # 🏦 BANDAR INDO
+        if (naik >= 5.0 and global_pct < 3.0 and vol > 200_000_000 and pos < 30):
+            results['BANDAR_INDO'].append(f"🏦 BANDAR INDO! Indo {naik}% Global {global_pct:.1f}% | {symbol} Rp{int(price)} | ENTRY {ob_low}-{ob_high} OB | Pos {pos}% Vol {int(vol//1_000_000)}Mn | WASPADA PUCUK!")
+        
+        # 🚀 BANDAR GLOBAL
+        if (global_pct >= 4.0 and vol > 100_000_000):
+            entry_type = "OB" if pos < 15 else "RETEST"
+            entry = f"{ob_low}-{ob_high} {entry_type}" if entry_type=="OB" else f"{int(ob_low*0.95)}-{int(ob_high*0.95)} {entry_type}"
+            results['BANDAR_GLOBAL'].append(f"🚀 GLOBAL {global_pct:.1f}% OB {ob_low}-{ob_high} | {symbol} Rp{int(price)} | ENTRY {entry} | Pos {pos}% Vol {int(vol//1_000_000)}Mn | Global {global_pct:.1f}%")
+        
+        # 🔥 IGNITION
+        if (2 <= naik < 5 and pos < 15 and vol > 100_000_000 and global_pct < 5):
+            results['IGNITION'].append(f"🔥 IGNITION OB {ob_low}-{ob_high} | {symbol} Rp{int(price)} | ENTRY {ob_low}-{ob_high} OB | Naik {naik}% Pos {pos}% Vol {int(vol//1_000_000)}Mn | Global {global_pct:.1f}%")
+    
+    final_msg = f"=== V17.11 CMC FINAL {now} WIB - BLACKLIST {len(BLACKLIST)} KOINS ===\n"
+    if results['SEPI']:
+        final_msg += "\n🤫 TIER SEPI - BURU!:\n" + "\n".join(results['SEPI'][:5]) + "\n"
+    else:
+        final_msg += "\n🤫 TIER SEPI: Belum ada\n"
+    if results['NEW']:
+        final_msg += "\n💥 TIER 0 NEW:\n" + "\n".join(results['NEW'][:5]) + "\n"
+    if results['BANDAR_INDO']:
+        final_msg += "\n🏦 TIER 1A BANDAR INDO:\n" + "\n".join(results['BANDAR_INDO'][:5]) + "\n"
+    if results['BANDAR_GLOBAL']:
+        final_msg += "\n🚀 TIER 1B BANDAR GLOBAL:\n" + "\n".join(results['BANDAR_GLOBAL'][:8]) + "\n"
+    if results['IGNITION']:
+        final_msg += "\n🔥 TIER 2 IGNITION:\n" + "\n".join(results['IGNITION'][:5]) + "\n"
+    final_msg += f"\nNOTE: Blacklist bener {len(BLACKLIST)} | Vol Sepi 10-250Mn | CMC 1 API!"
+    
+    print(final_msg)
+    if results['SEPI'] or results['BANDAR_INDO'] or results['BANDAR_GLOBAL']:
+        send_tele(final_msg)
+    
+    with open('price_memory.json','w') as f:
+        json.dump({"last_scan": now}, f)
 
-        # TIER 0 - NEW LAUNCH - REVISI Naik 2% biar MARSCOIN 3% masuk!
-        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80 and gp >= -1:
-            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-
-        # TIER 1B - BANDAR GLOBAL
-        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=55:
-            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-
-        # TIER 2 - IGNITION
-        if 2<=naik<=50 and pos<=15 and vol>=100_000_000 and gp >=0:
-            tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-
-    msg=f"=== V17.7 REVISI FINAL - SEPI HUNTER VOL 10Mn ===\n"
-    msg+=f"🤫 TIER SEPI - GLOBAL NAIK, INDO SEPI (BURU!):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada yang sepi - tunggu global pump jam 06:00!")+"\n\n"
-    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL 6 EXCH:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
-    msg+=f"NOTE: Tier 1A Mid Tebal DIHAPUS! Fokus Sepi Hunter Vol 10-250Mn!"
-    return msg
-
-if __name__=="__main__":
-    msg=scan()
-    print(msg)
-    send_tele(msg)
+if __name__ == "__main__":
+    scan()
