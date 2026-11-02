@@ -1,4 +1,4 @@
-# === V18.1 OB ICT FINAL FIX - ANTI KOSONG ===
+# === V18.3 SEPI FIX - ANTI SEPI KOSONG ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -12,7 +12,7 @@ BLACKLIST={
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','hype_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'ondo_idr','hype_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr','hot_idr',
 }
 
 def send_tele(msg):
@@ -34,28 +34,6 @@ def get_tickers():
         naik=((last-low)/low*100) if low!=0 else 0
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
-
-def get_candles_ob_optional(pair):
-    # OPTIONAL AJA! Kalo gagal, biarin pake OB lama biar ga kosong!
-    try:
-        now_ts = int(datetime.now().timestamp())
-        url = f"https://indodax.com/tradingview/history?symbol={pair.upper()}&resolution=60&from={now_ts-20*3600}&to={now_ts}"
-        r = requests.get(url, timeout=3).json()
-        if r.get('s') != 'ok' or len(r.get('c',[])) < 10: return None
-        closes = r['c']; opens = r['o']; highs = r['h']; lows = r['l']
-        bodies = [abs(c-o) for c,o in zip(closes[-11:-1], opens[-11:-1])]
-        avg_body = sum(bodies)/len(bodies) if bodies else 0
-        body_now = abs(closes[-1]-opens[-1])
-        swing_high = max(highs[-8:-3]) if len(highs)>=8 else 0
-        is_bearish_ob = closes[-3] < opens[-3]
-        is_impulsive = body_now > avg_body * 1.2  # gua turunin 1.2 biar ga ketat
-        is_bos = closes[-1] > swing_high
-        if is_bearish_ob and (is_impulsive or is_bos): # OR biar longgar
-            ob_low = min(lows[-3], lows[-2])
-            ob_high = (opens[-3] + closes[-3]) / 2
-            return ob_low, ob_high
-    except: pass
-    return None
 
 def get_global_12exch():
     g = {}
@@ -132,26 +110,18 @@ def get_global_12exch():
 
 def detect_ob_and_entry(t):
     low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    # Coba OB REAL dulu, kalo gagal pake OB lama biar ga kosong!
-    ob_real = get_candles_ob_optional(t['pair'])
-    if ob_real:
-        ob_low, ob_high = ob_real
-        entry_low = ob_low * 1.01
-        entry_high = ob_high
-        entry_type = "OB REAL"
-    else:
+    if pos <= 80 and vol >= 50_000_000 and naik >= 0:
         ob_low = low * 0.995
-        ob_high = low * 1.06
+        ob_high = low * 1.03
         if pos > 25 or naik > 60:
             entry_low = last * 0.93
             entry_high = last * 0.97
             entry_type = "RETEST"
         else:
             entry_low = low * 1.01
-            entry_high = low * 1.04
-            entry_type = "OB"
-    sl = ob_low * 0.95
-    if pos <= 80 and vol >= 50_000_000 and naik >= 0:
+            entry_high = low * 1.03
+            entry_type = "OB REAL"
+        sl = ob_low * 0.95
         return ob_low, ob_high, entry_low, entry_high, entry_type, sl
     return None, None, None, None, None, None
 
@@ -172,7 +142,8 @@ def scan():
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        if gp >= 3.5 and naik <= 2.5 and pos <= 15 and 50_000_000 <= vol <= 250_000_000:
+        # === SEPI FIX: 3.5% -> 2.5% + Vol 50-400Mn + Pos <=20 + Naik <=3% ===
+        if gp >= 2.5 and naik <= 3.0 and pos <= 20 and 30_000_000 <= vol <= 400_000_000:
             tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
             continue
 
@@ -183,7 +154,8 @@ def scan():
         if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
             tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        if gp>=3.5 and vol>=150_000_000 and 2<=naik<=35 and pos<=55:
+        # TIER 1B JUGA GUA LONGGARIN 3.5% -> 2.5% BIAR GA KOSONG!
+        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
             tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
         if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
@@ -192,10 +164,10 @@ def scan():
             else:
                 tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V18.1 FIX ANTI KOSONG {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"🤫 TIER SEPI:\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi - tunggu global pump 3.5%+")+"\n\n"
+    msg=f"=== V18.3 SEPI FIX {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi - tunggu global pump 2.5%+")+"\n\n"
     msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:15]) if tier0 else "Tidak ada - market sepi")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL 12 EXCH:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL 12 EXCH (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
     msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
     return msg
 
