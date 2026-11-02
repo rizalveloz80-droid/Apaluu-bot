@@ -1,4 +1,4 @@
-# === V18.3 SEPI FIX - ANTI SEPI KOSONG ===
+# === V18.5 BANDAR NGUMPUL - DETEKSI BUYER DI BAWAH ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -12,7 +12,7 @@ BLACKLIST={
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','hype_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr','hot_idr',
+    'ondo_idr','hype_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
 
 def send_tele(msg):
@@ -110,7 +110,7 @@ def get_global_12exch():
 
 def detect_ob_and_entry(t):
     low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    if pos <= 80 and vol >= 50_000_000 and naik >= 0:
+    if pos <= 80 and vol >= 30_000_000 and naik >= 0:
         ob_low = low * 0.995
         ob_high = low * 1.03
         if pos > 25 or naik > 60:
@@ -129,7 +129,7 @@ def scan():
     now = datetime.now(WIB).strftime("%H:%M WIB")
     tickers=get_tickers()
     gdata=get_global_12exch()
-    tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
+    tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
 
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']
@@ -142,7 +142,12 @@ def scan():
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # === SEPI FIX: 3.5% -> 2.5% + Vol 50-400Mn + Pos <=20 + Naik <=3% ===
+        # === TIER NGUMPUL = MASIH DI BAWAH TAPI BUYER UDAH MASUK ===
+        # Pos 5-35% = Masih di bawah! Naik 0.5-6% = Baru mulai naik! Vol 40-350Mn = Buyer masuk!
+        # Global >=1.0% = Global udah mulai pump duluan!
+        if 0.5 <= naik <= 6.0 and 5 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
+            tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
+
         if gp >= 2.5 and naik <= 3.0 and pos <= 20 and 30_000_000 <= vol <= 400_000_000:
             tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
             continue
@@ -154,20 +159,18 @@ def scan():
         if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
             tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        # TIER 1B JUGA GUA LONGGARIN 3.5% -> 2.5% BIAR GA KOSONG!
         if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
             tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
         if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
-            if is_global_zero and vol < 500_000_000:
-                pass
-            else:
+            if not (is_global_zero and vol < 500_000_000):
                 tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V18.3 SEPI FIX {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi - tunggu global pump 2.5%+")+"\n\n"
-    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:15]) if tier0 else "Tidak ada - market sepi")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL 12 EXCH (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg=f"=== V18.5 NGUMPUL {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:20]) if tier_ngumpul else "Belum ada ngumpul - market masih sepi")+"\n\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
     msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
     return msg
 
