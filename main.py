@@ -1,153 +1,196 @@
+# === V19.0 AUTO BUY - ANTI KETINGGALAN MITO/KETE/AMZNX - FINAL CLEAN ===
 import requests, os
 from datetime import datetime
 import pytz
 
-WIB = pytz.timezone('Asia/Jakarta')
 TELE_TOKEN = os.getenv('TELE_TOKEN')
-CHAT_ID = os.getenv('CHAT_ID')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
+WIB = pytz.timezone('Asia/Jakarta')
 
-# BLACKLIST FINAL V20.3 - DARI V19.0 ASLI LU + TAMBAHAN VERSI A KETAT!
 BLACKLIST={
-    # Stablecoin & Wrapped - LENGKAP DARI LU
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
-    # Big Cap - Ga bisa +50%
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
-    # Delisting / Coin Mati / Luna
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
-    # Meme berat sampah
-    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr',
-    # Tambahan Versi A Ketat - Anti 3-5% + Biang kerok di screenshot BEAM/CAT/FUEL
-    'beam_idr','cat_idr','fuel_idr','waxp_idr','mog_idr','pengu_idr','myx_idr','ena_idr','inj_idr','pippin_idr',
+    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
+    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
 
-GLOBAL_CACHE={}
-def get_global(s):
-    coin=s.replace('_idr','').upper()
-    if coin in GLOBAL_CACHE: return GLOBAL_CACHE[coin]
-    if coin in ['IDR','USDT','USDC','EURC','DAI','BUSD','USDE','PAXG','XAUT','WBTC','WETH']: return 0
-    try:
-        r=requests.get(f"https://api.binance.com/api/v3/ticker/24hr?symbol={coin}USDT",timeout=2).json()
-        gp=float(r.get('priceChangePercent',0))
-        GLOBAL_CACHE[coin]=gp
-        return gp
-    except:
-        GLOBAL_CACHE[coin]=0
-        return 0
-
-def kirim_tele(msg):
+def send_tele(msg):
     print(msg)
-    if not TELE_TOKEN or not CHAT_ID:
-        print("❌ TELE_TOKEN / CHAT_ID KOSONG! CEK GITHUB SECRETS!")
-        return
     try:
-        resp=requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",json={"chat_id":CHAT_ID,"text":msg},timeout=15)
-        print(f"TELE STATUS: {resp.status_code}")
-    except Exception as e:
-        print(f"TELE ERROR: {e}")
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
+        print("✅ TELE SENT!")
+    except Exception as e: 
+        print(f"TELE ERR: {e}")
 
-def main():
-    tickers=requests.get("https://indodax.com/api/tickers",timeout=10).json().get('tickers',{})
-    now=datetime.now(WIB).strftime("%H:%M WIB")
-    trending=[]; auto_buy=[]; tier0=[]; ngumpul=[]; sepi=[]
-    
-    print(f"SCAN TOTAL {len(tickers)} KOINS - BISA 219 KAYAK V19.0!")
-    
-    # SCAN 219 KOINS! CEK LOKAL DULU BIAR CEPET! BARU GLOBAL!
-    for pair,d in tickers.items():
+def get_tickers():
+    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    out=[]
+    for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
+        if float(d['vol_idr']) < 10_000_000: continue
+        last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
+        if last==0 or low==0 or high==low: continue
+        pos=((last-low)/(high-low)*100) if high!=low else 0
+        naik=((last-low)/low*100) if low!=0 else 0
+        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
+    return out
+
+def get_global_12exch():
+    g = {}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    # BYBIT
+    try:
+        r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=6).json()
+        for x in r['result']['list']:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['price24hPcnt'])*100)
+    except: pass
+    # GATE
+    try:
+        r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=6).json()
+        for x in r:
+            if x['currency_pair'].endswith('_USDT'):
+                key = x['currency_pair'].replace('_USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['change_percentage']))
+    except: pass
+    # KUCOIN
+    try:
+        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=6).json()
+        for x in r['data']['ticker']:
+            if x['symbol'].endswith('-USDT'):
+                key = x['symbol'].replace('-USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['changeRate'])*100)
+    except: pass
+    # BITGET
+    try:
+        r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=6).json()
+        for x in r['data']:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['change24h'])*100)
+    except: pass
+    # MEXC
+    try:
+        r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+    except: pass
+    # BINANCE VISION
+    try:
+        r = requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+    except:
         try:
-            last=float(d.get('last',0)); low=float(d.get('low',0)); high=float(d.get('high',0)); vol=float(d.get('vol_idr',0))
-            if low==0 or high==0 or last==0: continue
-            if last<10: continue # CAT Rp0 & FUEL Rp13 BUANG!
-            naik=(last-low)/low*100; pos=(last-low)/(high-low)*100 if high!=low else 50
-            if pos<6: continue # BEAM Pos 3% BUANG!
-            if pos>95: continue
-            if naik<0: continue
-            
-            # TRENDING +30% - Ga perlu global dulu, lokal aja!
-            if naik>=30 and vol>=200_000_000:
-                gp=get_global(pair)
-                info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                trending.append(f"🔥🔥 TRENDING +{naik:.0f}%! | {info} | OB {low:.0f}-{low*1.03:.0f}")
-            
-            # AUTO BUY - Lolos lokal dulu, baru global! V19.0 LOGIC!
-            if low<5000 and vol>=80_000_000 and 3<=naik<=20 and 6<=pos<=40:
-                gp=get_global(pair)
-                if gp>=2.5:
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    auto_buy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {info} | ENTRY MARKET {last:.0f} | OB {low:.0f}-{low*1.03:.0f}")
-            
-            # TIER 0 +8% ANTI 3-5% - Target +50%!
-            if low<5000 and vol>=200_000_000 and 8<=naik<=1200 and pos<=60:
-                gp=get_global(pair)
-                if gp>=1.5:
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    ob="OB REAL" if pos<=35 else "RETEST"
-                    tier0.append(f"💥 NEW {naik:.0f}% + OB {low:.0f}-{low*1.03:.0f} | {info} | ENTRY {low*1.06:.0f}-{low*1.1:.0f} {ob}")
-            
-            # NGUMPUL - Bibit besok +50%!
-            if 3<=naik<=7 and pos<=40 and vol>=80_000_000:
-                gp=get_global(pair)
-                if gp>=2.5:
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    ngumpul.append(f"💰 NGUMPUL! | {info} | ENTRY {low*1.06:.0f} RETEST")
-            
-            # TIER 1B GLOBAL
-            if vol>=80_000_000:
-                gp=get_global(pair)
-                if gp>=2.5 and pos>=6:
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    if gp not in [0]: # biar ga duplikat ngumpul
-                        pass
-                    # Simpan untuk tier1b
-                    if not (3<=naik<=7 and pos<=40): # Jangan duplikat ngumpul
-                        trending.append if False else None
-                    # Tier 1B
-                    if gp>=2.5:
-                        # Cek udah ada di ngumpul apa belum
-                        is_ngumpul = any(pair.replace('_idr','').upper() in x for x in ngumpul)
-                        if not is_ngumpul and not (naik>=30):
-                            sepi.append if False else None
-            
-            # SEPI GLOBAL PUMP INDO BELUM
-            if vol>=10_000_000 and vol<=100_000_000:
-                gp=get_global(pair)
-                if gp>=3.0 and naik<=2.5 and pos<=20:
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {info} | OB {low:.0f}")
+            r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+            for x in r:
+                if x['symbol'].endswith('USDT'):
+                    key = x['symbol'].replace('USDT','').lower()+'_idr'
+                    g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+        except: pass
+    # OKX
+    try:
+        r = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", timeout=6, headers=headers).json()
+        for x in r['data']:
+            if x['instId'].endswith('-USDT'):
+                key = x['instId'].replace('-USDT','').lower()+'_idr'
+                try:
+                    open_price = float(x['open24h']); last = float(x['last'])
+                    pct = ((last-open_price)/open_price*100) if open_price else 0
+                    g[key] = max(g.get(key, -100), pct)
+                except: pass
+    except: pass
+    # BITFINEX
+    try:
+        r = requests.get("https://api-pub.bitfinex.com/v2/tickers?symbols=ALL", timeout=6).json()
+        for x in r:
+            if isinstance(x, list) and len(x)>6 and isinstance(x[0], str) and x[0].startswith('t') and x[0].endswith('USD'):
+                sym = x[0][1:-3].lower()+'_idr'
+                try: g[sym] = max(g.get(sym, -100), float(x[6])*100)
+                except: pass
+    except: pass
+    return g
 
-        except: continue
+def detect_ob_and_entry(t):
+    low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
+    if pos <= 80 and vol >= 20_000_000 and naik >= 0:
+        ob_low = low * 0.995
+        ob_high = low * 1.03
+        if pos > 25 or naik > 60:
+            entry_low = last * 0.93
+            entry_high = last * 0.97
+            entry_type = "RETEST"
+        else:
+            entry_low = low * 1.01
+            entry_high = low * 1.03
+            entry_type = "OB REAL"
+        sl = ob_low * 0.95
+        return ob_low, ob_high, entry_low, entry_high, entry_type, sl
+    return None, None, None, None, None, None
 
-    # Re-scan untuk tier1b yang bener
-    tier1b=[]
-    for pair,d in tickers.items():
-        if not pair.endswith('_idr'): continue
-        if pair in BLACKLIST: continue
-        try:
-            last=float(d.get('last',0)); low=float(d.get('low',0)); high=float(d.get('high',0)); vol=float(d.get('vol_idr',0))
-            if low==0 or high==0 or last==0 or last<10: continue
-            naik=(last-low)/low*100; pos=(last-low)/(high-low)*100 if high!=low else 50
-            if pos<6 or pos>95 or naik<0: continue
-            if vol>=80_000_000:
-                gp=GLOBAL_CACHE.get(pair.replace('_idr','').upper(), get_global(pair))
-                if gp>=2.5 and pos>=6 and not (naik>=30) and not (3<=naik<=7 and pos<=40):
-                    info=f"{pair.replace('_idr','').upper()} Rp{last:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"
-                    tier1b.append(f"🚀 GLOBAL {gp:.1f}% OB {low:.0f} | {info}")
-        except: continue
+def scan():
+    now = datetime.now(WIB).strftime("%H:%M WIB")
+    tickers=get_tickers()
+    gdata=get_global_12exch()
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
 
-    msg=f"=== V20.3 FINAL FIX 219 KOINS {now} - {len(tickers)} KOINS ===\n"
-    if trending: msg+=f"\n🔥🔥 TRENDING +30% (Target +50% HOT/NRG/UAI/BMT):\n"+"\n".join(trending[:5])+"\n"
-    else: msg+=f"\n🔥🔥 TRENDING +30%: Belum ada (Pagi)\n"
-    if auto_buy: msg+=f"\n⚡ AUTO BUY - BELI SEKARANG (Fix BEAM 1,3% Pos 3%):\n"+"\n".join(auto_buy[:10])+"\n"
-    else: msg+=f"\n⚡ AUTO BUY: Belum ada\n"
-    if tier0: msg+=f"\n💥 TIER 0 +8% ANTI 3-5% (Target +50%):\n"+"\n".join(tier0[:15])+"\n"
-    else: msg+=f"\n💥 TIER 0 +8%: Kosong (Bagus! Anti sampah 3-5%)\n"
-    if ngumpul: msg+=f"\n💰 NGUMPUL Bibit +50% Besok:\n"+"\n".join(ngumpul[:5])+"\n"
-    if tier1b: msg+=f"\n🚀 TIER 1B GLOBAL 2,5%+:\n"+"\n".join(tier1b[:10])+"\n"
-    if sepi: msg+=f"\n🤫 SEPI Global 3%+ Indo Belum:\n"+"\n".join(sepi[:5])+"\n"
-    msg+=f"\n✅ V20.3 FINAL: Scan {len(tickers)} koin (219)! Blacklist lengkap V19.0 + Versi A ketat! BEAM/CAT/FUEL Pos 0-3% BUANG! Hanya +8%+ Global 1,5%+! Target +50% HOT/NRG!"
-    
-    kirim_tele(msg)
+    for t in tickers:
+        sym=t['sym']; price=t['last']; low=t['low']
+        naik=t['naik']; pos=t['pos']; vol=t['vol']
+        gp=gdata.get(t['pair'], -100)
+        if gp < -2: continue
+        ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
+        if ob_low is None: continue
+        if price < sl: continue
+        ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
+        entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-if __name__=="__main__": main()
+        # === V19.0 AUTO BUY - JANGAN TUNGGU OB! ===
+        if 0.5 <= naik <= 7.0 and 3 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
+            tier_autobuy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
+
+        if gp >= 10 and naik <= 3.0 and pos <= 15 and vol >= 20_000_000:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {gp-naik:.1f}% BURU!")
+            continue
+
+        if 0.5 <= naik <= 6.0 and 5 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
+            if not (3 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000):
+                tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
+
+        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+
+        is_global_zero = abs(gp) < 0.15
+        if is_global_zero and vol < 500_000_000:
+            continue
+
+        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
+            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+        if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
+            if not (is_global_zero and vol < 500_000_000):
+                tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+    msg=f"=== V19.0 AUTO BUY {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ TIER AUTO BUY - BELI SEKARANG JANGAN TUNGGU OB (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
+    return msg
+
+if __name__=="__main__":
+    msg=scan()
+    send_tele(msg)
