@@ -12,7 +12,7 @@ BLACKLIST={
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
 
 def send_tele(msg):
@@ -134,13 +134,13 @@ def scan():
                 tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
                 seen.add(t['pair'])
 
-        msg=f"=== V20.2 ANTI DOBEL {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V20.2 ANTI DOBEL {now} - {len(tickers)} KOINS ===\n"
     msg+=f"⚡ AUTO BUY:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
     msg+=f"💰 NGUMPUL:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
     msg+=f"🤫 SEPI:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
-    msg+=f"💥 NEW 5%+:\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 1B GLOBAL 2.5%+:\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TRENDING +30%+:\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"💥 NEW 5%+ (PUFFER STRK VELVET DISINI!):\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 1B (TIDAK DOBEL NEW!):\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TRENDING +30%+ (ICNT DISINI!):\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
     return msg
 
 if __name__=="__main__":
