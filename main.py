@@ -1,4 +1,4 @@
-# === V19.1c AUTO BUY POS 6% - ANTI BEAM - V19.0 + FILTER POS - BLACKLIST LENGKAP ===
+# === V19.1e TRENDING +30% - ANTI LOLOS ICNT/NRG/HOT - POS 6% - NO HOT BLACKLIST ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -12,7 +12,7 @@ BLACKLIST={
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'ondo_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
 
 def send_tele(msg):
@@ -110,7 +110,7 @@ def get_global_12exch():
 
 def detect_ob_and_entry(t):
     low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
-    if pos <= 80 and vol >= 20_000_000 and naik >= 0:
+    if pos <= 95 and vol >= 20_000_000 and naik >= 0:
         ob_low = low * 0.995
         ob_high = low * 1.03
         if pos > 25 or naik > 60:
@@ -129,17 +129,14 @@ def scan():
     now = datetime.now(WIB).strftime("%H:%M WIB")
     tickers=get_tickers()
     gdata=get_global_12exch()
-    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]; tier_trending=[]
 
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']
         naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], -100)
         if gp < -2: continue
-        
-        # === V19.1c ANTI BEAM - POS 6% FILTER! BEAM POS 5% = SKIP! ===
-        if pos < 6:
-            continue
+        if pos < 6: continue
 
         ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
         if ob_low is None: continue
@@ -147,28 +144,29 @@ def scan():
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # === V19.0 AUTO BUY ASLI - BISA RUNNING PULUHAN % ===
-        if 0.5 <= naik <= 7.0 and 6 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
-            tier_autobuy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
+        # === TIER TRENDING +30% - HOT/NRG/ICNT MODEL ANTI LOLOS! ===
+        if naik >= 30 and vol >= 200_000_000 and pos <= 95:
+            tier_trending.append(f"🔥🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | JANGAN FOMO! Tunggu {ob_txt}")
 
-        # === SEPI GAP - GLOBAL 10%+ TAPI INDO 0% - MITO/KETE/AMZNX MODEL ===
+        if 0.5 <= naik <= 7.0 and 6 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
+            tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}!")
+
         if gp >= 10 and naik <= 3.0 and pos <= 15 and vol >= 20_000_000:
-            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {gp-naik:.1f}% BURU!")
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% BURU!")
             continue
 
-        # TIER NGUMPUL - BUYER MASUK RUNNING!
         if 0.5 <= naik <= 6.0 and 6 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
             if not (6 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000):
-                tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
+                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
 
         if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10:
-            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% BURU!")
 
         is_global_zero = abs(gp) < 0.15
         if is_global_zero and vol < 500_000_000:
             continue
 
-        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
+        if low < 5000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=95:
             tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
         if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
@@ -178,14 +176,15 @@ def scan():
             if not (is_global_zero and vol < 500_000_000):
                 tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V19.1c AUTO BUY POS 6% {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"⚡ TIER AUTO BUY - BELI SEKARANG JANGAN TUNGGU OB (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy - Global lagi sepi")+"\n\n"
-    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
-    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi - Global 2.5%+ lagi sepi")+"\n\n"
-    msg+=f"💥 TIER 0 - NEW LAUNCH (STIK MODEL +50%):\n"+("\n".join(tier0[:15]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:15]) if tier1_global else "Tidak ada - Global 2.5%+ sepi")+"\n\n"
-    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:15]) if tier2 else "Tidak ada")+"\n\n"
-    msg+=f"NOTE: V19.1c = V19.0 + Pos 6% FILTER BEAM! Blacklist lengkap! BEAM Pos 5% FILTER! Bisa running puluhan %!"
+    msg=f"=== V19.1e TRENDING {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🔥🔥 TIER TRENDING +30% (HOT/NRG/ICNT MODEL ANTI LOLOS):\n"+("\n".join(tier_trending[:15]) if tier_trending else "Belum ada trending")+"\n\n"
+    msg+=f"⚡ TIER AUTO BUY MITO MODE:\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg+=f"💥 TIER 0 NEW LAUNCH (low 5000 pos 95):\n"+("\n".join(tier0[:15]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B BANDAR GLOBAL:\n"+("\n".join(tier1_global[:15]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 IGNITION:\n"+("\n".join(tier2[:15]) if tier2 else "Tidak ada")+"\n\n"
+    msg+=f"NOTE: V19.1e Anti lolos HOT/NRG/ICNT! Trending +30% Vol 200Mn! Pos 6% filter BEAM! Blacklist no HOT!"
     return msg
 
 if __name__=="__main__":
