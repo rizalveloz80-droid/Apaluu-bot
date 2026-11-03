@@ -1,4 +1,4 @@
-# === V19.2 FINAL - ANTI BEAM & ANTI PENGU MOG 3-5% - CARI +50% - FULL FILE ===
+# === V19.3 RAMAI - ANTI 3-5% - BEAM 75 RUNNING BOLEH MASUK - FULL FILE ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -140,7 +140,7 @@ def scan():
         naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], -100)
         if gp < -2: continue
-        if pos < 6: continue # ANTI BEAM POS 0-5%!
+        if pos < 6: continue # ANTI BEAM POS 0-5% JELEK!
 
         ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
         if ob_low is None: continue
@@ -148,40 +148,39 @@ def scan():
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # TIER AUTO BUY - MITO MODE - MINIMAL 2% BIAR GA BEAM 1.4%!
-        if 2.0 <= naik <= 7.0 and 6 <= pos <= 20 and 100_000_000 <= vol <= 400_000_000 and gp >= 2.5:
+        # TIER AUTO BUY - BALIK RAMAI! 2%+ Pos 6-25% Vol 80Mn+ Global 2.5%+ - BEAM 75 BOLEH MASUK!
+        if 2.0 <= naik <= 7.0 and 6 <= pos <= 25 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
             tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}")
 
-        # TIER NGUMPUL - BIAR GA KOSONG!
-        elif 1.5 <= naik <= 6.0 and 6 <= pos <= 35 and 50_000_000 <= vol <= 500_000_000 and gp >= 1.5:
+        # TIER NGUMPUL - VOL 40Mn BIAR STIK 74Mn MASUK! GA KOSONG!
+        elif 1.5 <= naik <= 6.0 and 6 <= pos <= 35 and 40_000_000 <= vol <= 500_000_000 and gp >= 1.0:
             tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt}")
 
-        # TIER SEPI - GLOBAL GEDE!
-        if gp >= 10 and naik <= 3.0 and pos <= 25 and vol >= 50_000_000:
+        # TIER SEPI - GLOBAL 2.5%+ BIAR GA KOSONG!
+        if gp >= 10 and naik <= 3.0 and pos <= 30 and vol >= 40_000_000:
             tier_sepi.append(f"🤫 SEPI GAP! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% | BURU!")
-        elif gp >= 2.5 and naik <= 3.0 and pos <= 25 and vol >= 50_000_000 and gp < 10:
-            if t['pair'] not in [x.split('|')[1].strip().split()[0].lower()+'_idr' for x in tier_autobuy]:
-                tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
+        elif gp >= 2.5 and naik <= 3.0 and pos <= 30 and vol >= 40_000_000 and gp < 10:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn")
 
-        # TIER 0 NEW LAUNCH - ANTI PENGU MOG 3-5%! MINIMAL 8%!
-        if low < 5000 and vol>=200_000_000 and 8<=naik<=1200 and pos<=60 and gp>=1.5:
+        # TIER 0 NEW LAUNCH - NAIK 5%+ AJA! JANGAN 8%! BIAR GA KOSONG! ANTI PENGU 4% JADI 5%!
+        if low < 5000 and vol>=80_000_000 and 5<=naik<=1200 and pos<=60 and gp>=1.0:
             tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        # TIER 1B BANDAR GLOBAL
-        if gp>=2.5 and vol>=200_000_000 and 2<=naik<=35 and pos<=60:
+        # TIER 1B BANDAR GLOBAL - VOL 80Mn BIAR RAMAI!
+        if gp>=2.5 and vol>=80_000_000 and 2<=naik<=35 and pos<=60:
             tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        # TIER TRENDING - NRG ICNT HOT +50% MODEL!
-        if naik >= 30 and vol >= 200_000_000 and pos <= 95 and low < 5000:
+        # TIER TRENDING - +30%+ BIAR NRG ICNT HOT MASUK! KOSONG WAJAR KALO MALAM!
+        if naik >= 30 and vol >= 80_000_000 and pos <= 95 and low < 5000:
             tier_trending.append(f"🔥🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt}")
 
-    msg=f"=== V19.2 ANTI 3-5% +50% {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"⚡ TIER AUTO BUY (2%+ Pos 6-20%):\n"+("\n".join(tier_autobuy[:10]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
-    msg+=f"💰 TIER NGUMPUL (1.5%+ Pos 6-35%):\n"+("\n".join(tier_ngumpul[:10]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg=f"=== V19.3 RAMAI {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ TIER AUTO BUY (2%+ Pos 6-25% Vol 80Mn+ Global 2.5%+):\n"+("\n".join(tier_autobuy[:10]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL (1.5%+ Pos 6-35% Vol 40Mn+ Global 1%+):\n"+("\n".join(tier_ngumpul[:10]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
     msg+=f"🤫 TIER SEPI GLOBAL 2.5%+:\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi")+"\n\n"
-    msg+=f"💥 TIER 0 NEW LAUNCH 8%+ (ANTI PENGU 4%):\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"💥 TIER 0 NEW LAUNCH 5%+ (ANTI PENGU 4%):\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
     msg+=f"🚀 TIER 1B BANDAR GLOBAL 2.5%+:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥🔥 TIER TRENDING +30%+ (HOT NRG ICNT):\n"+("\n".join(tier_trending[:10]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"🔥🔥 TIER TRENDING +30%+ (HOT NRG ICNT):\n"+("\n".join(tier_trending[:10]) if tier_trending else "Tidak ada - Pasar malam sepi +30% wajar")+"\n\n"
     return msg
 
 if __name__=="__main__":
