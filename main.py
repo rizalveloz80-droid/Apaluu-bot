@@ -1,4 +1,4 @@
-# === V19.1b AUTO BUY GAP 0.5% - RUNNING PULUHAN % - ANTI BEAM POS 6% ===
+# === V19.1c AUTO BUY POS 6% - ANTI BEAM - V19.0 + FILTER POS - BLACKLIST LENGKAP ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -136,9 +136,8 @@ def scan():
         naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], -100)
         if gp < -2: continue
-        GAP = gp - naik
         
-        # ANTI BEAM - POS 6%! BEAM Pos 5% = FILTER!
+        # === V19.1c ANTI BEAM - POS 6% FILTER! BEAM POS 5% = SKIP! ===
         if pos < 6:
             continue
 
@@ -148,41 +147,45 @@ def scan():
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # TIER AUTO BUY GAP 0.5% RUNNING!
-        if 0.5 <= naik <= 7.0 and 6 <= pos <= 20 and 50_000_000 <= vol <= 400_000_000 and gp >= 2.5 and GAP >= 0.5:
-            tier_autobuy.append(f"⚡ AUTO BUY GAP {GAP:.1f}% RUNNING! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% GAP {GAP:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}!")
+        # === V19.0 AUTO BUY ASLI - BISA RUNNING PULUHAN % ===
+        if 0.5 <= naik <= 7.0 and 6 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
+            tier_autobuy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
 
-        # TIER SEPI GAP - GLOBAL 2.5%+ RUNNING!
-        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 20_000_000 <= vol <= 400_000_000 and GAP >= 0.5:
-            tier_sepi.append(f"🤫 SEPI GAP {GAP:.1f}%! GLOBAL {gp:.1f}% RUNNING! | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+        # === SEPI GAP - GLOBAL 10%+ TAPI INDO 0% - MITO/KETE/AMZNX MODEL ===
+        if gp >= 10 and naik <= 3.0 and pos <= 15 and vol >= 20_000_000:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {gp-naik:.1f}% BURU!")
             continue
 
-        # TIER NGUMPUL GAP 0.5%!
-        if 0.5 <= naik <= 6.0 and 6 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0 and GAP >= 0.5:
-            if not (6 <= pos <= 20 and gp >= 2.5 and vol >= 50_000_000 and GAP >= 0.5):
-                tier_ngumpul.append(f"💰 NGUMPUL GAP {GAP:.1f}%! RUNNING! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% GAP {GAP:.1f}% | ENTRY {entry_txt} | {ob_txt}")
+        # TIER NGUMPUL - BUYER MASUK RUNNING!
+        if 0.5 <= naik <= 6.0 and 6 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
+            if not (6 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000):
+                tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
 
-        # TIER 0 NEW LAUNCH - STIK MODEL!
-        if low < 1000 and vol>=50_000_000 and 2<=naik<=1200 and pos<=80:
-            if not (abs(gp) < 0.15 and vol < 100_000_000):
-                tier0.append(f"💥 NEW {naik:.0f}% GAP {GAP:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
 
-        # TIER 1B BANDAR GLOBAL GAP 0.5%!
-        if gp>=2.5 and vol>=50_000_000 and 0.5<=naik<=35 and pos<=60 and GAP >= 0.5:
-            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% GAP {GAP:.1f}% RUNNING {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+        is_global_zero = abs(gp) < 0.15
+        if is_global_zero and vol < 500_000_000:
+            continue
 
-        # TIER 2 IGNITION GAP 0.5%!
-        if 0.5<=naik<=50 and 6<=pos<=35 and vol>=50_000_000 and GAP >= 0.5:
-            tier2.append(f"🔥 IGNITION GAP {GAP:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V19.1b GAP 0.5% {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"⚡ TIER AUTO BUY GAP RUNNING (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
-    msg+=f"💰 TIER NGUMPUL GAP RUNNING:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
-    msg+=f"🤫 TIER SEPI GAP 2.5%+ RUNNING:\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi")+"\n\n"
+        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
+            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+        if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
+            if not (is_global_zero and vol < 500_000_000):
+                tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+    msg=f"=== V19.1c AUTO BUY POS 6% {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ TIER AUTO BUY - BELI SEKARANG JANGAN TUNGGU OB (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy - Global lagi sepi")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:15]) if tier_sepi else "Belum ada sepi - Global 2.5%+ lagi sepi")+"\n\n"
     msg+=f"💥 TIER 0 - NEW LAUNCH (STIK MODEL +50%):\n"+("\n".join(tier0[:15]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL GAP:\n"+("\n".join(tier1_global[:15]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TIER 2 - IGNITION GAP:\n"+("\n".join(tier2[:15]) if tier2 else "Tidak ada")+"\n\n"
-    msg+=f"NOTE: V19.1b Pos <6 FILTER BEAM! GAP >=0.5% RUNNING PULUHAN %!"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:15]) if tier1_global else "Tidak ada - Global 2.5%+ sepi")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:15]) if tier2 else "Tidak ada")+"\n\n"
+    msg+=f"NOTE: V19.1c = V19.0 + Pos 6% FILTER BEAM! Blacklist lengkap! BEAM Pos 5% FILTER! Bisa running puluhan %!"
     return msg
 
 if __name__=="__main__":
