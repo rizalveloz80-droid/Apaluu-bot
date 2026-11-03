@@ -1,4 +1,4 @@
-# === V20.2 FINAL ANTI DOBEL TOTAL - FILTER SAMA KAYAK V20.1 - CUMA ANTI DOBEL ===
+# === V19.7 FINAL BERSIH - JUDUL GA ADA NAMA KOIN! - SAMA V19.0 + ANTI PENGU + FOKUS +50% ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -16,27 +16,24 @@ BLACKLIST={
 }
 
 def send_tele(msg):
-    print(msg)
-    msg = msg[:3800]
+    print(msg); msg=msg[:3800]
     try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
     except: pass
 
 def get_tickers():
-    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
-    out=[]
+    r=requests.get("https://indodax.com/api/tickers",timeout=15).json()['tickers']; out=[]
     for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
-        if float(d['vol_idr']) < 20_000_000: continue
+        if float(d['vol_idr'])<20_000_000: continue
         last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
         if last==0 or low==0 or high==low: continue
-        pos=((last-low)/(high-low)*100) if high!=low else 0
-        naik=((last-low)/low*100) if low!=0 else 0
+        pos=((last-low)/(high-low)*100) if high!=low else 0; naik=((last-low)/low*100) if low!=0 else 0
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
 
-def get_global_12exch():
-    g={}; headers={"User-Agent":"Mozilla/5.0"}
+def get_global():
+    g={}; h={"User-Agent":"Mozilla/5.0"}
     try:
         r=requests.get("https://api.bybit.com/v5/market/tickers?category=spot",timeout=6).json()
         for x in r['result']['list']:
@@ -58,17 +55,17 @@ def get_global_12exch():
             if x['symbol'].endswith('USDT'): g[x['symbol'].replace('USDT','').lower()+'_idr']=max(g.get(x['symbol'].replace('USDT','').lower()+'_idr',-100),float(x['change24h'])*100)
     except: pass
     try:
-        r=requests.get("https://api.mexc.com/api/v3/ticker/24hr",timeout=6,headers=headers).json()
+        r=requests.get("https://api.mexc.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
         for x in r:
             if x['symbol'].endswith('USDT'): g[x['symbol'].replace('USDT','').lower()+'_idr']=max(g.get(x['symbol'].replace('USDT','').lower()+'_idr',-100),float(x['priceChangePercent']))
     except: pass
     try:
-        r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",timeout=6,headers=headers).json()
+        r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",timeout=6,headers=h).json()
         for x in r:
             if x['symbol'].endswith('USDT'): g[x['symbol'].replace('USDT','').lower()+'_idr']=max(g.get(x['symbol'].replace('USDT','').lower()+'_idr',-100),float(x['priceChangePercent']))
     except:
         try:
-            r=requests.get("https://api.binance.com/api/v3/ticker/24hr",timeout=6,headers=headers).json()
+            r=requests.get("https://api.binance.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
             for x in r:
                 if x['symbol'].endswith('USDT'): g[x['symbol'].replace('USDT','').lower()+'_idr']=max(g.get(x['symbol'].replace('USDT','').lower()+'_idr',-100),float(x['priceChangePercent']))
         except: pass
@@ -81,66 +78,47 @@ def detect_ob(t):
     return low*0.995, low*1.03, ent_low, ent_high, ent_type
 
 def scan():
-    now=datetime.now(WIB).strftime("%H:%M WIB")
-    tickers=get_tickers(); gdata=get_global_12exch()
-    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]
-    seen=set() # ANTI DOBEL TOTAL!
-
+    now=datetime.now(WIB).strftime("%H:%M WIB"); tickers=get_tickers(); gdata=get_global()
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]; seen=set()
     for t in tickers:
-        sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'],-100)
+        sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']; gp=gdata.get(t['pair'],-100)
         if gp<-2 or pos<6: continue
-        ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
-        ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
+        if naik<2.0: continue
+        # ANTI PENGU MOG MYX ENA + ANTI 1-10% GLOBAL KECIL = GA BISA +50%!
+        if 2<=naik<=10 and gp<2.5: continue
+        ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t); ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # PRIORITY 1: AUTO BUY - 2-7% Pos 6-25% Vol 80M-400M Global 2.5%+
         if 2.0<=naik<=7.0 and 6<=pos<=25 and 80_000_000<=vol<=400_000_000 and gp>=2.5:
             if t['pair'] not in seen:
-                tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}")
-                seen.add(t['pair'])
+                tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}"); seen.add(t['pair'])
             continue
-
-        # PRIORITY 2: NGUMPUL
         if 1.5<=naik<=6.0 and 6<=pos<=35 and 40_000_000<=vol<=500_000_000 and gp>=1.0:
             if t['pair'] not in seen:
-                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt}")
-                seen.add(t['pair'])
+                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt}"); seen.add(t['pair'])
             continue
-
-        # PRIORITY 3: SEPI
         if gp>=2.5 and naik<=3.0 and pos<=30 and vol>=40_000_000:
             if t['pair'] not in seen:
-                tier_sepi.append(f"🤫 SEPI GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}%")
-                seen.add(t['pair'])
+                tier_sepi.append(f"🤫 SEPI GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}%"); seen.add(t['pair'])
             continue
-
-        # PRIORITY 4: NEW 5%+ - PUFFER STRK VELVET MASUK SINI!
         if low<5000 and vol>=80_000_000 and 5<=naik<=1200 and pos<=60 and gp>=1.0:
             if t['pair'] not in seen:
-                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-                seen.add(t['pair'])
+                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
             continue
-
-        # PRIORITY 5: 1B - CUMA KALO BELUM DI NEW!
         if gp>=2.5 and vol>=80_000_000 and 2<=naik<=35 and pos<=60:
             if t['pair'] not in seen:
-                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-                seen.add(t['pair'])
+                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
             continue
-
-        # PRIORITY 6: TRENDING +30%+
         if naik>=30 and vol>=80_000_000 and pos<=95 and low<5000:
             if t['pair'] not in seen:
-                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
-                seen.add(t['pair'])
+                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
 
-    msg=f"=== V20.2 ANTI DOBEL {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V19.7 BERSIH +50% {now} - {len(tickers)} KOINS ===\n"
     msg+=f"⚡ AUTO BUY:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
     msg+=f"💰 NGUMPUL:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
     msg+=f"🤫 SEPI:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
-    msg+=f"💥 NEW 5%+ (PUFFER STRK VELVET DISINI!):\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 1B (TIDAK DOBEL NEW!):\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TRENDING +30%+ (ICNT DISINI!):\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"💥 NEW 5%+:\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 1B GLOBAL 2.5%+:\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TRENDING +30%+:\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
     return msg
 
 if __name__=="__main__":
