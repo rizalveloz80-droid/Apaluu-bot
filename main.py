@@ -1,4 +1,4 @@
-# === V19.0 AUTO BUY - ANTI KETINGGALAN MITO/KETE/AMZNX ===
+# === V19.1 AUTO BUY GAP - RUNNING PULUHAN % - ANTI BEAM ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -38,7 +38,6 @@ def get_tickers():
 def get_global_12exch():
     g = {}
     headers = {"User-Agent": "Mozilla/5.0"}
-    # BYBIT
     try:
         r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=6).json()
         for x in r['result']['list']:
@@ -46,7 +45,6 @@ def get_global_12exch():
                 key = x['symbol'].replace('USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['price24hPcnt'])*100)
     except: pass
-    # GATE
     try:
         r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=6).json()
         for x in r:
@@ -54,7 +52,6 @@ def get_global_12exch():
                 key = x['currency_pair'].replace('_USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['change_percentage']))
     except: pass
-    # KUCOIN
     try:
         r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=6).json()
         for x in r['data']['ticker']:
@@ -62,7 +59,6 @@ def get_global_12exch():
                 key = x['symbol'].replace('-USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['changeRate'])*100)
     except: pass
-    # BITGET
     try:
         r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=6).json()
         for x in r['data']:
@@ -70,7 +66,6 @@ def get_global_12exch():
                 key = x['symbol'].replace('USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['change24h'])*100)
     except: pass
-    # MEXC
     try:
         r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
         for x in r:
@@ -78,7 +73,6 @@ def get_global_12exch():
                 key = x['symbol'].replace('USDT','').lower()+'_idr'
                 g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
     except: pass
-    # BINANCE VISION (ANTI BLOCK)
     try:
         r = requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=6, headers=headers).json()
         for x in r:
@@ -93,7 +87,6 @@ def get_global_12exch():
                     key = x['symbol'].replace('USDT','').lower()+'_idr'
                     g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
         except: pass
-    # OKX
     try:
         r = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", timeout=6, headers=headers).json()
         for x in r['data']:
@@ -105,7 +98,6 @@ def get_global_12exch():
                     g[key] = max(g.get(key, -100), pct)
                 except: pass
     except: pass
-    # BITFINEX
     try:
         r = requests.get("https://api-pub.bitfinex.com/v2/tickers?symbols=ALL", timeout=6).json()
         for x in r:
@@ -144,52 +136,61 @@ def scan():
         naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'], -100)
         if gp < -2: continue
+        
+        # === V19.1 GAP - KUNCI RUNNING PULUHAN % ===
+        GAP = gp - naik  # Global - Indo = Potensi running!
+        
+        # ANTI BEAM - V19.1
+        if pos < 5:  # BEAM Pos 0% = FILTER! Ga masuk lagi!
+            continue
+        if GAP < 1.0 and vol < 100_000_000 and gp < 5: # GAP kecil + Vol kecil + Global kecil = BEAM = SKIP
+            continue
+
         ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
         if ob_low is None: continue
         if price < sl: continue
         ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-        # === V19.0 AUTO BUY - JANGAN TUNGGU OB! ===
-        # MITO 145 Pos 12% Global 3% Vol 135Mn -> INI HARUS LANGSUNG BELI!
-        if 0.5 <= naik <= 7.0 and 3 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
-            tier_autobuy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
+        # === V19.1 AUTO BUY GAP - BELI SEKARANG! RUNNING! ===
+        if 0.5 <= naik <= 7.0 and 5 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5 and GAP >= 2.0:
+            tier_autobuy.append(f"⚡ AUTO BUY GAP {GAP:.1f}% RUNNING! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% GAP {GAP:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
 
-        # === AMZNX GAP - GLOBAL 30%+ TAPI INDO MASIH 0% ===
+        # === SEPI GAP - MITO/KETE/AMZNX MODEL - GLOBAL 10%+ INDO 0% ===
         if gp >= 10 and naik <= 3.0 and pos <= 15 and vol >= 20_000_000:
-            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {gp-naik:.1f}% BURU!")
+            tier_sepi.append(f"🤫 SEPI GAP {GAP:.1f}%! GLOBAL {gp:.1f}% RUNNING! | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {GAP:.1f}% BURU!")
             continue
 
-        # TIER NGUMPUL BIASA
-        if 0.5 <= naik <= 6.0 and 5 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
-            # Skip yang udah masuk autobuy biar ga dobel
-            if not (3 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000):
-                tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
+        # TIER NGUMPUL GAP - BUYER MASUK RUNNING!
+        if 0.5 <= naik <= 6.0 and 5 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0 and GAP >= 2.0:
+            if not (5 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000 and GAP >= 2.0):
+                tier_ngumpul.append(f"💰 NGUMPUL GAP {GAP:.1f}%! BUYER MASUK RUNNING! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% GAP {GAP:.1f}% | ENTRY {entry_txt} | {ob_txt}")
 
-        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10:
-            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10 and GAP >= 1.5:
+            tier_sepi.append(f"🤫 SEPI GAP {GAP:.1f}%! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
 
         is_global_zero = abs(gp) < 0.15
         if is_global_zero and vol < 500_000_000:
             continue
 
         if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
-            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+            tier0.append(f"💥 NEW {naik:.0f}% GAP {GAP:.1f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
-            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60 and GAP >= 1.0:
+            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% GAP {GAP:.1f}% RUNNING {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-        if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
+        if 2<=naik<=50 and pos<=15 and vol>=100_000_000 and GAP >= 1.5:
             if not (is_global_zero and vol < 500_000_000):
-                tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+                tier2.append(f"🔥 IGNITION GAP {GAP:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
 
-    msg=f"=== V19.0 AUTO BUY {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"⚡ TIER AUTO BUY - BELI SEKARANG JANGAN TUNGGU OB (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
-    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
-    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg=f"=== V19.1 GAP AUTO BUY {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ TIER AUTO BUY GAP RUNNING (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy GAP")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL GAP RUNNING:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul GAP")+"\n\n"
+    msg+=f"🤫 TIER SEPI GAP 2.5%+ RUNNING:\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi GAP")+"\n\n"
     msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING:\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION GAP:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
+    msg+=f"NOTE: GAP = Global% - Indo% | GAP >2% = Bisa running puluhan % di Indodax! | Pos <5% = BEAM FILTER!"
     return msg
 
 if __name__=="__main__":
