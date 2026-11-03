@@ -134,13 +134,13 @@ def scan():
                 tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
                 seen.add(t['pair'])
 
-    msg=f"=== V20.2 ANTI DOBEL {now} - {len(tickers)} KOINS ===\n"
+        msg=f"=== V20.2 ANTI DOBEL {now} - {len(tickers)} KOINS ===\n"
     msg+=f"⚡ AUTO BUY:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
     msg+=f"💰 NGUMPUL:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
     msg+=f"🤫 SEPI:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
-    msg+=f"💥 NEW 5%+ (PUFFER STRK VELVET DISINI!):\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
-    msg+=f"🚀 1B (TIDAK DOBEL NEW!):\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TRENDING +30%+ (ICNT DISINI!):\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"💥 NEW 5%+:\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 1B GLOBAL 2.5%+:\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TRENDING +30%+:\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
     return msg
 
 if __name__=="__main__":
