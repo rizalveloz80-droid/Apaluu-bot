@@ -1,4 +1,4 @@
-# === V19.7 FINAL BERSIH - JUDUL GA ADA NAMA KOIN! - SAMA V19.0 + ANTI PENGU + FOKUS +50% ===
+# === V19.7.1 FINAL FULL - SAMA PERSIS V19.0 - OB + ENTRIAN BANDAR ADA - JUDUL BERSIH - ANTI PENGU ===
 import requests, os
 from datetime import datetime
 import pytz
@@ -16,19 +16,24 @@ BLACKLIST={
 }
 
 def send_tele(msg):
-    print(msg); msg=msg[:3800]
-    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
-    except: pass
+    print(msg)
+    msg = msg[:3800]
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
+    except:
+        pass
 
 def get_tickers():
-    r=requests.get("https://indodax.com/api/tickers",timeout=15).json()['tickers']; out=[]
+    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    out=[]
     for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
-        if float(d['vol_idr'])<20_000_000: continue
+        if float(d['vol_idr']) < 20_000_000: continue
         last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
         if last==0 or low==0 or high==low: continue
-        pos=((last-low)/(high-low)*100) if high!=low else 0; naik=((last-low)/low*100) if low!=0 else 0
+        pos=((last-low)/(high-low)*100) if high!=low else 0
+        naik=((last-low)/low*100) if low!=0 else 0
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
 
@@ -73,46 +78,75 @@ def get_global():
 
 def detect_ob(t):
     low=t['low']; last=t['last']; pos=t['pos']
-    if pos>25: ent_low=last*0.93; ent_high=last*0.97; ent_type="RETEST"
-    else: ent_low=low*1.01; ent_high=low*1.03; ent_type="OB REAL"
+    if pos>25:
+        ent_low=last*0.93; ent_high=last*0.97; ent_type="RETEST"
+    else:
+        ent_low=low*1.01; ent_high=low*1.03; ent_type="OB REAL"
     return low*0.995, low*1.03, ent_low, ent_high, ent_type
 
 def scan():
-    now=datetime.now(WIB).strftime("%H:%M WIB"); tickers=get_tickers(); gdata=get_global()
-    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]; seen=set()
+    now=datetime.now(WIB).strftime("%H:%M WIB")
+    tickers=get_tickers()
+    gdata=get_global()
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]
+    seen=set()
+
     for t in tickers:
-        sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']; gp=gdata.get(t['pair'],-100)
+        sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
+        gp=gdata.get(t['pair'],-100)
+
         if gp<-2 or pos<6: continue
         if naik<2.0: continue
-        # ANTI PENGU MOG MYX ENA + ANTI 1-10% GLOBAL KECIL = GA BISA +50%!
+        # ANTI PENGU MOG MYX ENA - 2-10% tapi Global <2.5% = BUANG! Ga bisa +50%!
         if 2<=naik<=10 and gp<2.5: continue
-        ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t); ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
+        ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
+        ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"
+        entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
+        bandar_txt=f"ENTRIAN BANDAR {ent_low:.0f}-{ent_high:.0f}"
+
+        # AUTO BUY - SAMA V19.0
         if 2.0<=naik<=7.0 and 6<=pos<=25 and 80_000_000<=vol<=400_000_000 and gp>=2.5:
             if t['pair'] not in seen:
-                tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt}"); seen.add(t['pair'])
+                tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | {bandar_txt}")
+                seen.add(t['pair'])
             continue
+
+        # NGUMPUL - SAMA V19.0
         if 1.5<=naik<=6.0 and 6<=pos<=35 and 40_000_000<=vol<=500_000_000 and gp>=1.0:
             if t['pair'] not in seen:
-                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt}"); seen.add(t['pair'])
+                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
+                seen.add(t['pair'])
             continue
+
+        # SEPI - SAMA V19.0
         if gp>=2.5 and naik<=3.0 and pos<=30 and vol>=40_000_000:
             if t['pair'] not in seen:
-                tier_sepi.append(f"🤫 SEPI GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}%"); seen.add(t['pair'])
+                tier_sepi.append(f"🤫 SEPI GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% | {ob_txt} | {bandar_txt}")
+                seen.add(t['pair'])
             continue
+
+        # NEW 5%+ - SAMA V19.0
         if low<5000 and vol>=80_000_000 and 5<=naik<=1200 and pos<=60 and gp>=1.0:
             if t['pair'] not in seen:
-                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
+                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt} | {bandar_txt}")
+                seen.add(t['pair'])
             continue
+
+        # 1B TIDAK DOBEL NEW - SAMA V19.0
         if gp>=2.5 and vol>=80_000_000 and 2<=naik<=35 and pos<=60:
             if t['pair'] not in seen:
-                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
+                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt} | {bandar_txt}")
+                seen.add(t['pair'])
             continue
+
+        # TRENDING +30%+ - SAMA V19.0
         if naik>=30 and vol>=80_000_000 and pos<=95 and low<5000:
             if t['pair'] not in seen:
-                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%"); seen.add(t['pair'])
+                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt}")
+                seen.add(t['pair'])
 
-    msg=f"=== V19.7 BERSIH +50% {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V19.7.1 FINAL {now} - {len(tickers)} KOINS ===\n"
     msg+=f"⚡ AUTO BUY:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
     msg+=f"💰 NGUMPUL:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
     msg+=f"🤫 SEPI:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
