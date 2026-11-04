@@ -1,13 +1,22 @@
-name: V17.9 FINAL BERSIH SEPI HUNTER
+name: V24 BANDAR 6JAM
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 * * * *'  # TIAP 1 JAM, BUKAN TIAP 5 MENIT LAGI!
   workflow_dispatch:
+
+# INI KUNCINYA MIN! BIAR GAK NUMPUK LAGI!
+# Kalo ada run baru, run lama otomatis di-cancel!
+concurrency:
+  group: bot-v24
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # Kalo lebih dari 10 menit, matiin paksa!
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       
@@ -19,8 +28,16 @@ jobs:
       - name: Install dependencies
         run: pip install requests pytz
 
-      - name: Run Bot V17.9 Sepi Hunter
+      - name: Run Bot V24 Bandar 6Jam
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
         run: python main.py
+
+      - name: Simpan Vol History 6 Jam
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add vol_history.json || true
+          git commit -m "vol 6jam" || true
+          git push || true
