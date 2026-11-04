@@ -1,4 +1,7 @@
-# === V19.7.1 FINAL FULL - SAMA PERSIS V19.0 - OB + ENTRIAN BANDAR ADA - JUDUL BERSIH - ANTI PENGU ===
+# === V20.1 FINAL - POLA AWAL - DAPET SEBELUM NAIK - BUKAN KEJAR ===
+# POLA BMT ONL NEON SEBELUM NAIK:
+# SEPI (Global +3% Indo +1-3% Pos 15-25%) -> NGUMPUL (Vol naik) -> AUTO BUY (Naik 2-7%) -> MELEDAK +20%!
+# VOL SPIKE = UDAH NAIK = JANGAN KEJAR!
 import requests, os
 from datetime import datetime
 import pytz
@@ -88,71 +91,68 @@ def scan():
     now=datetime.now(WIB).strftime("%H:%M WIB")
     tickers=get_tickers()
     gdata=get_global()
-    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier_trending=[]; tier_volspike=[]
     seen=set()
-
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'],-100)
-
-        if gp<-2 or pos<6: continue
-        if naik<2.0: continue
-        # ANTI PENGU MOG MYX ENA - 2-10% tapi Global <2.5% = BUANG! Ga bisa +50%!
-        if 2<=naik<=10 and gp<2.5: continue
-
+        gp=gdata.get(t['pair'],0)
+        if gp<-5 or pos<6: continue
+        if naik<1.5: continue
+        if 2<=naik<=10 and 0<gp<2.5 and vol<500_000_000: continue
         ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
         ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"
         entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
         bandar_txt=f"ENTRIAN BANDAR {ent_low:.0f}-{ent_high:.0f}"
-
-        # AUTO BUY - SAMA V19.0
-        if 2.0<=naik<=7.0 and 6<=pos<=25 and 80_000_000<=vol<=400_000_000 and gp>=2.5:
+        # 1. SEPI - POLA PALING AWAL! GLOBAL UDAH RUNNING INDODAX BELUM!
+        if gp>=3.0 and naik<=3.5 and pos<=35 and vol>=40_000_000:
             if t['pair'] not in seen:
-                tier_autobuy.append(f"⚡ AUTO BUY! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | {bandar_txt}")
+                tier_sepi.append(f"🤫 SEPI POLA AWAL! Global {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
-
-        # NGUMPUL - SAMA V19.0
+        # 2. NGUMPUL - VOL MULAI NAIK! BANDAR LAGI NGUMPUL!
         if 1.5<=naik<=6.0 and 6<=pos<=35 and 40_000_000<=vol<=500_000_000 and gp>=1.0:
             if t['pair'] not in seen:
-                tier_ngumpul.append(f"💰 NGUMPUL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
+                tier_ngumpul.append(f"💰 NGUMPUL POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
-
-        # SEPI - SAMA V19.0
-        if gp>=2.5 and naik<=3.0 and pos<=30 and vol>=40_000_000:
+        # 3. AUTO BUY - BIBIT MAU MELEDAK! ENTRY DULUAN!
+        if 2.0<=naik<=7.0 and 6<=pos<=25 and 80_000_000<=vol<=400_000_000 and gp>=2.5:
             if t['pair'] not in seen:
-                tier_sepi.append(f"🤫 SEPI GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% | {ob_txt} | {bandar_txt}")
+                tier_autobuy.append(f"⚡ AUTO BUY POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
-
-        # NEW 5%+ - SAMA V19.0
-        if low<5000 and vol>=80_000_000 and 5<=naik<=1200 and pos<=60 and gp>=1.0:
+        # 4. NEW 5%+ - UDAH MULAI NAIK - KONFIRMASI POLA BENER!
+        if low<5000 and vol>=80_000_000 and 5<=naik<=30 and pos<=65 and (gp>=2.0 or vol>=1_000_000_000):
             if t['pair'] not in seen:
                 tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
-
-        # 1B TIDAK DOBEL NEW - SAMA V19.0
+        # 5. 1B GLOBAL - BANDAR GLOBAL DORONG!
         if gp>=2.5 and vol>=80_000_000 and 2<=naik<=35 and pos<=60:
             if t['pair'] not in seen:
                 tier1_global.append(f"🚀 GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
-
-        # TRENDING +30%+ - SAMA V19.0
-        if naik>=30 and vol>=80_000_000 and pos<=95 and low<5000:
+        # 6. TRENDING +25%+ - LAGI RUNNING!
+        if naik>=25 and vol>=80_000_000 and pos<=90 and low<5000:
             if t['pair'] not in seen:
                 tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {ob_txt}")
                 seen.add(t['pair'])
-
-    msg=f"=== V19.7.1 FINAL {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"⚡ AUTO BUY:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
-    msg+=f"💰 NGUMPUL:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
-    msg+=f"🤫 SEPI:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
+            continue
+        # 7. VOL SPIKE - UDAH NAIK - JANGAN KEJAR! CUMA PANTAU!
+        if vol>=800_000_000 and naik>=8 and pos<=85 and low<5000:
+            if t['pair'] not in seen:
+                tier_volspike.append(f"⚠️ SUDAH NAIK JANGAN KEJAR! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | -> UDAH TELAT!")
+                seen.add(t['pair'])
+            continue
+    msg=f"=== V20.1 POLA AWAL {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🤫 SEPI POLA AWAL!:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg+=f"💰 NGUMPUL POLA!:\n"+("\n".join(tier_ngumpul[:8]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg+=f"⚡ AUTO BUY POLA!:\n"+("\n".join(tier_autobuy[:8]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
     msg+=f"💥 NEW 5%+:\n"+("\n".join(tier0[:8]) if tier0 else "Tidak ada")+"\n\n"
     msg+=f"🚀 1B GLOBAL 2.5%+:\n"+("\n".join(tier1_global[:8]) if tier1_global else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TRENDING +30%+:\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TRENDING +25%+:\n"+("\n".join(tier_trending[:8]) if tier_trending else "Tidak ada")+"\n\n"
+    msg+=f"⚠️ SUDAH NAIK JANGAN KEJAR!:\n"+("\n".join(tier_volspike[:8]) if tier_volspike else "Tidak ada")+"\n\n"
     return msg
 
 if __name__=="__main__":
