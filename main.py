@@ -1,6 +1,7 @@
 # === V23 FINAL LONGGAR - 9 EXCHANGE + BANDAR INDODAX + OB + EARLY RUNNER ===
 # V23 = V22 ASLI + is_early_runner + OB 10% + POS 15-45% LONGGAR
 # 9 EXCHANGE: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
+# UPDATE: BLACKLIST GABUNGAN 101 + TAG CALON 50%+ / AMAN GAS
 import requests, os
 from datetime import datetime
 import pytz
@@ -9,13 +10,24 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
 
+# === BLACKLIST V23 - TOTAL 101 - GABUNGAN FILE 69 + LIST LAMA 66 + BARU 4 ===
 BLACKLIST={
-    'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
+    'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
     'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr','enj_idr',
+    'flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr','rvn_idr',
+    'ena_idr','hype_idr','pippin_idr','pengu_idr',
 }
+
+# === TAG V23 - BEDAIN CALON 50%+ SAMA AMAN ===
+def get_tag(gp, gname):
+    if gp == 0.0 or gname == "-" or gname == "":
+        return "🔥 CALON 50%+"
+    else:
+        return "🛡️ AMAN GAS"
 
 def send_tele(msg):
     print(msg)
@@ -159,10 +171,11 @@ def scan():
         entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
         bandar_txt=f"ENTRIAN BANDAR {ent_low:.0f}-{ent_high:.0f}"
         global_txt=f"Global {gp:.1f}% [{gname}]"
+        tag=get_tag(gp, gname)
         coin_early = {'naik_24h': naik, 'pos': pos, 'vol': vol, 'vol_avg_7d': 15_000_000, 'harga': price, 'ob_low': ob_low, 'ob_high': ob_high, 'nama': sym}
         if is_early_runner(coin_early):
             if t['pair'] not in seen:
-                tier_early.append(f"🚀 EARLY RUNNER! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | GAS SEBELUM TERBANG!")
+                tier_early.append(f"🚀 EARLY RUNNER! {tag} | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | GAS SEBELUM TERBANG!")
                 seen.add(t['pair'])
             continue
         if gp>=2.5 and 0.3<=naik<=8 and pos<=50 and vol>=15_000_000:
