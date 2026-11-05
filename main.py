@@ -1,6 +1,6 @@
-# === V24 FINAL - V23 ASLI + VOL 6 JAM + TAG FIX 0.5 ===
-# V23 = V22 ASLI + is_early_runner + OB 10% + POS 15-45% LONGGAR
-# V24 = V23 + 👑 BANDAR 6JAM (Vol naik 2.5x dalam 6 jam, harga masih 0-3%)
+# === V25 FINAL - V24 ASLI + SPIKE 5 MENIT ===
+# V24 = V23 + BANDAR 6JAM + TAG FIX 0.5
+# V25 = V24 + ⚡ SPIKE 5 MENIT (Harga naik 4%+ dalam 5 menit, langsung teriak!)
 # 9 EXCHANGE: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
 import requests, os, json, time
 from datetime import datetime
@@ -40,7 +40,6 @@ def save_vol(d):
     try: json.dump(d, open(VOL_FILE, "w"))
     except: pass
 def get_vol_6h(hist_list, now_ts):
-    # Cari data paling deket 6 jam lalu (5-7 jam)
     best = None; best_diff = 999999
     for e in hist_list:
         age = now_ts - e.get("ts", 0)
@@ -49,6 +48,17 @@ def get_vol_6h(hist_list, now_ts):
             if diff < best_diff:
                 best_diff = diff; best = e.get("vol", 0)
     return best
+
+# === PRICE HISTORY 5 MENIT - V25 BARU! ===
+PRICE_FILE = "price_history.json"
+def load_price():
+    if os.path.exists(PRICE_FILE):
+        try: return json.load(open(PRICE_FILE))
+        except: return {}
+    return {}
+def save_price(d):
+    try: json.dump(d, open(PRICE_FILE, "w"))
+    except: pass
 
 def send_tele(msg):
     print(msg)
@@ -168,26 +178,41 @@ def scan():
     now=datetime.now(WIB).strftime("%H:%M WIB")
     now_ts=int(time.time())
     vol_hist=load_vol()
+    price_hist=load_price()
     new_hist={}
+    new_price_hist={}
     tickers=get_tickers()
     gdata, gsrc = get_global()
-    tier_bandar6=[]; tier_early=[]; tier_siap=[]; tier_sepi=[]; tier_ngumpul=[]; tier_autobuy=[]; tier0=[]; tier1_global=[]; tier_trending=[]; tier_volspike=[]
+    tier_spike=[]; tier_bandar6=[]; tier_early=[]; tier_siap=[]; tier_sepi=[]; tier_ngumpul=[]; tier_autobuy=[]; tier0=[]; tier1_global=[]; tier_trending=[]; tier_volspike=[]
     seen=set()
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-")
-        # Simpan history Vol buat 6 jam ke depan
         hist = vol_hist.get(t['pair'], [])
         hist = [e for e in hist if now_ts - e.get("ts",0) < 7*3600]
         vol_6h = get_vol_6h(hist, now_ts)
         vol_ratio = (vol / vol_6h) if vol_6h and vol_6h>0 else 0
         hist.append({"ts": now_ts, "vol": vol})
         new_hist[t['pair']] = hist
+        # === V25: HITUNG SPIKE 5 MENIT ===
+        prev = price_hist.get(t['pair'], {})
+        prev_price = prev.get("price", 0)
+        prev_ts = prev.get("ts", 0)
+        spike_5m = 0
+        if prev_price and prev_price > 0 and 240 <= (now_ts - prev_ts) <= 420:
+            spike_5m = (price - prev_price) / prev_price * 100
+        new_price_hist[t['pair']] = {"ts": now_ts, "price": price}
         if gp<-5: continue
         if naik<0.3: continue
         ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
         ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"; bandar_txt=f"ENTRIAN BANDAR {ent_low:.0f}-{ent_high:.0f}"; global_txt=f"Global {gp:.1f}% [{gname}]"; tag=get_tag(gp, gname)
-        # === V24 BARU: BANDAR 6 JAM - CEK PALING DULUAN! ===
+        # === V25 BARU: SPIKE 5 MENIT - CEK PALING PERTAMA! ===
+        if spike_5m >= 4.0 and vol >= 30_000_000:
+            if t['pair'] not in seen:
+                tier_spike.append(f"⚡ SPIKE 5MENIT! {tag} | {sym} Rp{price:.0f} | +{spike_5m:.1f}% dalam 5mnt (dari Rp{prev_price:.0f}) | Naik24h {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | JANGAN KEJAR PUCUK, TUNGGU RETEST!")
+                seen.add(t['pair'])
+            continue
+        # === V24: BANDAR 6 JAM ===
         if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=30_000_000:
             if t['pair'] not in seen:
                 tier_bandar6.append(f"👑 BANDAR 6JAM! {tag} | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | MASUK SEBELUM TERBANG!")
@@ -240,7 +265,9 @@ def scan():
                 seen.add(t['pair'])
             continue
     save_vol(new_hist)
-    msg=f"=== V24 9EX + BANDAR INDO + VOL 6JAM {now} - {len(tickers)} KOINS ===\n"
+    save_price(new_price_hist)
+    msg=f"=== V25 9EX + SPIKE 5M + BANDAR 6JAM {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ SPIKE 5 MENIT - NGEGAS BARUSAN!:\n"+("\n".join(tier_spike[:8]) if tier_spike else "Belum ada spike 5 menit")+"\n\n"
     msg+=f"👑 BANDAR BARU MASUK 6JAM! - MASUK SEBELUM TERBANG!:\n"+("\n".join(tier_bandar6[:8]) if tier_bandar6 else "Belum ada bandar 6 jam - Vol masih sepi")+"\n\n"
     msg+=f"🚀 EARLY RUNNER - GAS SEBELUM TERBANG!:\n"+("\n".join(tier_early[:8]) if tier_early else "Belum ada early runner")+"\n\n"
     msg+=f"🟢 SIAP-SIAP BAWAH!:\n"+("\n".join(tier_siap[:8]) if tier_siap else "Belum ada siap-siap")+"\n\n"
