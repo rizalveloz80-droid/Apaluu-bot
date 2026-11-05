@@ -1,7 +1,6 @@
-# === V28 SIMPEL - BANDAR INDODAX + BANDAR 6EX + BULLISH GLOBAL ===
-# V28 = V20 SIMPEL + 6EX + BULLISH
-# HAPUS DARI V27: OI, SPIKE 5M, VOL 30M, SIAP, SEPI, NGUMPUL, AUTO BUY, NEW, TRENDING, VOLSPIKE
-# TINGGAL 4 SEKSI DOANG! GAK PUSING!
+# === V28.1 SIMPEL - BANDAR INDODAX + TIER 0 + BANDAR 6EX + BULLISH GLOBAL ===
+# V28.1 = V28 + TIER 0 OI IGNITION
+# TINGGAL 5 SEKSI DOANG! GAK PUSING!
 # 6EX: BINANCE BYBIT GATE KUCOIN BITGET MEXC
 import requests, os, json, time
 from datetime import datetime
@@ -125,7 +124,7 @@ def scan():
     new_hist={}
     tickers=get_tickers()
     gdata, gsrc = get_global()
-    tier_bandar6=[]; tier_bandar_v20=[]; tier_global6=[]; tier_bullish=[]
+    tier_0=[]; tier_bandar6=[]; tier_bandar_v20=[]; tier_global6=[]; tier_bullish=[]
     seen=set()
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
@@ -139,6 +138,12 @@ def scan():
         if naik<0.3: continue
         ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
         ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"; global_txt=f"Global {gp:.1f}% [{gname}]"
+        # === 0. TIER 0 OI IGNITION - VOL MELEDAK, HARGA BELUM JALAN! ===
+        if vol_ratio>=4.0 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=50_000_000:
+            if t['pair'] not in seen:
+                tier_0.append(f"🔥 TIER 0 [OI IGNITION]! | {sym} Rp{price:.0f} | Vol 6J MELEDAK {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | BANDAR LAGI NGUMPULIN! SIAP MELEDAK!")
+                seen.add(t['pair'])
+            continue
         # === 1. BANDAR INDODAX 6JAM - BANDAR LOKAL BARU MASUK! ===
         if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=30_000_000:
             if t['pair'] not in seen:
@@ -164,7 +169,8 @@ def scan():
                 seen.add(t['pair'])
             continue
     save_vol(new_hist)
-    msg=f"=== V28 SIMPEL + 6EX + BULLISH {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V28.1 SIMPEL + TIER 0 + 6EX + BULLISH {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🔥 TIER 0 [OI IGNITION] - VOL MELEDAK, HARGA BELUM JALAN!:\n"+("\n".join(tier_0[:8]) if tier_0 else "Belum ada Tier 0 - Vol masih kalem")+"\n\n"
     msg+=f"👑 BANDAR INDO 6JAM - BANDAR LOKAL BARU MASUK!:\n"+("\n".join(tier_bandar6[:8]) if tier_bandar6 else "Belum ada bandar Indo - Vol masih sepi")+"\n\n"
     msg+=f"👀 BANDAR INDO V20 UDAH JALAN!:\n"+("\n".join(tier_bandar_v20[:8]) if tier_bandar_v20 else "Belum ada bandar V20")+"\n\n"
     msg+=f"🌍 BANDAR 6EX - GLOBAL GAS, INDO BELUM!:\n"+("\n".join(tier_global6[:8]) if tier_global6 else "Belum ada bandar 6EX")+"\n\n"
