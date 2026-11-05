@@ -1,6 +1,6 @@
-# === V25 FINAL - V24 ASLI + SPIKE 5 MENIT ===
-# V24 = V23 + BANDAR 6JAM + TAG FIX 0.5
-# V25 = V24 + ⚡ SPIKE 5 MENIT (Harga naik 4%+ dalam 5 menit, langsung teriak!)
+# === V27 FINAL - V26 ASLI + OI 10-15% + VOL 30 MENIT ===
+# V26 = V25 + BANDAR V20
+# V27 = V26 + OI BINANCE FUTURES + VOL 30M (Saran temen lu!)
 # 9 EXCHANGE: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
 import requests, os, json, time
 from datetime import datetime
@@ -48,6 +48,55 @@ def get_vol_6h(hist_list, now_ts):
             if diff < best_diff:
                 best_diff = diff; best = e.get("vol", 0)
     return best
+
+# === V27 BARU: VOL 30 MENIT ===
+def get_vol_30m(hist_list, now_ts):
+    best = None; best_diff = 999999
+    for e in hist_list:
+        age = now_ts - e.get("ts", 0)
+        if 20*60 <= age <= 45*60:
+            diff = abs(age - 30*60)
+            if diff < best_diff:
+                best_diff = diff; best = e.get("vol", 0)
+    return best
+
+# === V27 BARU: OPEN INTEREST BINANCE FUTURES 24J ===
+# OI = Duit yang masih nyangkut di Futures. Naik 10-15% = Duit baru masuk!
+# Cuma dipanggil buat koin yang udah lolos BANDAR, biar gak lemot!
+_oi_cache = {}
+def get_oi_change(sym):
+    if sym in _oi_cache:
+        return _oi_cache[sym]
+    _oi_cache[sym] = None
+    try:
+        # Ambil history OI 24 jam terakhir, per 5 menit = 288 data
+        url = f"https://fapi.binance.com/futures/data/openInterestHist?symbol={sym}USDT&period=5m&limit=288"
+        r = requests.get(url, timeout=5, headers={"User-Agent":"Mozilla/5.0"}).json()
+        if isinstance(r, list) and len(r) > 10:
+            first = float(r[0].get("sumOpenInterest", 0))
+            last = float(r[-1].get("sumOpenInterest", 0))
+            if first > 0:
+                chg = (last - first) / first * 100
+                _oi_cache[sym] = chg
+                return chg
+    except:
+        pass
+    return None
+
+def get_oi_label(sym):
+    chg = get_oi_change(sym)
+    if chg is None:
+        return "", None
+    if chg >= 15:
+        return f" | 🔥🔥 OI GAS +{chg:.1f}%!", chg
+    elif chg >= 10:
+        return f" | 🔥 OI GAS +{chg:.1f}%", chg
+    elif chg >= 5:
+        return f" | OI +{chg:.1f}%", chg
+    elif chg < 0:
+        return f" | ⚠️ OI {chg:.1f}% (Hati-hati!)", chg
+    else:
+        return f" | OI +{chg:.1f}%", chg
 
 # === PRICE HISTORY 5 MENIT - V25 BARU! ===
 PRICE_FILE = "price_history.json"
@@ -183,7 +232,7 @@ def scan():
     new_price_hist={}
     tickers=get_tickers()
     gdata, gsrc = get_global()
-    tier_spike=[]; tier_bandar6=[]; tier_early=[]; tier_siap=[]; tier_sepi=[]; tier_ngumpul=[]; tier_autobuy=[]; tier0=[]; tier1_global=[]; tier_trending=[]; tier_volspike=[]
+    tier_spike=[]; tier_bandar6=[]; tier_bandar_v20=[]; tier_oi=[]; tier_early=[]; tier_siap=[]; tier_sepi=[]; tier_ngumpul=[]; tier_autobuy=[]; tier0=[]; tier1_global=[]; tier_trending=[]; tier_volspike=[]
     seen=set()
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
@@ -192,6 +241,10 @@ def scan():
         hist = [e for e in hist if now_ts - e.get("ts",0) < 7*3600]
         vol_6h = get_vol_6h(hist, now_ts)
         vol_ratio = (vol / vol_6h) if vol_6h and vol_6h>0 else 0
+        # === V27: VOL 30 MENIT ===
+        vol_30 = get_vol_30m(hist, now_ts)
+        vol_30_ratio = (vol / vol_30) if vol_30 and vol_30>0 else 0
+        vol30_txt = f" Vol30m {vol_30_ratio:.1f}x" if vol_30 else ""
         hist.append({"ts": now_ts, "vol": vol})
         new_hist[t['pair']] = hist
         # === V25: HITUNG SPIKE 5 MENIT ===
@@ -209,66 +262,83 @@ def scan():
         # === V25 BARU: SPIKE 5 MENIT - CEK PALING PERTAMA! ===
         if spike_5m >= 4.0 and vol >= 30_000_000:
             if t['pair'] not in seen:
-                tier_spike.append(f"⚡ SPIKE 5MENIT! {tag} | {sym} Rp{price:.0f} | +{spike_5m:.1f}% dalam 5mnt (dari Rp{prev_price:.0f}) | Naik24h {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | JANGAN KEJAR PUCUK, TUNGGU RETEST!")
+                tier_spike.append(f"⚡ SPIKE 5MENIT! {tag} | {sym} Rp{price:.0f} | +{spike_5m:.1f}% dalam 5mnt (dari Rp{prev_price:.0f}) | Naik24h {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | JANGAN KEJAR PUCUK, TUNGGU RETEST!")
                 seen.add(t['pair'])
             continue
-        # === V24: BANDAR 6 JAM ===
+        # === V24: BANDAR 6 JAM + V27 OI ===
         if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=30_000_000:
             if t['pair'] not in seen:
-                tier_bandar6.append(f"👑 BANDAR 6JAM! {tag} | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | MASUK SEBELUM TERBANG!")
+                oi_txt, oi_chg = get_oi_label(sym)
+                txt = f"👑 BANDAR 6JAM! {tag} | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn){vol30_txt} | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f}{oi_txt} | MASUK SEBELUM TERBANG!"
+                tier_bandar6.append(txt)
+                # Kalo OI GAS 10%+, masukin juga ke tier OI biar paling atas!
+                if oi_chg is not None and oi_chg >= 10:
+                    tier_oi.append(f"🔥 OI GAS! {tag} | {sym} Rp{price:.0f} | OI +{oi_chg:.1f}% 24J + Vol 6J {vol_ratio:.1f}x{vol30_txt} | Harga {naik:.1f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | DUIT BARU MASUK, PALING MEYAKINKAN!")
+                seen.add(t['pair'])
+            continue
+        # === V26: BANDAR V20 - UDAH JALAN 3-15% + V27 OI ===
+        if vol_ratio>=2.5 and 3.0<naik<=15.0 and 15<=pos<=65 and vol>=30_000_000:
+            if t['pair'] not in seen:
+                oi_txt, oi_chg = get_oi_label(sym)
+                txt = f"👀 BANDAR V20 UDAH JALAN! {tag} | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn){vol30_txt} | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f}{oi_txt} | UDAH JALAN, WATCHLIST!"
+                tier_bandar_v20.append(txt)
+                if oi_chg is not None and oi_chg >= 10:
+                    tier_oi.append(f"🔥 OI GAS! {tag} | {sym} Rp{price:.0f} | OI +{oi_chg:.1f}% 24J + Vol 6J {vol_ratio:.1f}x{vol30_txt} | Harga {naik:.1f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | DUIT BARU MASUK, PALING MEYAKINKAN!")
                 seen.add(t['pair'])
             continue
         coin_early = {'naik_24h': naik, 'pos': pos, 'vol': vol, 'vol_avg_7d': 15_000_000, 'harga': price, 'ob_low': ob_low, 'ob_high': ob_high, 'nama': sym}
         if is_early_runner(coin_early):
             if t['pair'] not in seen:
-                tier_early.append(f"🚀 EARLY RUNNER! {tag} | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | GAS SEBELUM TERBANG!")
+                tier_early.append(f"🚀 EARLY RUNNER! {tag} | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | GAS SEBELUM TERBANG!")
                 seen.add(t['pair'])
             continue
         if gp>=2.5 and 0.3<=naik<=8 and pos<=50 and vol>=15_000_000:
             if t['pair'] not in seen:
-                tier_siap.append(f"🟢 SIAP-SIAP BAWAH! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
+                tier_siap.append(f"🟢 SIAP-SIAP BAWAH! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if gp>=3.0 and naik<=4 and pos<=45 and vol>=15_000_000:
             if t['pair'] not in seen:
-                tier_sepi.append(f"🤫 SEPI POLA AWAL! {global_txt} | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {ob_txt} | {bandar_txt}")
+                tier_sepi.append(f"🤫 SEPI POLA AWAL! {global_txt} | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if 1.5<=naik<=6.0 and 6<=pos<=45 and 15_000_000<=vol<=600_000_000 and gp>=1.0:
             if t['pair'] not in seen:
-                tier_ngumpul.append(f"💰 NGUMPUL POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
+                tier_ngumpul.append(f"💰 NGUMPUL POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | ENTRY {entry_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if 2.0<=naik<=8.0 and 6<=pos<=35 and 40_000_000<=vol<=500_000_000 and gp>=2.5:
             if t['pair'] not in seen:
-                tier_autobuy.append(f"⚡ AUTO BUY POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | ENTRY MARKET {price:.0f} | {ob_txt} | {bandar_txt}")
+                tier_autobuy.append(f"⚡ AUTO BUY POLA! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | ENTRY MARKET {price:.0f} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if low<20000 and vol>=40_000_000 and 5<=naik<=40 and pos<=70 and (gp>=1.5 or vol>=500_000_000):
             if t['pair'] not in seen:
-                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | {ob_txt} | {bandar_txt}")
+                tier0.append(f"💥 NEW {naik:.0f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if gp>=2.5 and vol>=40_000_000 and 2<=naik<=40 and pos<=65:
             if t['pair'] not in seen:
-                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% [{gname}] | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | {ob_txt} | {bandar_txt}")
+                tier1_global.append(f"🚀 GLOBAL {gp:.1f}% [{gname}] | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | {ob_txt} | {bandar_txt}")
                 seen.add(t['pair'])
             continue
         if naik>=25 and vol>=40_000_000 and pos<=90 and low<20000:
             if t['pair'] not in seen:
-                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | {ob_txt}")
+                tier_trending.append(f"🔥 TRENDING +{naik:.0f}%! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | {ob_txt}")
                 seen.add(t['pair'])
             continue
         if vol>=800_000_000 and naik>=8 and pos<=85 and low<20000:
             if t['pair'] not in seen:
-                tier_volspike.append(f"⚠️ SUDAH NAIK JANGAN KEJAR! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {global_txt} | -> UDAH TELAT!")
+                tier_volspike.append(f"⚠️ SUDAH NAIK JANGAN KEJAR! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{vol30_txt} | {global_txt} | -> UDAH TELAT!")
                 seen.add(t['pair'])
             continue
     save_vol(new_hist)
     save_price(new_price_hist)
-    msg=f"=== V25 9EX + SPIKE 5M + BANDAR 6JAM {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V27 9EX + SPIKE 5M + BANDAR 6JAM + BANDAR V20 + OI GAS {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🔥 OI GAS 10%+ - DUIT BARU MASUK, PALING MEYAKINKAN!:\n"+("\n".join(tier_oi[:8]) if tier_oi else "Belum ada OI GAS - Belum ada duit baru gede")+"\n\n"
     msg+=f"⚡ SPIKE 5 MENIT - NGEGAS BARUSAN!:\n"+("\n".join(tier_spike[:8]) if tier_spike else "Belum ada spike 5 menit")+"\n\n"
     msg+=f"👑 BANDAR BARU MASUK 6JAM! - MASUK SEBELUM TERBANG!:\n"+("\n".join(tier_bandar6[:8]) if tier_bandar6 else "Belum ada bandar 6 jam - Vol masih sepi")+"\n\n"
+    msg+=f"👀 BANDAR V20 UDAH JALAN 3-15% - WATCHLIST!:\n"+("\n".join(tier_bandar_v20[:8]) if tier_bandar_v20 else "Belum ada bandar V20")+"\n\n"
     msg+=f"🚀 EARLY RUNNER - GAS SEBELUM TERBANG!:\n"+("\n".join(tier_early[:8]) if tier_early else "Belum ada early runner")+"\n\n"
     msg+=f"🟢 SIAP-SIAP BAWAH!:\n"+("\n".join(tier_siap[:8]) if tier_siap else "Belum ada siap-siap")+"\n\n"
     msg+=f"🤫 SEPI POLA AWAL!:\n"+("\n".join(tier_sepi[:8]) if tier_sepi else "Belum ada sepi")+"\n\n"
