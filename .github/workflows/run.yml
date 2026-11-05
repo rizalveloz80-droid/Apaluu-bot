@@ -1,20 +1,17 @@
-name: V24 BANDAR 6JAM
+name: V25 SPIKE 5MENIT + BANDAR 6JAM
 
 on:
-  schedule:
-    - cron: '0 * * * *'  # TIAP 1 JAM, BUKAN TIAP 5 MENIT LAGI!
   workflow_dispatch:
 
-# INI KUNCINYA MIN! BIAR GAK NUMPUK LAGI!
-# Kalo ada run baru, run lama otomatis di-cancel!
+# BIAR GAK NUMPUK! Kalo ada run baru, run lama otomatis di-cancel!
 concurrency:
-  group: bot-v24
+  group: bot-v25
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Kalo lebih dari 10 menit, matiin paksa!
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -28,16 +25,16 @@ jobs:
       - name: Install dependencies
         run: pip install requests pytz
 
-      - name: Run Bot V24 Bandar 6Jam
+      - name: Run Bot V25 Spike 5Menit
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
           TELE_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}
         run: python main.py
 
-      - name: Simpan Vol History 6 Jam
+      - name: Simpan Vol History 6 Jam + Price 5 Menit
         run: |
           git config user.name "bot"
           git config user.email "bot@bot.com"
-          git add vol_history.json || true
-          git commit -m "vol 6jam" || true
+          git add vol_history.json price_history.json
+          git commit -m "vol 6jam + price 5menit" || true
           git push || true
