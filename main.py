@@ -5,7 +5,7 @@ import requests, os, json, time
 from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
-TELE_CHAT = os.getenv("TELE_CHAT_ID")
+TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
 WIB = timezone(timedelta(hours=7))
 
 # === BLACKLIST - TOTAL 102 - JANGAN DIUBAH! ===
@@ -35,12 +35,16 @@ def save_hist(d):
         pass
 
 def send_tele(msg):
+    print(f"DEBUG TELE: TOKEN ada? {bool(TELE_TOKEN)} CHAT ada? {bool(TELE_CHAT)} Panjang msg: {len(msg)}")
     if not TELE_TOKEN or not TELE_CHAT:
-        print("TELE KOSONG")
+        print("TELE KOSONG - CEK SECRETS!")
         return
+    # POTONG BIAR GAK KELEWAT 4096! INI KUNCINYA!
+    msg = msg[:3800]
     try:
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
-                      json={"chat_id": TELE_CHAT, "text": msg, "parse_mode": "HTML"}, timeout=20)
+        r = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": TELE_CHAT, "text": msg}, timeout=20)
+        print(f"TELE STATUS: {r.status_code} {r.text[:200]}")
     except Exception as e:
         print("TELE ERR", e)
 
