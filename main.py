@@ -1,5 +1,5 @@
-# === V28.5 POLA SQUEEZE + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG + BLACKLIST 102 ===
-# CUMA NAMBAH SQUEEZE + BLACKLIST! YANG LAIN TIDAK DIRUBAH!
+# === V28.6 SQUEEZE TANPA HISTORY + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG + BLACKLIST 102 ===
+# PERUBAHAN DARI V28.5: BUANG vol_history.json! SQUEEZE PAKE HIGH/LOW LANGSUNG! BIAR LANGSUNG MUNCUL DI CRON!
 
 import requests, os, json, time
 from datetime import datetime, timezone, timedelta
@@ -20,26 +20,11 @@ BLACKLIST={
     'ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
 }
 
-HIST_FILE = "vol_history.json"
-def load_hist():
-    try:
-        with open(HIST_FILE) as f:
-            return json.load(f)
-    except:
-        return {}
-def save_hist(d):
-    try:
-        with open(HIST_FILE, "w") as f:
-            json.dump(d, f)
-    except:
-        pass
-
 def send_tele(msg):
     print(f"DEBUG TELE: TOKEN ada? {bool(TELE_TOKEN)} CHAT ada? {bool(TELE_CHAT)} Panjang msg: {len(msg)}")
     if not TELE_TOKEN or not TELE_CHAT:
         print("TELE KOSONG - CEK SECRETS!")
         return
-    # POTONG BIAR GAK KELEWAT 4096! INI KUNCINYA!
     msg = msg[:3800]
     try:
         r = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
@@ -55,7 +40,11 @@ def get_indodax():
     except:
         return {}
 
+# CACHE GLOBAL BIAR CEPET - DIPANGGIL 1x AJA, BUKAN 2x KAYAK V28.5!
+_global_cache = {}
 def get_global(symbol):
+    if symbol in _global_cache:
+        return _global_cache[symbol]
     for ex, url in [
         ("BINANCE", f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT"),
         ("KUCOIN", f"https://api.kucoin.com/api/v1/market/stats?symbol={symbol}-USDT"),
@@ -65,18 +54,23 @@ def get_global(symbol):
         try:
             r = requests.get(url, timeout=5).json()
             if ex == "BINANCE" and "priceChangePercent" in r:
-                return float(r["priceChangePercent"]), ex
+                _global_cache[symbol] = (float(r["priceChangePercent"]), ex)
+                return _global_cache[symbol]
             if ex == "KUCOIN" and "data" in r and r["data"]:
-                return 0.0, ex
+                _global_cache[symbol] = (0.0, ex)
+                return _global_cache[symbol]
             if ex == "MEXC" and "priceChangePercent" in r:
-                return float(r["priceChangePercent"]), ex
+                _global_cache[symbol] = (float(r["priceChangePercent"]), ex)
+                return _global_cache[symbol]
             if ex == "BITGET" and "data" in r and r["data"]:
                 d = r["data"][0]
                 if "change24h" in d:
-                    return float(d["change24h"])*100, ex
+                    _global_cache[symbol] = (float(d["change24h"])*100, ex)
+                    return _global_cache[symbol]
         except:
             continue
-    return 0.0, "-"
+    _global_cache[symbol] = (0.0, "-")
+    return _global_cache[symbol]
 
 def main():
     tickers = get_indodax()
@@ -86,8 +80,6 @@ def main():
 
     now = datetime.now(WIB)
     jam = now.strftime("%H:%M WIB")
-    hist = load_hist()
-    ts_now = int(time.time())
 
     squeeze_list = []
     tier0_list = []
@@ -100,7 +92,6 @@ def main():
     for pair, d in tickers.items():
         if not pair.endswith("_idr"):
             continue
-        # === BLACKLIST CHECK - SKIP KOIN BLACKLIST! ===
         if pair in BLACKLIST:
             continue
         coin = pair.replace("_idr", "").upper()
@@ -113,33 +104,27 @@ def main():
                 continue
             naik_from_low = (last - low) / low * 100 if low else 0
             pos = (last - low) / (high - low) * 100 if high != low else 0
+            # Range harian - buat SQUEEZE tanpa history!
+            range_harian = (high - low) / low * 100 if low else 999
+            # MIDDLE versi tanpa history = tengah high-low
+            middle = (high + low) / 2
         except:
             continue
 
-        if coin not in hist:
-            hist[coin] = []
-        hist[coin].append({"t": ts_now, "p": last, "v": vol_idr})
-        hist[coin] = [x for x in hist[coin] if ts_now - x["t"] <= 3*3600]
+        # ===== 1. SQUEEZE DETECTED - BARU V28.6! TANPA HISTORY! =====
+        # Rumus UAI/SAPIEN versi tanpa history:
+        # - Harga masih deket Low (naik 0-5%) + Pos masih bawah (10-35%) = LAGI TIDUR!
+        # - Tapi Vol udah gede (>=100Mn) = BANDAR UDAH MASUK, TINGGAL MELEDAK!
+        # - Range harian masih kecil (<25%) = BELUM MELEDAK, MASIH SEMPIT!
+        if 0 <= naik_from_low <= 5 and 10 <= pos <= 35 and vol_idr >= 100000000 and range_harian < 25:
+            squeeze_list.append(f"💤 SQUEEZE DETECTED! | {coin} Rp{last:,.0f} | TIDUR! Naik {naik_from_low:.1f}% Pos {pos:.0f}% | Vol {vol_idr/1000000:.0f}Mn GEDE! | MIDDLE {middle:,.0f} | JEBOL {high:,.0f} = GAS! | SIAP MELEDAK KAYAK UAI/SAPIEN!")
 
-        # ===== 1. SQUEEZE DETECTED - BARU! POLA UAI / SAPIEN =====
-        if len(hist[coin]) >= 12:
-            prices = [x["p"] for x in hist[coin]]
-            vols = [x["v"] for x in hist[coin]]
-            p_min = min(prices)
-            p_max = max(prices)
-            rng = (p_max - p_min) / p_min * 100 if p_min else 999
-            vol_awal = sum(vols[:6]) / max(1, len(vols[:6]))
-            vol_akhir = sum(vols[-3:]) / max(1, len(vols[-3:]))
-            vol_ratio = vol_akhir / vol_awal if vol_awal > 0 else 1
-            if rng < 12 and vol_ratio >= 1.5 and vol_idr >= 50000000 and naik_from_low < 15 and pos < 60:
-                middle = sum(prices) / len(prices)
-                upper = p_max
-                squeeze_list.append(f"💤 SQUEEZE DETECTED! | {coin} Rp{last:,.0f} | Tidur 3J Range {rng:.1f}% | Vol Naik {vol_ratio:.1f}x | MIDDLE {middle:,.0f} | JEBOL {upper:,.0f} = GAS! | SIAP MELEDAK KAYAK UAI/SAPIEN!")
-            if rng < 12 and vol_ratio >= 3 and naik_from_low >= 3 and naik_from_low < 20:
-                squeeze_list.append(f"🔥 IGNITION! BARU JEBOL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% dari Low | Vol {vol_ratio:.1f}x MELEDAK! | ENTRY SEKARANG! JANGAN TUNGGU 20%!")
+        # IGNITION TANPA HISTORY: Baru jebol tengah, Pos 35-60%, Naik 3-10%
+        if 3 <= naik_from_low <= 10 and 35 <= pos <= 60 and vol_idr >= 100000000:
+            squeeze_list.append(f"🔥 IGNITION! BARU JEBOL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | JEBOL MIDDLE {middle:,.0f}! ENTRY SEKARANG!")
 
         # ===== 2. TIER 0 - TETEP SAMA =====
-        if naik_from_low >= 0 and naik_from_low <= 5 and vol_idr >= 200000000 and pos < 30:
+        if 0 <= naik_from_low <= 5 and vol_idr >= 200000000 and pos < 30:
             tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn")
 
         # ===== 3. PUMP CEPET - TETEP SAMA =====
@@ -149,12 +134,10 @@ def main():
             retest_high = last * 0.92
             pump_cepet_list.append(f"⚡ PUMP CEPET [VOLATIL]! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | JANGAN KEJAR! TUNGGU RETEST {retest_low:,.0f}-{retest_high:,.0f} | TIPE UAI!")
 
-        # ===== 4. BANDAR INDO 3JAM - TETEP SAMA =====
-        if len(hist[coin]) >= 12:
-            v_3j_awal = hist[coin][0]["v"]
-            v_3j_akhir = hist[coin][-1]["v"]
-            if v_3j_awal > 0 and (v_3j_akhir / v_3j_awal) >= 2.5 and 0 <= naik_from_low <= 5:
-                bandar_indo_3j_list.append(f"👑 BANDAR INDO 3JAM! | {coin} Rp{last:,.0f} | Vol 3J Naik {v_3j_akhir/v_3j_awal:.1f}x | Indo {naik_from_low:.1f}%")
+        # ===== 4. BANDAR INDO 3JAM - VERSI TANPA HISTORY (PAKE VOL GEDE + POS BAWAH) =====
+        # Dulu pake vol_history, sekarang pake proxy: Vol >=300Mn + Pos <25% + Naik 0-3% = Bandar baru masuk!
+        if vol_idr >= 300000000 and pos < 25 and 0 <= naik_from_low <= 3:
+            bandar_indo_3j_list.append(f"👑 BANDAR INDO 3JAM! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn GEDE BANGET! | Indo {naik_from_low:.1f}% Pos {pos:.0f}% | BANDAR BARU MASUK!")
 
         # ===== 5. BANDAR INDO V20 - TETEP SAMA =====
 
@@ -175,12 +158,10 @@ def main():
             ob_high = last * 0.92
             bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {entry_low:,.0f}-{entry_high:,.0f} RETEST | OB {ob_low:,.0f}-{ob_high:,.0f} | IKUT GLOBAL!")
 
-    save_hist(hist)
-
     total = len(tickers)
-    msg = f"=== V28.5 POLA SQUEEZE + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG {jam} - {total} KOINS ===\n\n"
+    msg = f"=== V28.6 SQUEEZE TANPA HISTORY + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG {jam} - {total} KOINS ===\n\n"
     msg += "💤 SQUEEZE DETECTED [TIDUR - SIAP MELEDAK KAYAK UAI/SAPIEN]:\n"
-    msg += "\n".join(squeeze_list[:15]) if squeeze_list else "Belum ada Squeeze - Semua koin lagi gerak / belum tidur 3 jam"
+    msg += "\n".join(squeeze_list[:15]) if squeeze_list else "Belum ada Squeeze - Semua koin lagi gerak"
     msg += "\n\n"
     msg += "🔥 TIER 0 [OI IGNITION]:\n"
     msg += "\n".join(tier0_list[:10]) if tier0_list else "Belum ada Tier 0"
