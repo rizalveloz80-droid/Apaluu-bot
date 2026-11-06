@@ -1,4 +1,4 @@
-# === V28.7 SQUEEZE + PUMP JAUH + PECAH 2 PESAN ANTI KEPOTONG + BLACKLIST 102 ===
+# === V28.8 SQUEEZE+IGNITION+TIER0 ADA ENTRY/RETEST/OB + PUMP JAUH + PECAH 2 PESAN + BLACKLIST 102 ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -21,7 +21,6 @@ def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT:
         print("TELE KOSONG")
         return
-    # Potong per pesan max 3800, tapi kita kirim 2 pesan jadi aman
     msg = msg[:3800]
     try:
         r = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
@@ -75,7 +74,6 @@ def main():
         return
     now = datetime.now(WIB)
     jam = now.strftime("%H:%M WIB")
-
     squeeze_list = []
     tier0_list = []
     pump_cepet_list = []
@@ -101,52 +99,55 @@ def main():
             pos = (last - low) / (high - low) * 100 if high != low else 0
             range_harian = (high - low) / low * 100 if low else 999
             middle = (high + low) / 2
+            # ENTRY / RETEST / OB buat SQUEEZE & IGNITION & TIER 0
+            ob_low = low * 1.0
+            ob_high = low * 1.05
         except:
             continue
 
-        # 1. SQUEEZE - V28.6 TETEP
+        # 1. SQUEEZE - V28.8 ADA ENTRY/RETEST/OB!
         if 0 <= naik_from_low <= 5 and 10 <= pos <= 35 and vol_idr >= 100000000 and range_harian < 25:
-            squeeze_list.append(f"💤 SQUEEZE | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | MIDDLE {middle:,.0f} | JEBOL {high:,.0f}=GAS!")
+            squeeze_list.append(f"💤 SQUEEZE | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY JEBOL {high:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
         if 3 <= naik_from_low <= 10 and 35 <= pos <= 60 and vol_idr >= 100000000:
-            squeeze_list.append(f"🔥 IGNITION! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | JEBOL MIDDLE {middle:,.0f}!")
+            squeeze_list.append(f"🔥 IGNITION! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY SEKARANG {last:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
 
-        # 2. TIER 0
+        # 2. TIER 0 - V28.8 ADA ENTRY/RETEST/OB!
         if 0 <= naik_from_low <= 5 and vol_idr >= 200000000 and pos < 30:
-            tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn")
+            squeeze_entry_low = last * 0.99
+            squeeze_entry_high = last * 1.01
+            tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {squeeze_entry_low:,.0f}-{squeeze_entry_high:,.0f} | RETEST {low:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
 
-        # 3. PUMP CEPET
+        # 3. PUMP CEPET - TETEP
         if 10 <= naik_from_low <= 40 and pos >= 60 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
-            pump_cepet_list.append(f"⚡ PUMP CEPET! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | TUNGGU RETEST {last*0.85:,.0f}-{last*0.92:,.0f}")
+            pump_cepet_list.append(f"⚡ PUMP CEPET! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | RETEST {last*0.85:,.0f}-{last*0.92:,.0f} | OB {last*0.82:,.0f}-{last*0.85:,.0f}")
 
-        # 4. BARU! PUMP JAUH - KAYAK UAI +136%! JANGAN KEJAR!
+        # 4. PUMP JAUH
         if naik_from_low >= 40 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
-            pump_jauh_list.append(f"🚨 PUMP JAUH! JANGAN FOMO! | {coin} Rp{last:,.0f} | UDAH NAIK {naik_from_low:.0f}% DARI LOW! Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | TUNGGU RETEST MIDDLE {middle:,.0f} / LOW {low:,.0f} | TIPE UAI!")
+            pump_jauh_list.append(f"🚨 PUMP JAUH! JANGAN FOMO! | {coin} Rp{last:,.0f} | NAIK {naik_from_low:.0f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | RETEST {middle:,.0f} | OB {low:,.0f}-{low*1.05:,.0f}")
 
-        # 5. BANDAR INDO 3JAM - VERSI TANPA HISTORY
+        # 5. BANDAR INDO
         if vol_idr >= 300000000 and pos < 25 and 0 <= naik_from_low <= 3:
-            bandar_indo_3j_list.append(f"👑 BANDAR INDO! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn GEDE! | Indo {naik_from_low:.1f}% Pos {pos:.0f}%")
+            bandar_indo_3j_list.append(f"👑 BANDAR INDO! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn | Indo {naik_from_low:.1f}% Pos {pos:.0f}% | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
 
         # 6. BANDAR GLOBAL
         g_chg, g_ex = get_global(coin)
         if 0.5 <= naik_from_low <= 5 and vol_idr >= 100000000 and pos < 30:
-            bandar_global_list.append(f"🌍 BANDAR GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f}")
+            bandar_global_list.append(f"🌍 BANDAR GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
 
         # 7. BULLISH GLOBAL
         if g_chg >= 8 and naik_from_low >= 5 and vol_idr >= 100000000:
-            bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.92:,.0f}-{last*0.96:,.0f}")
+            bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.92:,.0f}-{last*0.96:,.0f} | OB {last*0.88:,.0f}-{last*0.92:,.0f}")
 
     total = len(tickers)
-    # PESAN 1 - YANG PALING PENTING, BIAR GAK KEPOTONG!
-    msg1 = f"=== V28.7 SQUEEZE + PUMP JAUH {jam} - {total} KOINS (1/2) ===\n\n"
-    msg1 += "💤 SQUEEZE:\n" + ("\n".join(squeeze_list[:10]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
-    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:8]) if tier0_list else "Belum ada Tier 0") + "\n\n"
-    msg1 += "⚡ PUMP CEPET - JANGAN KEJAR!:\n" + ("\n".join(pump_cepet_list[:8]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
-    msg1 += "🚨 PUMP JAUH +40% - JANGAN FOMO! TIPE UAI:\n" + ("\n".join(pump_jauh_list[:8]) if pump_jauh_list else "Belum ada Pump Jauh")
+    msg1 = f"=== V28.8 SQUEEZE+ENTRY/RETEST/OB {jam} - {total} KOINS (1/2) ===\n\n"
+    msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_list[:8]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
+    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:6]) if tier0_list else "Belum ada Tier 0") + "\n\n"
+    msg1 += "⚡ PUMP CEPET:\n" + ("\n".join(pump_cepet_list[:6]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
+    msg1 += "🚨 PUMP JAUH +40%:\n" + ("\n".join(pump_jauh_list[:6]) if pump_jauh_list else "Belum ada Pump Jauh")
 
-    # PESAN 2 - BANDAR
-    msg2 = f"=== V28.7 BANDAR {jam} (2/2) ===\n\n"
+    msg2 = f"=== V28.8 BANDAR {jam} (2/2) ===\n\n"
     msg2 += "👑 BANDAR INDO 3JAM:\n" + ("\n".join(bandar_indo_3j_list[:10]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J") + "\n\n"
     msg2 += "🌍 BANDAR GLOBAL:\n" + ("\n".join(bandar_global_list[:10]) if bandar_global_list else "Belum ada bandar Global") + "\n\n"
     msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_list[:10]) if bullish_global_list else "Belum ada Bullish Global")
