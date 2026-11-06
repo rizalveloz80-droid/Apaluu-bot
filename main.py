@@ -1,7 +1,7 @@
-# === V28.1 SIMPEL - BANDAR INDODAX + TIER 0 + BANDAR 6EX + BULLISH GLOBAL ===
-# V28.1 = V28 + TIER 0 OI IGNITION
-# TINGGAL 5 SEKSI DOANG! GAK PUSING!
-# 6EX: BINANCE BYBIT GATE KUCOIN BITGET MEXC
+# === V28.2 SIMPEL - INDODAX + COINGECKO + COINGLASS (BINANCE OI) + 6EX ===
+# V28.2 = V28.1 + TIER 0 REAL (MCAP + V24H/MCAP + OI BENERAN)
+# SOSOVALUE + PINTU DILUPAIN! LANGSUNG TEMBAK 3 API AJA!
+# TIER 0 REAL = Vol Indo >=50Mn + Mcap <=30Mn + V24H/Mcap >=100% + OI naik >=15%
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -10,7 +10,7 @@ TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
 
-# === BLACKLIST - COPY DARI FILE LU! TOTAL 102 - UDAH BENER! JANGAN DIUBAH! ===
+# === BLACKLIST - TOTAL 102 - JANGAN DIUBAH! ===
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
@@ -32,29 +32,29 @@ def save_vol(d):
     try: json.dump(d, open(VOL_FILE, "w"))
     except: pass
 def get_vol_6h(hist_list, now_ts):
-    best = None; best_diff = 999999
+    best=None; best_diff=999999
     for e in hist_list:
-        age = now_ts - e.get("ts", 0)
-        if 5*3600 <= age <= 7*3600:
-            diff = abs(age - 6*3600)
-            if diff < best_diff:
-                best_diff = diff; best = e.get("vol", 0)
+        age=now_ts-e.get("ts",0)
+        if 5*3600<=age<=7*3600:
+            diff=abs(age-6*3600)
+            if diff<best_diff:
+                best_diff=diff; best=e.get("vol",0)
     return best
 
 def send_tele(msg):
     print(msg)
-    msg = msg[:3800]
+    msg=msg[:3800]
     try:
         requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
     except: pass
 
 def get_tickers():
-    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    r=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
     out=[]
     for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
-        if float(d['vol_idr']) < 15_000_000: continue
+        if float(d['vol_idr'])<15_000_000: continue
         last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
         if last==0 or low==0 or high==low: continue
         pos=((last-low)/(high-low)*100) if high!=low else 0
@@ -62,14 +62,52 @@ def get_tickers():
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
 
-# === GLOBAL 6EX DOANG! BINANCE BYBIT GATE KUCOIN BITGET MEXC ===
+# === COINGECKO - MCAP + V24H GLOBAL - GRATIS! ===
+# Return: { 'STG': {'mcap': 25000000, 'vol24': 45000000, 'turnover': 1.8} }
+def get_coingecko():
+    out={}
+    try:
+        # Ambil 250 koin top by mcap, biar koin mcap kecil tetep ke-cover
+        r=requests.get("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false", timeout=12).json()
+        for x in r:
+            sym=x['symbol'].upper()
+            mcap=x.get('market_cap') or 0
+            vol24=x.get('total_volume') or 0
+            if mcap>0:
+                out[sym]={'mcap':mcap,'vol24':vol24,'turnover':vol24/mcap}
+        # Page 2 buat koin mcap super kecil
+        r2=requests.get("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=2&sparkline=false", timeout=12).json()
+        for x in r2:
+            sym=x['symbol'].upper()
+            mcap=x.get('market_cap') or 0
+            vol24=x.get('total_volume') or 0
+            if mcap>0 and sym not in out:
+                out[sym]={'mcap':mcap,'vol24':vol24,'turnover':vol24/mcap}
+    except: pass
+    return out
+
+# === COINGLASS VIA BINANCE FUTURES OI - GRATIS! SAMA KAYAK COINGLASS! ===
+# Return: { 'STG': 18.5 } = OI naik 18.5% dalam 24 jam
+def get_oi_change(sym):
+    try:
+        # OI history 1h, ambil 25 candle = 24 jam
+        r=requests.get(f"https://fapi.binance.com/futures/data/openInterestHist?symbol={sym}USDT&period=1h&limit=25", timeout=6).json()
+        if isinstance(r, list) and len(r)>=2:
+            first=float(r[0]['sumOpenInterest'])
+            last=float(r[-1]['sumOpenInterest'])
+            if first>0:
+                return (last-first)/first*100
+    except: pass
+    return None
+
+# === GLOBAL 6EX ===
 def get_global():
     g={}; src={}
     def upd(sym, val, name):
         try: val=float(val)
         except: return
         key=sym.lower()+'_idr'
-        if val > g.get(key, -100):
+        if val>g.get(key,-100):
             g[key]=val; src[key]=name
     h={"User-Agent":"Mozilla/5.0"}
     try:
@@ -123,58 +161,70 @@ def scan():
     vol_hist=load_vol()
     new_hist={}
     tickers=get_tickers()
-    gdata, gsrc = get_global()
+    gdata, gsrc=get_global()
+    cg=get_coingecko()  # <-- COINGECKO SEKALI PANGGIL BUAT SEMUA KOIN!
     tier_0=[]; tier_bandar6=[]; tier_bandar_v20=[]; tier_global6=[]; tier_bullish=[]
     seen=set()
+    # Cache OI biar gak spam Binance
+    oi_cache={}
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-")
-        hist = vol_hist.get(t['pair'], [])
-        hist = [e for e in hist if now_ts - e.get("ts",0) < 7*3600]
-        vol_6h = get_vol_6h(hist, now_ts)
-        vol_ratio = (vol / vol_6h) if vol_6h and vol_6h>0 else 0
+        hist=vol_hist.get(t['pair'],[])
+        hist=[e for e in hist if now_ts-e.get("ts",0)<7*3600]
+        vol_6h=get_vol_6h(hist, now_ts)
+        vol_ratio=(vol/vol_6h) if vol_6h and vol_6h>0 else 0
         hist.append({"ts": now_ts, "vol": vol})
-        new_hist[t['pair']] = hist
+        new_hist[t['pair']]=hist
         if naik<0.3: continue
         ob_low,ob_high,ent_low,ent_high,ent_type=detect_ob(t)
         ob_txt=f"OB {ob_low:.0f}-{ob_high:.0f}"; entry_txt=f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"; global_txt=f"Global {gp:.1f}% [{gname}]"
-        # === 0. TIER 0 OI IGNITION - VOL MELEDAK, HARGA BELUM JALAN! ===
-        if vol_ratio>=4.0 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=50_000_000:
-            if t['pair'] not in seen:
-                tier_0.append(f"🔥 TIER 0 [OI IGNITION]! | {sym} Rp{price:.0f} | Vol 6J MELEDAK {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | BANDAR LAGI NGUMPULIN! SIAP MELEDAK!")
-                seen.add(t['pair'])
-            continue
-        # === 1. BANDAR INDODAX 6JAM - BANDAR LOKAL BARU MASUK! ===
+        # === 0. TIER 0 REAL - POLA TEMEN LU PERSIS! COINGECKO + COINGLASS + INDODAX! ===
+        # Cek dulu: Vol Indo >=50Mn + Harga belum jalan + Mcap kecil
+        # Baru panggil OI (biar hemat, cuma panggil OI kalo udah lolos filter awal!)
+        cg_data=cg.get(sym)
+        if cg_data and vol>=50_000_000 and 0<=naik<=3.0 and 15<=pos<=45:
+            mcap=cg_data['mcap']; turnover=cg_data['turnover']; vol24=cg_data['vol24']
+            if mcap<=30_000_000 and turnover>=1.0:  # Mcap <=30Mn + V24H/Mcap >=100%!
+                if sym not in oi_cache:
+                    oi_cache[sym]=get_oi_change(sym)
+                oi_chg=oi_cache[sym]
+                if oi_chg is not None and oi_chg>=15.0:  # OI naik >=15%!
+                    if t['pair'] not in seen:
+                        tier_0.append(f"🔥 TIER 0 REAL [OI IGNITION]! | {sym} Rp{price:.0f} | Mcap ${mcap/1e6:.1f}Mn Vol24 ${vol24/1e6:.1f}Mn Turnover {turnover*100:.0f}% | OI +{oi_chg:.1f}% | Indo Vol {vol/1e6:.0f}Mn Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | {ob_txt} | GILA! BANDAR UDAH MASUK!")
+                        seen.add(t['pair'])
+                    continue
+        # === 1. BANDAR INDODAX 6JAM ===
         if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=30_000_000:
             if t['pair'] not in seen:
                 tier_bandar6.append(f"👑 BANDAR INDO 6JAM! | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | MASUK SEBELUM TERBANG!")
                 seen.add(t['pair'])
             continue
-        # === 2. BANDAR INDODAX V20 - BANDAR LOKAL UDAH JALAN! ===
+        # === 2. BANDAR INDODAX V20 ===
         if vol_ratio>=2.5 and 3.0<naik<=15.0 and 15<=pos<=65 and vol>=30_000_000:
             if t['pair'] not in seen:
                 tier_bandar_v20.append(f"👀 BANDAR INDO V20! | {sym} Rp{price:.0f} | Vol 6J Naik {vol_ratio:.1f}x | Harga {naik:.1f}% Pos {pos:.0f}% | {global_txt} | OB {ob_low:.0f}-{ob_high:.0f} | UDAH JALAN, WATCHLIST!")
                 seen.add(t['pair'])
             continue
-        # === 3. BANDAR 6EX - GLOBAL UDAH NGEGAS, INDO BELUM! ===
+        # === 3. BANDAR 6EX ===
         if gp>=3.0 and 0.3<=naik<=3.0 and pos<=45 and vol>=30_000_000:
             if t['pair'] not in seen:
                 tier_global6.append(f"🌍 BANDAR 6EX! | {sym} Rp{price:.0f} | {global_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | ENTRY {entry_txt} | {ob_txt} | GLOBAL UDAH GAS, INDO BELUM!")
                 seen.add(t['pair'])
             continue
-        # === 4. BULLISH GLOBAL - BULLISH TAPI BUKAN BANDAR LOKAL! ===
+        # === 4. BULLISH GLOBAL ===
         if gp>=5.0 and 3.0<naik<=15.0 and 15<=pos<=65 and vol>=30_000_000 and vol_ratio<2.5:
             if t['pair'] not in seen:
                 tier_bullish.append(f"📈 BULLISH GLOBAL! | {sym} Rp{price:.0f} | {global_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (Vol Indo biasa, bukan bandar lokal!) | ENTRY {entry_txt} | {ob_txt} | IKUT GLOBAL!")
                 seen.add(t['pair'])
             continue
     save_vol(new_hist)
-    msg=f"=== V28.1 SIMPEL + TIER 0 + 6EX + BULLISH {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"🔥 TIER 0 [OI IGNITION] - VOL MELEDAK, HARGA BELUM JALAN!:\n"+("\n".join(tier_0[:8]) if tier_0 else "Belum ada Tier 0 - Vol masih kalem")+"\n\n"
-    msg+=f"👑 BANDAR INDO 6JAM - BANDAR LOKAL BARU MASUK!:\n"+("\n".join(tier_bandar6[:8]) if tier_bandar6 else "Belum ada bandar Indo - Vol masih sepi")+"\n\n"
-    msg+=f"👀 BANDAR INDO V20 UDAH JALAN!:\n"+("\n".join(tier_bandar_v20[:8]) if tier_bandar_v20 else "Belum ada bandar V20")+"\n\n"
-    msg+=f"🌍 BANDAR 6EX - GLOBAL GAS, INDO BELUM!:\n"+("\n".join(tier_global6[:8]) if tier_global6 else "Belum ada bandar 6EX")+"\n\n"
-    msg+=f"📈 BULLISH GLOBAL - BULLISH TAPI BUKAN BANDAR LOKAL!:\n"+("\n".join(tier_bullish[:8]) if tier_bullish else "Belum ada bullish global")+"\n\n"
+    msg=f"=== V28.2 + TIER 0 REAL {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"🔥 TIER 0 REAL [OI IGNITION] - MCAP KECIL + TURNOVER GILA + OI NAIK!:\n"+("\n".join(tier_0[:8]) if tier_0 else "Belum ada Tier 0 Real - Mcap/OI masih kalem")+"\n\n"
+    msg+=f"👑 BANDAR INDO 6JAM:\n"+("\n".join(tier_bandar6[:8]) if tier_bandar6 else "Belum ada bandar Indo")+"\n\n"
+    msg+=f"👀 BANDAR INDO V20:\n"+("\n".join(tier_bandar_v20[:8]) if tier_bandar_v20 else "Belum ada bandar V20")+"\n\n"
+    msg+=f"🌍 BANDAR 6EX:\n"+("\n".join(tier_global6[:8]) if tier_global6 else "Belum ada bandar 6EX")+"\n\n"
+    msg+=f"📈 BULLISH GLOBAL:\n"+("\n".join(tier_bullish[:8]) if tier_bullish else "Belum ada bullish global")+"\n\n"
     return msg
 
 if __name__=="__main__":
