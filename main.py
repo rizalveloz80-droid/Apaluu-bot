@@ -1,14 +1,11 @@
-# === V28.6 SQUEEZE TANPA HISTORY + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG + BLACKLIST 102 ===
-# PERUBAHAN DARI V28.5: BUANG vol_history.json! SQUEEZE PAKE HIGH/LOW LANGSUNG! BIAR LANGSUNG MUNCUL DI CRON!
-
-import requests, os, json, time
+# === V28.7 SQUEEZE + PUMP JAUH + PECAH 2 PESAN ANTI KEPOTONG + BLACKLIST 102 ===
+import requests, os
 from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
 WIB = timezone(timedelta(hours=7))
 
-# === BLACKLIST - TOTAL 102 - JANGAN DIUBAH! ===
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
@@ -21,15 +18,15 @@ BLACKLIST={
 }
 
 def send_tele(msg):
-    print(f"DEBUG TELE: TOKEN ada? {bool(TELE_TOKEN)} CHAT ada? {bool(TELE_CHAT)} Panjang msg: {len(msg)}")
     if not TELE_TOKEN or not TELE_CHAT:
-        print("TELE KOSONG - CEK SECRETS!")
+        print("TELE KOSONG")
         return
+    # Potong per pesan max 3800, tapi kita kirim 2 pesan jadi aman
     msg = msg[:3800]
     try:
         r = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
                       json={"chat_id": TELE_CHAT, "text": msg}, timeout=20)
-        print(f"TELE STATUS: {r.status_code} {r.text[:200]}")
+        print(f"TELE STATUS: {r.status_code}")
     except Exception as e:
         print("TELE ERR", e)
 
@@ -40,7 +37,6 @@ def get_indodax():
     except:
         return {}
 
-# CACHE GLOBAL BIAR CEPET - DIPANGGIL 1x AJA, BUKAN 2x KAYAK V28.5!
 _global_cache = {}
 def get_global(symbol):
     if symbol in _global_cache:
@@ -77,15 +73,14 @@ def main():
     if not tickers:
         print("INDODAX GAGAL")
         return
-
     now = datetime.now(WIB)
     jam = now.strftime("%H:%M WIB")
 
     squeeze_list = []
     tier0_list = []
     pump_cepet_list = []
+    pump_jauh_list = []
     bandar_indo_3j_list = []
-    bandar_indo_v20_list = []
     bandar_global_list = []
     bullish_global_list = []
 
@@ -104,85 +99,62 @@ def main():
                 continue
             naik_from_low = (last - low) / low * 100 if low else 0
             pos = (last - low) / (high - low) * 100 if high != low else 0
-            # Range harian - buat SQUEEZE tanpa history!
             range_harian = (high - low) / low * 100 if low else 999
-            # MIDDLE versi tanpa history = tengah high-low
             middle = (high + low) / 2
         except:
             continue
 
-        # ===== 1. SQUEEZE DETECTED - BARU V28.6! TANPA HISTORY! =====
-        # Rumus UAI/SAPIEN versi tanpa history:
-        # - Harga masih deket Low (naik 0-5%) + Pos masih bawah (10-35%) = LAGI TIDUR!
-        # - Tapi Vol udah gede (>=100Mn) = BANDAR UDAH MASUK, TINGGAL MELEDAK!
-        # - Range harian masih kecil (<25%) = BELUM MELEDAK, MASIH SEMPIT!
+        # 1. SQUEEZE - V28.6 TETEP
         if 0 <= naik_from_low <= 5 and 10 <= pos <= 35 and vol_idr >= 100000000 and range_harian < 25:
-            squeeze_list.append(f"💤 SQUEEZE DETECTED! | {coin} Rp{last:,.0f} | TIDUR! Naik {naik_from_low:.1f}% Pos {pos:.0f}% | Vol {vol_idr/1000000:.0f}Mn GEDE! | MIDDLE {middle:,.0f} | JEBOL {high:,.0f} = GAS! | SIAP MELEDAK KAYAK UAI/SAPIEN!")
-
-        # IGNITION TANPA HISTORY: Baru jebol tengah, Pos 35-60%, Naik 3-10%
+            squeeze_list.append(f"💤 SQUEEZE | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | MIDDLE {middle:,.0f} | JEBOL {high:,.0f}=GAS!")
         if 3 <= naik_from_low <= 10 and 35 <= pos <= 60 and vol_idr >= 100000000:
-            squeeze_list.append(f"🔥 IGNITION! BARU JEBOL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | JEBOL MIDDLE {middle:,.0f}! ENTRY SEKARANG!")
+            squeeze_list.append(f"🔥 IGNITION! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | JEBOL MIDDLE {middle:,.0f}!")
 
-        # ===== 2. TIER 0 - TETEP SAMA =====
+        # 2. TIER 0
         if 0 <= naik_from_low <= 5 and vol_idr >= 200000000 and pos < 30:
             tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn")
 
-        # ===== 3. PUMP CEPET - TETEP SAMA =====
+        # 3. PUMP CEPET
         if 10 <= naik_from_low <= 40 and pos >= 60 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
-            retest_low = last * 0.85
-            retest_high = last * 0.92
-            pump_cepet_list.append(f"⚡ PUMP CEPET [VOLATIL]! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | JANGAN KEJAR! TUNGGU RETEST {retest_low:,.0f}-{retest_high:,.0f} | TIPE UAI!")
+            pump_cepet_list.append(f"⚡ PUMP CEPET! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | TUNGGU RETEST {last*0.85:,.0f}-{last*0.92:,.0f}")
 
-        # ===== 4. BANDAR INDO 3JAM - VERSI TANPA HISTORY (PAKE VOL GEDE + POS BAWAH) =====
-        # Dulu pake vol_history, sekarang pake proxy: Vol >=300Mn + Pos <25% + Naik 0-3% = Bandar baru masuk!
+        # 4. BARU! PUMP JAUH - KAYAK UAI +136%! JANGAN KEJAR!
+        if naik_from_low >= 40 and vol_idr >= 100000000:
+            g_chg, g_ex = get_global(coin)
+            pump_jauh_list.append(f"🚨 PUMP JAUH! JANGAN FOMO! | {coin} Rp{last:,.0f} | UDAH NAIK {naik_from_low:.0f}% DARI LOW! Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | TUNGGU RETEST MIDDLE {middle:,.0f} / LOW {low:,.0f} | TIPE UAI!")
+
+        # 5. BANDAR INDO 3JAM - VERSI TANPA HISTORY
         if vol_idr >= 300000000 and pos < 25 and 0 <= naik_from_low <= 3:
-            bandar_indo_3j_list.append(f"👑 BANDAR INDO 3JAM! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn GEDE BANGET! | Indo {naik_from_low:.1f}% Pos {pos:.0f}% | BANDAR BARU MASUK!")
+            bandar_indo_3j_list.append(f"👑 BANDAR INDO! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn GEDE! | Indo {naik_from_low:.1f}% Pos {pos:.0f}%")
 
-        # ===== 5. BANDAR INDO V20 - TETEP SAMA =====
-
-        # ===== 6. BANDAR GLOBAL [INDODAX LANGSUNG] - TETEP SAMA =====
+        # 6. BANDAR GLOBAL
         g_chg, g_ex = get_global(coin)
         if 0.5 <= naik_from_low <= 5 and vol_idr >= 100000000 and pos < 30:
-            entry_low = last * 0.99
-            entry_high = last * 1.01
-            ob_low = last * 0.97
-            ob_high = last * 1.01
-            bandar_global_list.append(f"🌍 BANDAR GLOBAL [INDODAX LANGSUNG]! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn (GEDE! DARI INDODAX!) | ENTRY {entry_low:,.0f}-{entry_high:,.0f} OB REAL | OB {ob_low:,.0f}-{ob_high:,.0f} | GLOBAL UDAH GAS!")
+            bandar_global_list.append(f"🌍 BANDAR GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f}")
 
-        # ===== 7. BULLISH GLOBAL - TETEP SAMA =====
+        # 7. BULLISH GLOBAL
         if g_chg >= 8 and naik_from_low >= 5 and vol_idr >= 100000000:
-            entry_low = last * 0.92
-            entry_high = last * 0.96
-            ob_low = last * 0.88
-            ob_high = last * 0.92
-            bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {entry_low:,.0f}-{entry_high:,.0f} RETEST | OB {ob_low:,.0f}-{ob_high:,.0f} | IKUT GLOBAL!")
+            bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.92:,.0f}-{last*0.96:,.0f}")
 
     total = len(tickers)
-    msg = f"=== V28.6 SQUEEZE TANPA HISTORY + V28.4 FIX V2 + PUMP CEPET + INDODAX LANGSUNG {jam} - {total} KOINS ===\n\n"
-    msg += "💤 SQUEEZE DETECTED [TIDUR - SIAP MELEDAK KAYAK UAI/SAPIEN]:\n"
-    msg += "\n".join(squeeze_list[:15]) if squeeze_list else "Belum ada Squeeze - Semua koin lagi gerak"
-    msg += "\n\n"
-    msg += "🔥 TIER 0 [OI IGNITION]:\n"
-    msg += "\n".join(tier0_list[:10]) if tier0_list else "Belum ada Tier 0"
-    msg += "\n\n"
-    msg += "⚡ PUMP CEPET [VOLATIL - TIPE UAI] - JANGAN KEJAR, TUNGGU RETEST!:\n"
-    msg += "\n".join(pump_cepet_list[:15]) if pump_cepet_list else "Belum ada Pump Cepet"
-    msg += "\n\n"
-    msg += "👑 BANDAR INDO 3JAM:\n"
-    msg += "\n".join(bandar_indo_3j_list[:10]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J"
-    msg += "\n\n"
-    msg += "👀 BANDAR INDO V20:\n"
-    msg += "\n".join(bandar_indo_v20_list[:10]) if bandar_indo_v20_list else "Belum ada bandar V20"
-    msg += "\n\n"
-    msg += "🌍 BANDAR GLOBAL [INDODAX LANGSUNG + 6EX]:\n"
-    msg += "\n".join(bandar_global_list[:15]) if bandar_global_list else "Belum ada bandar Global"
-    msg += "\n\n"
-    msg += "📈 BULLISH GLOBAL:\n"
-    msg += "\n".join(bullish_global_list[:10]) if bullish_global_list else "Belum ada Bullish Global"
+    # PESAN 1 - YANG PALING PENTING, BIAR GAK KEPOTONG!
+    msg1 = f"=== V28.7 SQUEEZE + PUMP JAUH {jam} - {total} KOINS (1/2) ===\n\n"
+    msg1 += "💤 SQUEEZE:\n" + ("\n".join(squeeze_list[:10]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
+    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:8]) if tier0_list else "Belum ada Tier 0") + "\n\n"
+    msg1 += "⚡ PUMP CEPET - JANGAN KEJAR!:\n" + ("\n".join(pump_cepet_list[:8]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
+    msg1 += "🚨 PUMP JAUH +40% - JANGAN FOMO! TIPE UAI:\n" + ("\n".join(pump_jauh_list[:8]) if pump_jauh_list else "Belum ada Pump Jauh")
 
-    print(msg)
-    send_tele(msg)
+    # PESAN 2 - BANDAR
+    msg2 = f"=== V28.7 BANDAR {jam} (2/2) ===\n\n"
+    msg2 += "👑 BANDAR INDO 3JAM:\n" + ("\n".join(bandar_indo_3j_list[:10]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J") + "\n\n"
+    msg2 += "🌍 BANDAR GLOBAL:\n" + ("\n".join(bandar_global_list[:10]) if bandar_global_list else "Belum ada bandar Global") + "\n\n"
+    msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_list[:10]) if bullish_global_list else "Belum ada Bullish Global")
+
+    print(msg1)
+    print(msg2)
+    send_tele(msg1)
+    send_tele(msg2)
 
 if __name__ == "__main__":
     main()
