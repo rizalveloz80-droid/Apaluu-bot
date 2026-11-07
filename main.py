@@ -1,4 +1,4 @@
-# === V29.6 FIX: V29.5 + NGUMPUL POLA RINGAN (V27) + ROTASI + BLACKLIST 102 ===
+# === V29.7 FIX: V29.6 + GAS AWAL + NGUMPUL LONGGAR + RETEST PUMP JAUH ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -113,6 +113,7 @@ def main():
     jam = now.strftime("%H:%M WIB")
     squeeze_list = []
     tier0_list = []
+    gas_awal_list = []
     pump_cepet_list = []
     pump_jauh_list = []
     bandar_indo_3j_list = []
@@ -144,9 +145,14 @@ def main():
         except:
             continue
 
-        # NGUMPUL POLA RINGAN (V27 BALIK!) - Harga masih di bawah + Vol ngumpul + Range kecil!
-        if 0 <= naik_from_low <= 3 and 10 <= pos <= 30 and range_harian < 12 and vol_idr >= 200000000:
+        # NGUMPUL POLA LONGGAR - Biar MITO kedetek! Vol 120jt, Range 18%!
+        if 0 <= naik_from_low <= 5 and 5 <= pos <= 40 and range_harian < 18 and vol_idr >= 120000000:
             ngumpul_list.append(f"🧲 NGUMPUL POLA! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Range {range_harian:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | RETEST {low:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+
+        # GAS AWAL! - Nangkep DEGEN 17.06! Naik 7%+ Pos udah 50%+!
+        if 7 <= naik_from_low <= 25 and pos >= 50 and vol_idr >= 80000000:
+            g_chg, g_ex = get_global(coin)
+            gas_awal_list.append(f"⚡ GAS AWAL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
 
         is_squeeze = False
         if 0 <= naik_from_low <= 5 and 10 <= pos <= 35 and vol_idr >= 100000000 and range_harian < 25:
@@ -167,7 +173,7 @@ def main():
 
         if naik_from_low >= 40 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
-            pump_jauh_list.append(f"🚨 PUMP JAUH! JANGAN FOMO! | {coin} Rp{last:,.0f} | NAIK {naik_from_low:.0f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | RETEST {middle:,.0f} | OB {low:,.0f}-{low*1.05:,.0f}")
+            pump_jauh_list.append(f"🚨 PUMP JAUH! TUNGGU RETEST! | {coin} Rp{last:,.0f} | NAIK {naik_from_low:.0f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | JANGAN FOMO! TUNGGU RETEST {last*0.82:,.0f}-{last*0.88:,.0f} | OB {low:,.0f}-{low*1.05:,.0f}")
 
         is_bandar_indo = False
         if vol_idr >= 300000000 and pos < 25 and 0 <= naik_from_low <= 3:
@@ -192,15 +198,16 @@ def main():
             rumus_pola_baru_list.append(f"💎 ROTASI SEKTOR MOON | {coin} Rp{last:,.0f} | Vol/Mcap {vol_to_mcap*100:.1f}% | Futures {futures_surge:.2f}x Spot | ENTRY {last*0.98:,.0f}-{last:,.0f} | OB {ob_low:,.0f}")
 
     total = len(tickers)
-    msg1 = f"=== V29.6 FIX NGUMPUL+ROTASI {jam} - {total} KOINS (1/2) ===\n\n"
-    msg1 += "🧲 NGUMPUL POLA (V27 BALIK!):\n" + ("\n".join(ngumpul_list[:5]) if ngumpul_list else "Belum ada Ngumpul - Lagi sepi") + "\n\n"
+    msg1 = f"=== V29.7 FIX GAS AWAL {jam} - {total} KOINS (1/2) ===\n\n"
+    msg1 += "⚡ GAS AWAL! (BARU!):\n" + ("\n".join(gas_awal_list[:5]) if gas_awal_list else "Belum ada Gas Awal") + "\n\n"
+    msg1 += "🧲 NGUMPUL POLA:\n" + ("\n".join(ngumpul_list[:5]) if ngumpul_list else "Belum ada Ngumpul") + "\n\n"
     msg1 += "💎 ROTASI SEKTOR & FUTURES:\n" + ("\n".join(rumus_pola_baru_list[:4]) if rumus_pola_baru_list else "Belum ada Rotasi") + "\n\n"
-    msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_list[:6]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
-    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:5]) if tier0_list else "Belum ada Tier 0")
+    msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_list[:5]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
+    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:4]) if tier0_list else "Belum ada Tier 0")
 
-    msg2 = f"=== V29.6 FIX BANDAR & PUMP {jam} (2/2) ===\n\n"
-    msg2 += "⚡ PUMP CEPET:\n" + ("\n".join(pump_cepet_list[:6]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
-    msg2 += "🚨 PUMP JAUH +40%:\n" + ("\n".join(pump_jauh_list[:6]) if pump_jauh_list else "Belum ada Pump Jauh") + "\n\n"
+    msg2 = f"=== V29.7 FIX BANDAR & PUMP {jam} (2/2) ===\n\n"
+    msg2 += "⚡ PUMP CEPET:\n" + ("\n".join(pump_cepet_list[:5]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
+    msg2 += "🚨 PUMP JAUH +40%:\n" + ("\n".join(pump_jauh_list[:5]) if pump_jauh_list else "Belum ada Pump Jauh") + "\n\n"
     msg2 += "👑 BANDAR INDO 3JAM:\n" + ("\n".join(bandar_indo_3j_list[:5]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J") + "\n\n"
     msg2 += "🌍 BANDAR GLOBAL:\n" + ("\n".join(bandar_global_list[:5]) if bandar_global_list else "Belum ada bandar Global") + "\n\n"
     msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_list[:5]) if bullish_global_list else "Belum ada Bullish Global")
