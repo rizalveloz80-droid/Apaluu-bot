@@ -1,10 +1,13 @@
-# === V28.8 SQUEEZE+IGNITION+TIER0 ADA ENTRY/RETEST/OB + PUMP JAUH + PECAH 2 PESAN + BLACKLIST 102 ===
+# === V29.5 FIX: V28.8 + ROTASI SEKTOR + VOL/MCAP + FUTURES SURGE (FIX URL + ANTI TIMEOUT) + BLACKLIST 102 ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
 WIB = timezone(timedelta(hours=7))
+
+MIN_VOL_TO_MCAP = 0.15
+MIN_FUTURES_SURGE = 1.3
 
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -37,6 +40,7 @@ def get_indodax():
         return {}
 
 _global_cache = {}
+_metrics_cache = {}
 def get_global(symbol):
     if symbol in _global_cache:
         return _global_cache[symbol]
@@ -67,6 +71,39 @@ def get_global(symbol):
     _global_cache[symbol] = (0.0, "-")
     return _global_cache[symbol]
 
+def fetch_free_global_metrics(coin):
+    if coin in _metrics_cache:
+        return _metrics_cache[coin]
+    vol_to_mcap = 0.0
+    futures_surge = 0.0
+    spot_vol = 0.0
+    try:
+        cg_url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols={coin.lower()}"
+        res = requests.get(cg_url, timeout=5).json()
+        if res and isinstance(res, list) and len(res) > 0:
+            mcap = float(res[0].get("market_cap", 0) or 0)
+            spot_vol = float(res[0].get("total_volume", 0) or 0)
+            if mcap > 0:
+                vol_to_mcap = spot_vol / mcap
+    except:
+        pass
+    try:
+        f_res = requests.get(f"https://fapi.binance.com/fapi/v1/ticker/24hr?symbol={coin}USDT", timeout=5).json()
+        if f_res and "quoteVolume" in f_res:
+            futures_vol = float(f_res["quoteVolume"])
+            if spot_vol <= 0:
+                try:
+                    s_res = requests.get(f"https://api.binance.com/api/v3/ticker/24hr?symbol={coin}USDT", timeout=5).json()
+                    spot_vol = float(s_res.get("quoteVolume", 0) or 0)
+                except:
+                    pass
+            if spot_vol > 0:
+                futures_surge = futures_vol / spot_vol
+    except:
+        pass
+    _metrics_cache[coin] = (vol_to_mcap, futures_surge)
+    return _metrics_cache[coin]
+
 def main():
     tickers = get_indodax()
     if not tickers:
@@ -81,6 +118,8 @@ def main():
     bandar_indo_3j_list = []
     bandar_global_list = []
     bullish_global_list = []
+    rumus_pola_baru_list = []
+    kandidat_rotasi = {}
 
     for pair, d in tickers.items():
         if not pair.endswith("_idr"):
@@ -99,58 +138,66 @@ def main():
             pos = (last - low) / (high - low) * 100 if high != low else 0
             range_harian = (high - low) / low * 100 if low else 999
             middle = (high + low) / 2
-            # ENTRY / RETEST / OB buat SQUEEZE & IGNITION & TIER 0
             ob_low = low * 1.0
             ob_high = low * 1.05
         except:
             continue
 
-        # 1. SQUEEZE - V28.8 ADA ENTRY/RETEST/OB!
+        is_squeeze = False
         if 0 <= naik_from_low <= 5 and 10 <= pos <= 35 and vol_idr >= 100000000 and range_harian < 25:
             squeeze_list.append(f"💤 SQUEEZE | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY JEBOL {high:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            is_squeeze = True
         if 3 <= naik_from_low <= 10 and 35 <= pos <= 60 and vol_idr >= 100000000:
             squeeze_list.append(f"🔥 IGNITION! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY SEKARANG {last:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            is_squeeze = True
 
-        # 2. TIER 0 - V28.8 ADA ENTRY/RETEST/OB!
+        is_tier0 = False
         if 0 <= naik_from_low <= 5 and vol_idr >= 200000000 and pos < 30:
-            squeeze_entry_low = last * 0.99
-            squeeze_entry_high = last * 1.01
-            tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {squeeze_entry_low:,.0f}-{squeeze_entry_high:,.0f} | RETEST {low:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            tier0_list.append(f"🔥 TIER 0! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | RETEST {low:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            is_tier0 = True
 
-        # 3. PUMP CEPET - TETEP
         if 10 <= naik_from_low <= 40 and pos >= 60 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
             pump_cepet_list.append(f"⚡ PUMP CEPET! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | RETEST {last*0.85:,.0f}-{last*0.92:,.0f} | OB {last*0.82:,.0f}-{last*0.85:,.0f}")
 
-        # 4. PUMP JAUH
         if naik_from_low >= 40 and vol_idr >= 100000000:
             g_chg, g_ex = get_global(coin)
             pump_jauh_list.append(f"🚨 PUMP JAUH! JANGAN FOMO! | {coin} Rp{last:,.0f} | NAIK {naik_from_low:.0f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_chg:.1f}% [{g_ex}] | RETEST {middle:,.0f} | OB {low:,.0f}-{low*1.05:,.0f}")
 
-        # 5. BANDAR INDO
+        is_bandar_indo = False
         if vol_idr >= 300000000 and pos < 25 and 0 <= naik_from_low <= 3:
             bandar_indo_3j_list.append(f"👑 BANDAR INDO! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn | Indo {naik_from_low:.1f}% Pos {pos:.0f}% | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            is_bandar_indo = True
 
-        # 6. BANDAR GLOBAL
         g_chg, g_ex = get_global(coin)
+        is_bandar_global = False
         if 0.5 <= naik_from_low <= 5 and vol_idr >= 100000000 and pos < 30:
             bandar_global_list.append(f"🌍 BANDAR GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")
+            is_bandar_global = True
 
-        # 7. BULLISH GLOBAL
         if g_chg >= 8 and naik_from_low >= 5 and vol_idr >= 100000000:
             bullish_global_list.append(f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_chg:.1f}% [{g_ex}] | Indo {naik_from_low:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.92:,.0f}-{last*0.96:,.0f} | OB {last*0.88:,.0f}-{last*0.92:,.0f}")
 
-    total = len(tickers)
-    msg1 = f"=== V28.8 SQUEEZE+ENTRY/RETEST/OB {jam} - {total} KOINS (1/2) ===\n\n"
-    msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_list[:8]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
-    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:6]) if tier0_list else "Belum ada Tier 0") + "\n\n"
-    msg1 += "⚡ PUMP CEPET:\n" + ("\n".join(pump_cepet_list[:6]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
-    msg1 += "🚨 PUMP JAUH +40%:\n" + ("\n".join(pump_jauh_list[:6]) if pump_jauh_list else "Belum ada Pump Jauh")
+        if is_squeeze or is_tier0 or is_bandar_indo or is_bandar_global:
+            kandidat_rotasi[coin] = (last, ob_low)
 
-    msg2 = f"=== V28.8 BANDAR {jam} (2/2) ===\n\n"
-    msg2 += "👑 BANDAR INDO 3JAM:\n" + ("\n".join(bandar_indo_3j_list[:10]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J") + "\n\n"
-    msg2 += "🌍 BANDAR GLOBAL:\n" + ("\n".join(bandar_global_list[:10]) if bandar_global_list else "Belum ada bandar Global") + "\n\n"
-    msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_list[:10]) if bullish_global_list else "Belum ada Bullish Global")
+    for coin, (last, ob_low) in kandidat_rotasi.items():
+        vol_to_mcap, futures_surge = fetch_free_global_metrics(coin)
+        if vol_to_mcap >= MIN_VOL_TO_MCAP and futures_surge >= MIN_FUTURES_SURGE:
+            rumus_pola_baru_list.append(f"💎 ROTASI SEKTOR MOON | {coin} Rp{last:,.0f} | Vol/Mcap {vol_to_mcap*100:.1f}% | Futures {futures_surge:.2f}x Spot | ENTRY {last*0.98:,.0f}-{last:,.0f} | OB {ob_low:,.0f}")
+
+    total = len(tickers)
+    msg1 = f"=== V29.5 FIX ROTASI+FUTURES {jam} - {total} KOINS (1/2) ===\n\n"
+    msg1 += "💎 ROTASI SEKTOR & FUTURES:\n" + ("\n".join(rumus_pola_baru_list[:5]) if rumus_pola_baru_list else "Belum ada Rotasi - Vol/Mcap / Futures belum 1.3x") + "\n\n"
+    msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_list[:8]) if squeeze_list else "Belum ada Squeeze") + "\n\n"
+    msg1 += "🔥 TIER 0:\n" + ("\n".join(tier0_list[:6]) if tier0_list else "Belum ada Tier 0")
+
+    msg2 = f"=== V29.5 FIX BANDAR & PUMP {jam} (2/2) ===\n\n"
+    msg2 += "⚡ PUMP CEPET:\n" + ("\n".join(pump_cepet_list[:6]) if pump_cepet_list else "Belum ada Pump Cepet") + "\n\n"
+    msg2 += "🚨 PUMP JAUH +40%:\n" + ("\n".join(pump_jauh_list[:6]) if pump_jauh_list else "Belum ada Pump Jauh") + "\n\n"
+    msg2 += "👑 BANDAR INDO 3JAM:\n" + ("\n".join(bandar_indo_3j_list[:5]) if bandar_indo_3j_list else "Belum ada bandar Indo 3J") + "\n\n"
+    msg2 += "🌍 BANDAR GLOBAL:\n" + ("\n".join(bandar_global_list[:5]) if bandar_global_list else "Belum ada bandar Global") + "\n\n"
+    msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_list[:5]) if bullish_global_list else "Belum ada Bullish Global")
 
     print(msg1)
     print(msg2)
