@@ -1,4 +1,4 @@
-# === V30.8 GANTI LABEL: V30.7 + FIX KOMA GLOBAL DIAM + FIX ONL PUCUK ===
+# === V30.9 FIX LABEL: V30.8 + FIX SKYAI 27% DIBILANG GAS AWAL ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -75,7 +75,7 @@ def get_global(symbol):
     _global_cache[symbol] = (0.0, "-"); return _global_cache[symbol]
 
 def main():
-    print("START V30.8")
+    print("START V30.9")
     tickers = get_indodax()
     if not tickers:
         print("INDODAX GAGAL"); return
@@ -123,7 +123,6 @@ def main():
             middle = (high + low) / 2; ob_low = low * 1.0; ob_high = low * 1.05
         except: continue
 
-        # SIAP PUMP V30.8 - FIX KOMA! Global 0% [KUCOIN] = GLOBAL DIAM! Bukan MASUK SEKARANG!
         if 0 <= naik_from_low <= 5 and pos < 30 and vol_idr >= 500000000:
             g_early, g_early_ex = get_global(coin)
             if g_early_ex == "-":
@@ -135,7 +134,6 @@ def main():
             elif g_early < 0:
                 siap_pump_list.append((vol_idr, f"🚨 SIAP PUMP! LAG GLOBAL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_early:.1f}% [{g_early_ex}] LAG! | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | INDODAX MAU NYUSUL!"))
             elif g_early == 0:
-                # FIX V30.8 KOMA: Global 0 beneran = DIAM! Jangan bilang MASUK SEKARANG!
                 siap_pump_list.append((vol_idr, f"⏸️ GLOBAL DIAM! TUNGGU! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global 0,0% [{g_early_ex}] DIAM! | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | JANGAN FOMO! TUNGGU GLOBAL JALAN!"))
             else:
                 siap_pump_list.append((vol_idr, f"🚨 SIAP PUMP! MASUK SEKARANG SEBELUM JALAN! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_early:.1f}% [{g_early_ex}] | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | PASANG ALARM DI OB!"))
@@ -169,13 +167,12 @@ def main():
 
         is_pump_cepet = False
         g_pump = 0.0; g_pump_ex = "-"
-        # FIX V30.8 ONL: Pos >=85% JANGAN masuk PUMP CEPET! Pindah ke PUCUK!
         if 10 <= naik_from_low <= 40 and 60 <= pos < 85 and vol_idr >= 100000000:
             g_pump, g_pump_ex = get_global(coin); is_pump_cepet = True
             pump_cepet_list.append((vol_idr, f"⚡ PUMP CEPET! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_pump:.1f}% [{g_pump_ex}] | RETEST {last*0.85:,.0f}-{last*0.92:,.0f} | OB {last*0.82:,.0f}-{last*0.85:,.0f}"))
             if is_gas:
                 add_priority(coin, 85, last, vol_idr, g_pump, g_pump_ex, naik_from_low, pos, f"{last*0.97:,.0f}-{last:,.0f}", f"{last*0.85:,.0f}-{last*0.92:,.0f}", f"{last*0.82:,.0f}-{last*0.85:,.0f}", "GAS AWAL + PUMP CEPET")
-        # FIX V30.8: PUCUK BARU! Pos >=85% = PUCUK! Tulisannya JELAS buat yang udah jual vs yang masih pegang!
+
         if 10 <= naik_from_low <= 40 and pos >= 85 and vol_idr >= 100000000:
             g_pucuk, g_pucuk_ex = get_global(coin)
             pump_jauh_list.append((vol_idr, f"🚨 PUCUK! JANGAN BELI BARU! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_pucuk:.1f}% [{g_pucuk_ex}] | UDAH PUCUK! BUAT YANG UDAH JUAL = SKIP! BUAT YANG MASIH PEGANG = HOLD + TRAILING DI {last*0.85:,.0f} | TUNGGU RETEST {last*0.82:,.0f}-{last*0.88:,.0f}"))
@@ -201,8 +198,11 @@ def main():
         g_bull, g_bull_ex = get_global(coin)
         if g_bull >= 8 and naik_from_low >= 5 and vol_idr >= 100000000:
             bullish_global_list.append((vol_idr, f"📈 BULLISH GLOBAL! | {coin} Rp{last:,.0f} | Global {g_bull:.1f}% [{g_bull_ex}] | Indo {naik_from_low:.1f}% Vol {vol_idr/1000000:.0f}Mn | ENTRY {last*0.92:,.0f}-{last*0.96:,.0f} | OB {last*0.88:,.0f}-{last*0.92:,.0f}"))
-            if is_gas or is_pump_cepet:
+            # FIX V30.9: Jangan asal tempel GAS AWAL! Cek beneran is_gas dulu!
+            if is_gas:
                 add_priority(coin, 100, last, vol_idr, g_bull, g_bull_ex, naik_from_low, pos, f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.88:,.0f}-{last*0.92:,.0f}", "BULLISH GLOBAL + GAS AWAL")
+            elif is_pump_cepet:
+                add_priority(coin, 100, last, vol_idr, g_bull, g_bull_ex, naik_from_low, pos, f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.88:,.0f}-{last*0.92:,.0f}", "BULLISH GLOBAL + PUMP CEPET")
             else:
                 add_priority(coin, 90, last, vol_idr, g_bull, g_bull_ex, naik_from_low, pos, f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.92:,.0f}-{last*0.96:,.0f}", f"{last*0.88:,.0f}-{last*0.92:,.0f}", "BULLISH GLOBAL")
 
@@ -219,7 +219,7 @@ def main():
     top_text = "\n".join(top_lines) if top_lines else "Belum ada Priority - Tunggu dulu, jangan masuk!"
 
     total = len(tickers)
-    msg1 = f"=== V30.8 TOP PRIORITY 6EX {jam} - {total} KOINS (1/2) ===\n\n"
+    msg1 = f"=== V30.9 TOP PRIORITY 6EX {jam} - {total} KOINS (1/2) ===\n\n"
     msg1 += "🚨 SIAP PUMP! BACA INI PALING DULUAN! INI YANG MAU JALAN!:\n" + ("\n".join(siap_pump_s[:5]) if siap_pump_s else "Belum ada Siap Pump - Market lagi tidur") + "\n\n"
     msg1 += "💎 DISCOUNT + BOUNCE! PANIC SELL! MODAL KECIL!:\n" + ("\n".join(discount_s[:5]) if discount_s else "Belum ada Discount - Gak ada yang panic sell") + "\n\n"
     msg1 += "❓ UNKNOWN! GLOBAL GAK KEDETEK! JANGAN DIBUANG! KAYAK ONL!:\n" + ("\n".join(unknown_s[:5]) if unknown_s else "Belum ada Unknown - Semua koin ke-detek") + "\n\n"
@@ -229,14 +229,14 @@ def main():
     msg1 += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_s[:5]) if squeeze_s else "Belum ada Squeeze") + "\n\n"
     msg1 += "🔥 TIER 0 (WATCHLIST):\n" + ("\n".join(tier0_s[:4]) if tier0_s else "Belum ada Tier 0")
 
-    msg2 = f"=== V30.8 BANDAR & PUMP {jam} (2/2) ===\n\n"
+    msg2 = f"=== V30.9 BANDAR & PUMP {jam} (2/2) ===\n\n"
     msg2 += "⚡ PUMP CEPET (Pos <85%!):\n" + ("\n".join(pump_cepet_s[:5]) if pump_cepet_s else "Belum ada Pump Cepet") + "\n\n"
     msg2 += "🚨 PUCUK + PUMP JAUH (BACA INI! BUAT YANG UDAH JUAL = SKIP! BUAT YANG MASIH PEGANG = HOLD + TRAILING!):\n" + ("\n".join(pump_jauh_s[:5]) if pump_jauh_s else "Belum ada Pump Jauh") + "\n\n"
     msg2 += "👑 BANDAR INDO:\n" + ("\n".join(bandar_indo_s[:5]) if bandar_indo_s else "Belum ada bandar Indo") + "\n\n"
     msg2 += "🌍 BANDAR GLOBAL (6EX):\n" + ("\n".join(bandar_global_s[:5]) if bandar_global_s else "Belum ada bandar Global") + "\n\n"
     msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_s[:5]) if bullish_global_s else "Belum ada Bullish Global")
 
-    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V30.8")
+    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V30.9")
 
 if __name__ == "__main__":
     main()
