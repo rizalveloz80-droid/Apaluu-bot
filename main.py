@@ -1,4 +1,4 @@
-# === V30.13.3 FIX BUG: V30.13.2 + BANDAR GLOBAL [-] FIX + MSG1 PECAH 3 BIAR TOP 5 GAK KEPOTONG! SPAM 5 MENIT TETEP! ===
+# === V30.13.4 BANDAR DIAM KETAT: V30.13.3 + FIX PIEVERSE/FARTCOIN KETIPU + RAWAN JEBOL CUT | SPAM 5 MENIT TETEP! ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -21,7 +21,6 @@ BLACKLIST={
 def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT:
         print("TELE KOSONG"); return
-    # V30.13.3 FIX: Pecah per 3800 biar gak kepotong di tengah!
     for i in range(0, len(msg), 3800):
         chunk = msg[i:i+3800]
         try:
@@ -82,7 +81,7 @@ def get_global(symbol):
     _global_cache[symbol] = (0.0, "-"); return _global_cache[symbol]
 
 def main():
-    print("START V30.13.3")
+    print("START V30.13.4")
     tickers = get_indodax()
     if not tickers:
         print("INDODAX GAGAL"); return
@@ -96,6 +95,7 @@ def main():
         if pos >= 88: return
         if g_ex == "-": return
         if g_chg < -15: return
+        if alasan == "BANDAR DIAM" and g_chg < -5: return  # V30.13.4: BANDAR DIAM Global harus > -5%! Biar QNT -9,2% gak masuk!
         if last < 5: return
         if -1 <= g_chg <= 1 and score < 90: return
         if last < middle: return
@@ -122,14 +122,20 @@ def main():
             di_atas_middle = last >= middle
         except: continue
 
-        # BANDAR DIAM LONGGAR!
-        if vol_idr >= 300000000 and 0 <= naik_from_low <= 5 and pos < 35 and range_harian < 25 and last >= 5:
+        # === V30.13.4 BARU! BANDAR DIAM KETAT! Global > -5% (dulu -15%) + Range < 15% (dulu 25%) + Jarak CUT > 3% (BARU!) ===
+        if vol_idr >= 300000000 and 0 <= naik_from_low <= 5 and pos < 35 and range_harian < 15 and last >= 5:
             g_diam, g_diam_ex = get_global(coin)
-            if g_diam_ex != "-" and g_diam > -15:
-                bandar_diam_list.append((vol_idr, f"👑 BANDAR DIAM! LAGI NGUMPULIN! SEROK IKUT! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn GEDE! | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Range {range_harian:.1f}% DIAM! | Global {g_diam:.1f}% [{g_diam_ex}] | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | CUT JEBOL {low:,.0f} | BANDAR LAGI SEROK! IKUT!"))
+            jarak_cut = (last - low) / low * 100 if low else 0
+            if jarak_cut < 3:
+                g_txt_diam = f"{g_diam:.1f}% [{g_diam_ex}]" if g_diam_ex != "-" else "??? [CEK MANUAL]"
+                pump_jauh_list.append((vol_idr, f"⚠️ RAWAN JEBOL CUT! NEMPEL CUT! JANGAN ENTRY! | {coin} Rp{last:,.0f} | Jarak ke CUT {low:,.0f} cuma {jarak_cut:.1f}%! | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_txt_diam} | KAYAK FARTCOIN 2.099 -> 2.060 JEBOL! TUNGGU BALIK KE ATAS {low*1.05:,.0f} DULU!"))
+                if coin in priority:
+                    del priority[coin]
+            elif g_diam_ex != "-" and g_diam > -5:
+                bandar_diam_list.append((vol_idr, f"👑 BANDAR DIAM! WATCHLIST! JANGAN BELI LANGSUNG! TUNGGU 2 CANDLE! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Range {range_harian:.1f}% | Global {g_diam:.1f}% [{g_diam_ex}] | Jarak CUT {jarak_cut:.1f}% AMAN! | ENTRY TUNGGU RETEST {low*1.02:,.0f}-{last*0.99:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | CUT JEBOL {low:,.0f} | TUNGGU 2 CANDLE DI ATAS OB BARU MASUK!"))
                 add_priority(coin, 80, last, vol_idr, g_diam, g_diam_ex, naik_from_low, pos, f"{last*0.99:,.0f}-{last*1.01:,.0f}", f"{low:,.0f}", f"{ob_low:,.0f}-{ob_high:,.0f}", "BANDAR DIAM", middle)
 
-        # HABIS PUMP! V30.13.3 FIX: Kalo Global [-] tampil ??? BUKAN 0,0%!
+        # HABIS PUMP! Kalo Global [-] tampil ???!
         if 10 <= naik_from_low <= 30 and 15 <= pos < 40 and vol_idr >= 300000000:
             g_habis, g_habis_ex = get_global(coin)
             g_txt = f"{g_habis:.1f}% [{g_habis_ex}]" if g_habis_ex != "-" else "??? [CEK MANUAL]"
@@ -237,7 +243,6 @@ def main():
         if vol_idr >= 200000000 and pos < 35 and 0 <= naik_from_low <= 5:
             bandar_indo_3j_list.append((vol_idr, f"👑 BANDAR INDO! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn | Indo {naik_from_low:.1f}% Pos {pos:.0f}% | ENTRY {last*0.99:,.0f}-{last*1.01:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}")); is_bandar_indo = True
 
-        # === V30.13.3 FIX! BANDAR GLOBAL! HARUS ex != "-"! BIAR SHOW/MRS/BUILDON 0,0% [-] GAK MASUK LAGI! ===
         is_bandar_global = False; g_chg_bg = 0; g_ex_bg = "-"
         if 0.5 <= naik_from_low <= 5 and vol_idr >= 80000000 and pos < 35:
             g_chg_bg, g_ex_bg = get_global(coin)
@@ -269,15 +274,14 @@ def main():
     top_text = "\n".join(top_lines) if top_lines else "Belum ada Priority - Tunggu dulu, jangan masuk!"
 
     total = len(tickers)
-    # V30.13.3 FIX MSG KEPOTONG! MSG1 PECAH JADI 2! TOP 5 DI MSG1A PALING ATAS! GAK KE-POTONG LAGI!
-    msg1a = f"=== V30.13.3 TOP PRIORITY 6EX {jam} - {total} KOINS (1/3) ===\n\n"
+    msg1a = f"=== V30.13.4 TOP PRIORITY 6EX {jam} - {total} KOINS (1/3) ===\n\n"
     msg1a += "🏆 TOP 5 ENTRY - BACA INI DULUAN! URUTAN 1-5:\n" + top_text + "\n\n"
-    msg1a += "👑 BANDAR DIAM! LAGI NGUMPULIN! SEROK IKUT BANDAR!:\n" + ("\n".join(bandar_diam_s[:3]) if bandar_diam_s else "Belum ada Bandar Diam - Bandar lagi tidur") + "\n\n"
+    msg1a += "👑 BANDAR DIAM! WATCHLIST! JANGAN BELI LANGSUNG!:\n" + ("\n".join(bandar_diam_s[:3]) if bandar_diam_s else "Belum ada Bandar Diam - Bandar lagi tidur") + "\n\n"
     msg1a += "🔥 GAS DINI! MAU NAIK!:\n" + ("\n".join(gas_dini_s[:3]) if gas_dini_s else "Belum ada Gas Dini") + "\n\n"
     msg1a += "🚨 SIAP PUMP!:\n" + ("\n".join(siap_pump_s[:3]) if siap_pump_s else "Belum ada Siap Pump") + "\n\n"
     msg1a += "⚡ GAS AWAL!:\n" + ("\n".join(gas_awal_s[:3]) if gas_awal_s else "Belum ada Gas Awal")
 
-    msg1b = f"=== V30.13.3 LANJUTAN (2/3) {jam} ===\n\n"
+    msg1b = f"=== V30.13.4 LANJUTAN (2/3) {jam} ===\n\n"
     msg1b += "⏸️ TUNGGU TEMBUS MIDDLE! JANGAN ENTRY DULU!:\n" + ("\n".join(tunggu_s[:3]) if tunggu_s else "Belum ada yang nunggu") + "\n\n"
     msg1b += "💎 DISCOUNT + BOUNCE!:\n" + ("\n".join(discount_s[:3]) if discount_s else "Belum ada Discount") + "\n\n"
     msg1b += "❓ UNKNOWN! JANGAN DIBUANG! KAYAK ONL!:\n" + ("\n".join(unknown_s[:3]) if unknown_s else "Belum ada Unknown") + "\n\n"
@@ -285,14 +289,14 @@ def main():
     msg1b += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_s[:3]) if squeeze_s else "Belum ada Squeeze") + "\n\n"
     msg1b += "🔥 TIER 0:\n" + ("\n".join(tier0_s[:3]) if tier0_s else "Belum ada Tier 0")
 
-    msg2 = f"=== V30.13.3 BANDAR & PUMP {jam} (3/3) ===\n\n"
+    msg2 = f"=== V30.13.4 BANDAR & PUMP {jam} (3/3) ===\n\n"
     msg2 += "⚡ PUMP CEPET (Pos <88%!):\n" + ("\n".join(pump_cepet_s[:3]) if pump_cepet_s else "Belum ada Pump Cepet") + "\n\n"
-    msg2 += "🚨 PUCUK + PUMP JAUH + HABIS PUMP + DISTRIBUSI:\n" + ("\n".join(pump_jauh_s[:3]) if pump_jauh_s else "Belum ada Pump Jauh") + "\n\n"
+    msg2 += "🚨 PUCUK + PUMP JAUH + HABIS PUMP + DISTRIBUSI + RAWAN JEBOL CUT:\n" + ("\n".join(pump_jauh_s[:3]) if pump_jauh_s else "Belum ada Pump Jauh") + "\n\n"
     msg2 += "👑 BANDAR INDO:\n" + ("\n".join(bandar_indo_s[:3]) if bandar_indo_s else "Belum ada bandar Indo") + "\n\n"
     msg2 += "🌍 BANDAR GLOBAL (6EX):\n" + ("\n".join(bandar_global_s[:3]) if bandar_global_s else "Belum ada bandar Global") + "\n\n"
     msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_s[:3]) if bullish_global_s else "Belum ada Bullish Global")
 
-    print(msg1a); print(msg1b); print(msg2); send_tele(msg1a); send_tele(msg1b); send_tele(msg2); print("DONE V30.13.3")
+    print(msg1a); print(msg1b); print(msg2); send_tele(msg1a); send_tele(msg1b); send_tele(msg2); print("DONE V30.13.4")
 
 if __name__ == "__main__":
     main()
