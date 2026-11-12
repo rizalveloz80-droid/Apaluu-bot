@@ -1,11 +1,12 @@
-# === V32 FINAL: BALIK KE AKAR V3 + MEMORI 5M + 1 KOIN 1 KEPUTUSAN! ===
+# === V32.1 FINAL FULL: RUMUS KITA V3 + RUMUS TEMEN (SEKTOR + V24H/MCAP + VOL 6H + OI) ===
+# CARA PAKE: Scan per 3 JAM! Bukan 5 menit! Di cron-job.org set 3 jam sekali!
+# Salin utuh! Hapus V32 lama!
 import requests, os, json
 from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
 WIB = timezone(timedelta(hours=7))
-STATE_FILE = "/tmp/v32_state.json"  # Di cron-job, pake /tmp! Jangan dihapus!
 
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -18,6 +19,24 @@ BLACKLIST={
     'ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
     'cjl_idr','mct_idr','anoa_idr',
 }
+
+# === SEKTOR! RUMUS TEMEN: PINTU MASUK DARI SEKTOR! ===
+# Koin yang gak ada di sini = SEKTOR LAIN! Tetep di-scan, tapi gak dapet bonus sektor!
+SEKTOR = {}
+def isi_sektor():
+    ai = ['FET','AGIX','OCEAN','TAO','RENDER','ARKM','WLD','AIH','GRASS','VIRTUAL','AIXBT','GOAT','NIGHT','CST','SKYAI','UAI','MYX','AGI']
+    defi = ['AAVE','UNI','COMP','MKR','SNX','SUSHI','CAKE','1INCH','CRV','LDO','PENDLE','ONDO','ENA','HUMA']
+    meme = ['DOGE','SHIB','PEPE','FLOKI','BONK','WIF','BRETT','POPCAT','MEW','TROLLSOL','MOG','BOME']
+    l1 = ['BTC','ETH','SOL','BNB','ADA','AVAX','SUI','APT','NEAR','FTM','ALGO','HBAR','EGLD','ICP','FLOW','FLR','RVN','ANKR','GTC','NMD']
+    gaming = ['AXS','SLP','MANA','SAND','ENJ','CHZ','IMX','GALA','BEAT']
+    rwa = ['ONDO','OM','POLYX','RIO','C','CST','TMG','NBTNEW','UCJL']
+    for c in ai: SEKTOR[c]='AI'
+    for c in defi: SEKTOR[c]='DEFI'
+    for c in meme: SEKTOR[c]='MEME'
+    for c in l1: SEKTOR[c]='L1'
+    for c in gaming: SEKTOR[c]='GAMING'
+    for c in rwa: SEKTOR[c]='RWA'
+isi_sektor()
 
 def send_tele(msg):
     if not TELE_TOKEN or not TELE_CHAT: return
@@ -34,42 +53,93 @@ def get_indodax():
         except: pass
     return {}
 
+# === GLOBAL! URUTAN BARU! MEXC + GATE DULU! KUCOIN TERAKHIR! BIAR GAK KUCOIN SEMUA! ===
 _global_cache = {}
 def get_global(symbol):
     if symbol in _global_cache: return _global_cache[symbol]
-    for url, fn in [
-        (f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}USDT", lambda j: float(j["result"]["list"][0]["price24hPcnt"])*100 if j.get("result",{}).get("list") else None),
-        (f"https://api.kucoin.com/api/v1/market/stats?symbol={symbol}-USDT", lambda j: float(j["data"]["changeRate"])*100 if j.get("data",{}).get("changeRate") else None),
-        (f"https://api.mexc.com/api/v3/ticker/24hr?symbol={symbol}USDT", lambda j: float(j["priceChangePercent"]) if "priceChangePercent" in j else None),
-        (f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT", lambda j: float(j["priceChangePercent"]) if "priceChangePercent" in j else None),
-        (f"https://api.gateio.ws/api/v4/spot/tickers?currency_pair={symbol}_USDT", lambda j: float(j[0]["change_percentage"]) if isinstance(j,list) and j and "change_percentage" in j[0] else None),
-        (f"https://www.okx.com/api/v5/market/ticker?instId={symbol}-USDT", lambda j: float(j["data"][0]["chgUtc8"])*100 if j.get("data") and "chgUtc8" in j["data"][0] else None),
+    for ex, url, fn in [
+        ("MEXC", f"https://api.mexc.com/api/v3/ticker/24hr?symbol={symbol}USDT", lambda j: (float(j["priceChangePercent"]), float(j.get("quoteVolume",0))) if "priceChangePercent" in j else None),
+        ("GATE", f"https://api.gateio.ws/api/v4/spot/tickers?currency_pair={symbol}_USDT", lambda j: (float(j[0]["change_percentage"]), float(j[0].get("quote_volume",0))) if isinstance(j,list) and j and "change_percentage" in j[0] else None),
+        ("BYBIT", f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}USDT", lambda j: (float(j["result"]["list"][0]["price24hPcnt"])*100, float(j["result"]["list"][0].get("turnover24h",0))) if j.get("result",{}).get("list") else None),
+        ("BINANCE", f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT", lambda j: (float(j["priceChangePercent"]), float(j.get("quoteVolume",0))) if "priceChangePercent" in j else None),
+        ("OKX", f"https://api.okx.com/api/v5/market/ticker?instId={symbol}-USDT", lambda j: (float(j["data"][0]["chgUtc8"])*100, float(j["data"][0].get("volCcy24h",0))) if j.get("data") and "chgUtc8" in j["data"][0] else None),
+        ("KUCOIN", f"https://api.kucoin.com/api/v1/market/stats?symbol={symbol}-USDT", lambda j: (float(j["data"]["changeRate"])*100, float(j["data"].get("volValue",0))) if j.get("data",{}).get("changeRate") else None),
     ]:
         try:
-            r = requests.get(url, timeout=2).json(); v = fn(r)
+            r = requests.get(url, timeout=3).json(); v = fn(r)
             if v is not None:
-                _global_cache[symbol] = (v, url.split("/")[2].upper()); return _global_cache[symbol]
+                _global_cache[symbol] = (v[0], ex, v[1]); return _global_cache[symbol]
         except: pass
-    _global_cache[symbol] = (0.0, "-"); return _global_cache[symbol]
+    _global_cache[symbol] = (0.0, "-", 0.0); return _global_cache[symbol]
 
-def load_state():
+def get_momentum(symbol):
+    # CHG 5M dari Candle! Gak pake /tmp lagi! Jalan di cron-job!
     try:
-        with open(STATE_FILE) as f: return json.load(f)
-    except: return {}
-
-def save_state(s):
-    try:
-        with open(STATE_FILE, "w") as f: json.dump(s, f)
+        r = requests.get(f"https://api.bybit.com/v5/market/kline?category=spot&symbol={symbol}USDT&interval=5&limit=2", timeout=3).json()
+        lst = r.get("result", {}).get("list", [])
+        if len(lst) >= 2:
+            cn=float(lst[0][4]); cp=float(lst[1][4])
+            if cp>0: return (cn-cp)/cp*100
     except: pass
+    try:
+        r = requests.get(f"https://api.mexc.com/api/v3/klines?symbol={symbol}USDT&interval=5m&limit=2", timeout=3).json()
+        if isinstance(r, list) and len(r)>=2:
+            cn=float(r[-1][4]); cp=float(r[-2][4])
+            if cp>0: return (cn-cp)/cp*100
+    except: pass
+    return 0.0
+
+def get_vol_6h(symbol):
+    # RUMUS TEMEN: VOL 6 JAM TERAKHIR vs 6 JAM SEBELUMNYA! Kalo naik +50%, bandar baru masuk!
+    # Pake Bybit Kline 60m, 12 candle = 12 jam! 6 terakhir vs 6 sebelumnya!
+    try:
+        r = requests.get(f"https://api.bybit.com/v5/market/kline?category=spot&symbol={symbol}USDT&interval=60&limit=12", timeout=3).json()
+        lst = r.get("result", {}).get("list", [])
+        if len(lst) >= 12:
+            # Bybit list: baru ke lama! [0]=jam terakhir!
+            vol_baru = sum(float(x[5]) for x in lst[:6])
+            vol_lama = sum(float(x[5]) for x in lst[6:12])
+            if vol_lama>0: return (vol_baru-vol_lama)/vol_lama*100
+    except: pass
+    return 0.0
+
+def get_oi(symbol):
+    # RUMUS TEMEN: OI MENDUKUNG! Harga naik + OI naik = duit baru! Harga naik + OI turun = palsu!
+    # Pake Bybit Open Interest! Kalo gak ada, return 0! Gak maksa!
+    try:
+        r = requests.get(f"https://api.bybit.com/v5/market/open-interest?category=linear&symbol={symbol}USDT&intervalTime=5min&limit=2", timeout=3).json()
+        lst = r.get("result", {}).get("list", [])
+        if len(lst) >= 2:
+            oi_now=float(lst[0]["openInterest"]); oi_prev=float(lst[1]["openInterest"])
+            if oi_prev>0: return (oi_now-oi_prev)/oi_prev*100
+    except: pass
+    return 0.0
+
+_mcap_cache = {}
+def get_mcap_ratio(symbol, v24h_usd, last_usd):
+    # RUMUS TEMEN: V24H / MCAP! Pake CoinGecko! Di-cache biar gak berat!
+    # Kalo gak dapet MCap, return 0! Gak maksa!
+    if symbol in _mcap_cache: return _mcap_cache[symbol]
+    try:
+        # CoinGecko butuh ID! Kita pake markets/search! Cuma 1x per koin!
+        r = requests.get(f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={symbol.lower()}&per_page=1", timeout=4).json()
+        if isinstance(r, list) and r and r[0].get("market_cap",0)>0:
+            mcap = float(r[0]["market_cap"])
+            ratio = (v24h_usd / mcap * 100) if mcap>0 else 0.0
+            _mcap_cache[symbol]=ratio; return ratio
+    except: pass
+    _mcap_cache[symbol]=0.0; return 0.0
 
 def main():
-    print("START V32 FINAL")
+    print("START V32.1 FINAL FULL")
     tickers = get_indodax()
     if not tickers: return
     now = datetime.now(WIB); jam = now.strftime("%H:%M WIB")
-    prev = load_state()
-    new_state = {}
     entry=[]; early=[]; trending=[]; tunggu=[]; rawan=[]; distribusi=[]; watch=[]
+    sektor_score = {}  # Hitung sektor panas dulu! RUMUS TEMEN: PINTU MASUK SEKTOR!
+    # Hitung rata-rata Global per sektor dulu! Biar tau sektor mana yang duit masuk!
+    sektor_total = {}; sektor_count = {}
+    data_semua = []
     for pair, d in tickers.items():
         if not pair.endswith("_idr"): continue
         if pair in BLACKLIST: continue
@@ -77,58 +147,73 @@ def main():
         try:
             last=float(d["last"]); vol=float(d["vol_idr"]); high=float(d["high"]); low=float(d["low"])
             if low==0 or last<2: continue
-            new_state[coin] = {"last": last, "vol": vol}
             naik=(last-low)/low*100; pos=(last-low)/(high-low)*100 if high!=low else 0
             middle=(high+low)/2; rng=(high-low)/low*100 if low else 999
-            # === MEMORI 5M! INI YANG BIKIN GAK KETINGGALAN! ===
-            chg_5m = 0.0; vol_chg = 0.0
-            if coin in prev and prev[coin].get("last",0)>0:
-                chg_5m = (last - prev[coin]["last"])/prev[coin]["last"]*100
-                if prev[coin].get("vol",0)>0:
-                    vol_chg = (vol - prev[coin]["vol"])/prev[coin]["vol"]*100
-            # === VOL/MC PROXY! BALIK KE V3! ===
-            # Vol gede tapi Range kecil = bandar ngumpulin! Vol gede + Range gede = udah lari!
-            vol_mc = vol / (rng+1)  # Makin gede, makin bandar ngumpulin!
-            g,gx=get_global(coin)
-            g_txt=f"{g:.1f}% [{gx}]" if gx!="-" else "??? [KOIN BARU]"
-            jarak=(last-low)/low*100
-            is_rawan=jarak<3 and 0<=naik<=5 and pos<35 and vol>=300000000
-            is_dist=vol>=5000000000 and gx!="-" and g<0 and 8<=naik<=45 and 55<=pos<88
-            is_trending=(30<=naik<=200 and vol>=80000000) or chg_5m>10
-            is_pucuk=pos>=88 and 8<=naik<=45 and vol>=80000000
-            is_tunggu=last<middle
+            g,gx,v24h_usd=get_global(coin)
+            chg_5m=get_momentum(coin)
+            vol_6h=get_vol_6h(coin)
+            oi=get_oi(coin)
+            # MCap ratio! V24H (USD) / MCap! Kalo V24H gede, ratio gede!
+            # Harga USD kira-kira: last / 16500! Biar gak perlu API lagi!
+            last_usd = last/16500 if last>0 else 0
+            mcap_ratio = get_mcap_ratio(coin, v24h_usd, last_usd)
+            sektor = SEKTOR.get(coin, "LAIN")
+            if gx!="-":
+                sektor_total[sektor]=sektor_total.get(sektor,0)+g
+                sektor_count[sektor]=sektor_count.get(sektor,0)+1
+            data_semua.append((coin,last,vol,high,low,naik,pos,middle,rng,g,gx,v24h_usd,chg_5m,vol_6h,oi,mcap_ratio,sektor))
         except: continue
+    # Sektor terpanas = rata-rata Global paling gede!
+    sektor_panas = "-"
+    best_avg = -999
+    for s, tot in sektor_total.items():
+        avg = tot / max(1, sektor_count[s])
+        if avg > best_avg: best_avg=avg; sektor_panas=s
+    print(f"SEKTOR PANAS: {sektor_panas} AVG GLOBAL {best_avg:.1f}%")
+
+    for (coin,last,vol,high,low,naik,pos,middle,rng,g,gx,v24h_usd,chg_5m,vol_6h,oi,mcap_ratio,sektor) in data_semua:
+        g_txt=f"{g:.1f}% [{gx}]" if gx!="-" else "??? [KOIN BARU]"
+        jarak=(last-low)/low*100
+        is_rawan=jarak<3 and 0<=naik<=5 and pos<35 and vol>=300000000
+        is_dist=vol>=5000000000 and gx!="-" and g<0 and 8<=naik<=45 and 55<=pos<88
+        is_trending=(30<=naik<=200 and vol>=80000000) or chg_5m>10
+        is_pucuk=pos>=88 and 8<=naik<=45 and vol>=80000000
+        is_tunggu=last<middle
 
         # URUTAN MATI! 1 KOIN = 1 KEPUTUSAN!
         if is_rawan:
             rawan.append((vol, f"⛔ RAWAN! | {coin} Rp{last:,.0f} | Jarak CUT {low:,.0f} cuma {jarak:.1f}%! | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt}")); continue
         if is_dist:
-            distribusi.append((vol, f"🚨 DISTRIBUSI! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f}")); continue
+            distribusi.append((vol, f"🚨 DISTRIBUSI! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | OI {oi:.1f}% | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f}")); continue
         if is_trending or is_pucuk:
-            trending.append((naik, vol, f"🔥 {'TRENDING' if is_trending else 'PUCUK'}! JANGAN KEJAR! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% CHG 5M {chg_5m:.1f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
+            trending.append((naik, vol, f"🔥 {'TRENDING' if is_trending else 'PUCUK'}! JANGAN KEJAR! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% CHG 5M {chg_5m:.1f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | V24H/MCAP {mcap_ratio:.1f}% | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
         if is_tunggu:
-            tunggu.append((vol, f"⏸️ TUNGGU! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | Harga {last:,.0f} < MIDDLE {middle:,.0f} | TUNGGU TEMBUS {middle:,.0f}")); continue
+            tunggu.append((vol, f"⏸️ TUNGGU! | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | Harga {last:,.0f} < MIDDLE {middle:,.0f}")); continue
 
-        # === EARLY RUNNING! BARU MULAI LARI 5 MENIT LALU! ===
-        # CHG 5M 2-5% + Vol naik + Global >0% = BARU MULAI! INI YANG LU CARI DARI 10 OKTOBER!
-        if 2<=chg_5m<=5 and vol_chg>0 and ((gx!="-" and g>0) or gx=="-") and 2<=naik<=30:
-            early.append((chg_5m, vol, f"⚡ EARLY RUNNING! BARU MULAI! | {coin} Rp{last:,.0f} | CHG 5M +{chg_5m:.1f}%! Vol +{vol_chg:.1f}%! | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | ENTRY {last*0.98:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f} | INI BARU MULAI! BELUM TELAT!")); continue
+        # === EARLY RUNNING! RUMUS TEMEN + KITA! ===
+        # CHG 5M 2-5% + Vol 6H naik + OI naik + V24H/MCap gede = BARU MULAI + DUIT BARU!
+        if 2<=chg_5m<=5 and vol_6h>20 and oi>=0 and 2<=naik<=30 and ((gx!="-" and g>0) or gx=="-"):
+            early.append((chg_5m, vol, f"⚡ EARLY RUNNING! | {coin} Rp{last:,.0f} | CHG 5M +{chg_5m:.1f}%! Vol 6H +{vol_6h:.0f}%! OI {oi:.1f}%! | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | Sektor {sektor} | V24H/MCAP {mcap_ratio:.1f}% | ENTRY {last*0.98:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}")); continue
 
-        # === ENTRY! BALIK KE V3: CUMA 24H > 0%! ===
-        # Global harus >0%! Kalo Global merah, jangan masuk ENTRY! Masuk WATCH!
+        # === ENTRY! GABUNGAN! ===
         score=0; alasan=[]
-        if 2<=naik<=12 and 30<=pos<=65 and vol>=100000000: score+=25; alasan.append("GAS DINI")
-        if 5<=naik<=30 and 40<=pos<85 and vol>=50000000: score+=25; alasan.append("GAS AWAL")
-        if vol_mc>20000000 and 0<=naik<=5 and pos<35: score+=15; alasan.append("BANDAR NGUMPUL (VOL/MC)")
-        if gx!="-" and g>=5: score+=20; alasan.append("BULLISH GLOBAL")
+        if sektor==sektor_panas: score+=20; alasan.append(f"SEKTOR PANAS {sektor}")
+        if 2<=naik<=12 and 30<=pos<=65 and vol>=100000000: score+=20; alasan.append("GAS DINI")
+        if 5<=naik<=30 and 40<=pos<85 and vol>=50000000: score+=20; alasan.append("GAS AWAL")
+        if mcap_ratio>=20: score+=20; alasan.append(f"V24H/MCAP {mcap_ratio:.0f}% GILA!")
+        elif mcap_ratio>=10: score+=10; alasan.append(f"V24H/MCAP {mcap_ratio:.0f}%")
+        if vol_6h>50: score+=15; alasan.append(f"VOL 6H +{vol_6h:.0f}%")
+        elif vol_6h>20: score+=5; alasan.append(f"VOL 6H +{vol_6h:.0f}%")
+        if oi>0: score+=10; alasan.append(f"OI +{oi:.1f}% DUIT BARU!")
+        elif oi<0: score-=10; alasan.append(f"OI {oi:.1f}% DUIT KELUAR!")
+        if gx!="-" and g>=5: score+=10; alasan.append("BULLISH GLOBAL")
         if gx=="-" and vol>=150000000: score+=5; alasan.append("KOIN BARU")
-        is_global_ok = (gx=="-") or (g>0)  # CUMA 24H > 0%! BALIK KE V3!
-        if score>=25 and is_global_ok:
-            entry.append((score, vol, f"✅ ENTRY | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | {' + '.join(alasan)} | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}"))
+        is_global_ok = (gx=="-") or (g>0)
+        if score>=40 and is_global_ok and oi>=0:
+            entry.append((score, vol, f"✅ ENTRY | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | Sektor {sektor} | V24H/MCAP {mcap_ratio:.1f}% Vol 6H +{vol_6h:.0f}% OI {oi:.1f}% | {' + '.join(alasan)} | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}"))
         elif score>0:
-            watch.append((vol, f"👀 WATCH | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | {' + '.join(alasan) if alasan else 'BELUM KUAT'} | GLOBAL MERAH! TUNGGU HIJAU!"))
+            watch.append((vol, f"👀 WATCH | {coin} Rp{last:,.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1000000:.0f}Mn | Global {g_txt} | Sektor {sektor} | V24H/MCAP {mcap_ratio:.1f}% Vol 6H +{vol_6h:.0f}% OI {oi:.1f}% | {' + '.join(alasan) if alasan else 'BELUM KUAT'}"))
 
-    save_state(new_state)
     entry_s=[t for _,_,t in sorted(entry, key=lambda x:(x[0],x[1]), reverse=True)]
     early_s=[t for _,_,t in sorted(early, key=lambda x:x[0], reverse=True)]
     trending_s=[t for _,_,t in sorted(trending, key=lambda x:x[0], reverse=True)]
@@ -137,9 +222,9 @@ def main():
     distribusi_s=[t for _,t in sorted(distribusi, key=lambda x:x[0], reverse=True)]
     watch_s=[t for _,t in sorted(watch, key=lambda x:x[0], reverse=True)]
 
-    msg1=f"=== V32 FINAL {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 15 MENIT! JANGAN PAKE PESAN LAMA!\n\n⚡ EARLY RUNNING! BARU MULAI LARI 5M! INI YANG LU CARI!:\n"+("\n".join(early_s[:3]) if early_s else "Belum ada Early Running - Belum ada yang baru lari")+"\n\n✅ ENTRY (MAX 3! CUMA 24H > 0%!):\n"+("\n".join(entry_s[:3]) if entry_s else "Belum ada Entry - JANGAN MASUK!")+"\n\n🔥 TRENDING / PUCUK - JANGAN KEJAR!:\n"+("\n".join(trending_s[:10]) if trending_s else "Belum ada Trending")
-    msg2=f"=== V32 FINAL {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n"+("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu")+"\n\n⛔ RAWAN!:\n"+("\n".join(rawan_s[:10]) if rawan_s else "Belum ada Rawan")+"\n\n🚨 DISTRIBUSI!:\n"+("\n".join(distribusi_s[:5]) if distribusi_s else "Belum ada Distribusi")+"\n\n👀 WATCH!:\n"+("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
-    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V32 FINAL")
+    msg1=f"=== V32.1 FINAL FULL {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 3 JAM! SCAN PER 3 JAM! JANGAN PAKE PESAN LAMA!\n\n🔥 SEKTOR PANAS HARI INI: {sektor_panas} AVG GLOBAL {best_avg:.1f}%! CARI KOIN SEKTOR INI DULU!\n\n⚡ EARLY RUNNING! BARU MULAI!:\n"+("\n".join(early_s[:3]) if early_s else "Belum ada Early Running")+"\n\n✅ ENTRY (MAX 3! SEKTOR + V24H/MCAP + VOL 6H + OI!):\n"+("\n".join(entry_s[:3]) if entry_s else "Belum ada Entry - JANGAN MASUK!")+"\n\n🔥 TRENDING / PUCUK - JANGAN KEJAR!:\n"+("\n".join(trending_s[:10]) if trending_s else "Belum ada Trending")
+    msg2=f"=== V32.1 FINAL FULL {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n"+("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu")+"\n\n⛔ RAWAN!:\n"+("\n".join(rawan_s[:10]) if rawan_s else "Belum ada Rawan")+"\n\n🚨 DISTRIBUSI!:\n"+("\n".join(distribusi_s[:5]) if distribusi_s else "Belum ada Distribusi")+"\n\n👀 WATCH!:\n"+("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
+    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V32.1 FINAL FULL")
 
 if __name__=="__main__":
     main()
