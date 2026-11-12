@@ -2,6 +2,7 @@
 # V28.4 = V28.3 + TIER PUMP CEPET (BUAT KOIN VOLATIL KAYAK UAI!) + BANDAR GLOBAL VIA INDODAX LANGSUNG!
 # TIER PUMP CEPET = Koin baru meledak 10-25% dalam 15 menit / hari ini! KASIH TAU AWAL, JANGAN SAMPE TAU BESOK!
 # BANDAR GLOBAL VIA INDODAX = Gak ngandelin 6EX doang! Kalo Vol Indodax udah >=100Mn + Naik gede, itu udah bandar global!
+# FIX V28.4.1: phist / hist yang ke-save jadi str gak bikin crash lagi! Udah dikasih isinstance(e, dict)!
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -25,7 +26,11 @@ VOL_FILE = "vol_history.json"
 PRICE_FILE = "price_history.json"
 def load_json(f):
     if os.path.exists(f):
-        try: return json.load(open(f))
+        try:
+            d = json.load(open(f))
+            if isinstance(d, dict):
+                return d
+            return {}
         except: return {}
     return {}
 def save_json(f,d):
@@ -35,6 +40,7 @@ def save_json(f,d):
 def get_vol_3h(hist_list, now_ts):
     best=None; best_diff=999999
     for e in hist_list:
+        if not isinstance(e, dict): continue
         age=now_ts-e.get("ts",0)
         if 2.5*3600<=age<=3.5*3600:
             diff=abs(age-3*3600)
@@ -45,6 +51,7 @@ def get_vol_3h(hist_list, now_ts):
 def get_price_15m(hist_list, now_ts):
     best=None; best_diff=999999
     for e in hist_list:
+        if not isinstance(e, dict): continue
         age=now_ts-e.get("ts",0)
         if 10*60<=age<=20*60:
             diff=abs(age-15*60)
@@ -165,13 +172,15 @@ def scan():
         gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-")
         # Vol history 3 jam
         hist=vol_hist.get(t['pair'],[])
-        hist=[e for e in hist if now_ts-e.get("ts",0)<4*3600]
+        if not isinstance(hist, list): hist=[]
+        hist=[e for e in hist if isinstance(e, dict) and now_ts-e.get("ts",0)<4*3600]
         vol_3h=get_vol_3h(hist, now_ts)
         vol_ratio=(vol/vol_3h) if vol_3h and vol_3h>0 else 0
         hist.append({"ts": now_ts, "vol": vol}); new_vol[t['pair']]=hist
         # Price history 15 menit - BUAT NANGKEP POMPA VERTIKAL KAYAK UAI!
         phist=price_hist.get(t['pair'],[])
-        phist=[e for e in phist if now_ts-e.get("ts",0)<30*60]
+        if not isinstance(phist, list): phist=[]
+        phist=[e for e in phist if isinstance(e, dict) and now_ts-e.get("ts",0)<30*60]
         price_15m=get_price_15m(phist, now_ts)
         pump_15m=((price-price_15m)/price_15m*100) if price_15m and price_15m>0 else 0
         phist.append({"ts": now_ts, "price": price}); new_price[t['pair']]=phist
