@@ -1,4 +1,4 @@
-# === V30.13.5 NO KONTRADIKSI: V30.13.4 + 1 RULE MATI: KALO RAWAN/DISTRIBUSI, DILARANG MASUK TIER ENTRY! ===
+# === V30.13.7 FIX NBT HILANG: TRENDING SORT NAIK + TAMPIL 10 + DEBUG NBT! ===
 import requests, os
 from datetime import datetime, timezone, timedelta
 
@@ -81,14 +81,22 @@ def get_global(symbol):
     _global_cache[symbol] = (0.0, "-"); return _global_cache[symbol]
 
 def main():
-    print("START V30.13.5")
+    print("START V30.13.7")
     tickers = get_indodax()
     if not tickers:
         print("INDODAX GAGAL"); return
+    # === DEBUG! CEK APAKAH NBT ADA DI TICKERS! ===
+    for cek in ["nbt_idr","aaplx_idr","rvn_idr","tmg_idr","ucjl_idr"]:
+        if cek in tickers:
+            d = tickers[cek]
+            print(f"DEBUG: {cek.upper()} ADA! last={d.get('last')} high={d.get('high')} low={d.get('low')} vol_idr={d.get('vol_idr')}")
+        else:
+            print(f"DEBUG: {cek.upper()} GAK ADA DI TICKERS! INDODAX GAK NGASIH DATA!")
     now = datetime.now(WIB); jam = now.strftime("%H:%M WIB")
     squeeze_list=[]; tier0_list=[]; gas_awal_list=[]; gas_dini_list=[]; pump_cepet_list=[]; pump_jauh_list=[]
     bandar_indo_3j_list=[]; bandar_global_list=[]; bullish_global_list=[]; ngumpul_list=[]
-    siap_pump_list=[]; discount_list=[]; unknown_list=[]; tunggu_list=[]; bandar_diam_list=[]
+    siap_pump_list=[]; discount_list=[]; unknown_list=[]; tunggu_list=[]; bandar_diam_list=[]; trending_list=[]
+    # trending_list format baru: (naik_from_low, vol_idr, text) biar bisa sort pake NAIK!
     priority = {}
     def add_priority(coin, score, last, vol_idr, g_chg, g_ex, naik, pos, entry, retest, ob, alasan, middle):
         if naik > 45: return
@@ -121,15 +129,27 @@ def main():
             middle = (high + low) / 2; ob_low = low * 1.0; ob_high = low * 1.05
             di_atas_middle = last >= middle
             jarak_cut = (last - low) / low * 100 if low else 0
-            # === V30.13.5 1 RULE MATI! HITUNG 1X DI ATAS! ===
             g_cek, g_cek_ex = get_global(coin)
             is_rawan = jarak_cut < 3
             is_distribusi = vol_idr >= 5000000000 and g_cek_ex != "-" and g_cek < 0
-            is_blocked = is_rawan or is_distribusi  # KALO BLOCKED, DILARANG MASUK TIER ENTRY MANAPUN!
-            g_txt_cek = f"{g_cek:.1f}% [{g_cek_ex}]" if g_cek_ex != "-" else "??? [CEK MANUAL]"
-        except: continue
+            is_blocked = is_rawan or is_distribusi
+            g_txt_cek = f"{g_cek:.1f}% [{g_cek_ex}]" if g_cek_ex != "-" else "??? [KOIN BARU / GAK ADA GLOBAL]"
+            if coin in ["NBT","AAPLX","RVN","TMG","UCJL"]:
+                print(f"DEBUG LOOP: {coin} last={last} low={low} high={high} naik={naik_from_low:.1f}% pos={pos:.0f}% vol={vol_idr/1000000:.0f}Mn blocked={is_blocked}")
+        except Exception as e:
+            print(f"DEBUG ERR {coin}: {e}")
+            continue
 
-        # RAWAN + DISTRIBUSI DULUAN! MASUK SINI DOANG! GAK BOLEH MASUK ENTRY!
+        # TRENDING RUNNING! Simpen naik-nya biar sort pake NAIK!
+        if 30 <= naik_from_low <= 200 and vol_idr >= 80000000:
+            dump_dari_high = (last - high) / high * 100 if high else 0
+            trending_list.append((naik_from_low, vol_idr, f"🔥 TRENDING RUNNING! JANGAN KEJAR! TUNGGU RETEST! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_txt_cek} | High {high:,.0f} -> Sekarang {last:,.0f} = Dump {dump_dari_high:.1f}% dari High! | TUNGGU RETEST {last*0.82:,.0f}-{last*0.88:,.0f} | CUT JEBOL {low:,.0f} | KAYAK NBT 61.999 -> 28,8 DUMP -53%! JANGAN FOMO DI PUCUK!"))
+            if coin in priority:
+                del priority[coin]
+
+        if g_cek_ex == "-" and not is_blocked and 5 <= naik_from_low <= 45 and pos < 88 and vol_idr >= 150000000 and di_atas_middle and last >= 5:
+            unknown_list.append((vol_idr, f"❓ UNKNOWN! KOIN BARU! GLOBAL GAK ADA! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global ??? [KOIN BARU] | ENTRY TUNGGU RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | CUT {low:,.0f} | MODAL KECIL! CEK CHART MANUAL!"))
+
         if is_rawan and vol_idr >= 300000000 and 0 <= naik_from_low <= 5 and pos < 35:
             pump_jauh_list.append((vol_idr, f"⚠️ RAWAN JEBOL CUT! NEMPEL CUT! JANGAN ENTRY! | {coin} Rp{last:,.0f} | Jarak ke CUT {low:,.0f} cuma {jarak_cut:.1f}%! | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_txt_cek} | KAYAK FARTCOIN 2.099 -> 2.060 JEBOL! TUNGGU BALIK KE ATAS {low*1.05:,.0f} DULU!"))
             if coin in priority:
@@ -139,14 +159,12 @@ def main():
             if coin in priority:
                 del priority[coin]
 
-        # BANDAR DIAM KETAT! SKIP KALO BLOCKED!
         if not is_blocked and vol_idr >= 300000000 and 0 <= naik_from_low <= 5 and pos < 35 and range_harian < 15 and last >= 5:
             g_diam, g_diam_ex = get_global(coin)
             if g_diam_ex != "-" and g_diam > -5:
                 bandar_diam_list.append((vol_idr, f"👑 BANDAR DIAM! WATCHLIST! JANGAN BELI LANGSUNG! TUNGGU 2 CANDLE! | {coin} Rp{last:,.0f} | Vol {vol_idr/1000000:.0f}Mn | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Range {range_harian:.1f}% | Global {g_diam:.1f}% [{g_diam_ex}] | Jarak CUT {jarak_cut:.1f}% AMAN! | ENTRY TUNGGU RETEST {low*1.02:,.0f}-{last*0.99:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f} | CUT JEBOL {low:,.0f} | TUNGGU 2 CANDLE DI ATAS OB BARU MASUK!"))
                 add_priority(coin, 80, last, vol_idr, g_diam, g_diam_ex, naik_from_low, pos, f"{last*0.99:,.0f}-{last*1.01:,.0f}", f"{low:,.0f}", f"{ob_low:,.0f}-{ob_high:,.0f}", "BANDAR DIAM", middle)
 
-        # HABIS PUMP!
         if 10 <= naik_from_low <= 30 and 15 <= pos < 40 and vol_idr >= 300000000:
             g_habis, g_habis_ex = get_global(coin)
             g_txt = f"{g_habis:.1f}% [{g_habis_ex}]" if g_habis_ex != "-" else "??? [CEK MANUAL]"
@@ -154,7 +172,6 @@ def main():
             if coin in priority:
                 del priority[coin]
 
-        # SIAP PUMP! SKIP KALO BLOCKED! BIAR FARTCOIN/QNT/PIEVERSE GAK MUNCUL LAGI!
         if not is_blocked and 0 <= naik_from_low <= 5 and pos < 35 and vol_idr >= 300000000:
             g_early, g_early_ex = get_global(coin)
             if g_early_ex == "-":
@@ -203,7 +220,6 @@ def main():
                 gas_awal_list.append((vol_idr, f"⚡ GAS AWAL! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_gas:.1f}% [{g_gas_ex}] | Harga > MIDDLE {middle:,.0f} ✅ | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | OB {ob_low:,.0f}-{ob_high:,.0f}"))
                 sc = 70 + (10 if g_gas > 0 else 0)
                 add_priority(coin, sc, last, vol_idr, g_gas, g_gas_ex, naik_from_low, pos, f"{last*0.97:,.0f}-{last:,.0f}", f"{middle:,.0f}", f"{ob_low:,.0f}-{ob_high:,.0f}", "GAS AWAL", middle)
-        # TUNGGU tetep jalan walau BLOCKED, biar lu tau dia di bawah Middle!
         if is_blocked and 5 <= naik_from_low <= 30 and 40 <= pos < 85 and vol_idr >= 50000000 and not di_atas_middle:
             g_gas2, g_gas2_ex = get_global(coin)
             tunggu_list.append((vol_idr, f"⏸️ TUNGGU TEMBUS MIDDLE! | {coin} Rp{last:,.0f} | Naik {naik_from_low:.1f}% Pos {pos:.0f}% Vol {vol_idr/1000000:.0f}Mn | Global {g_gas2:.1f}% [{g_gas2_ex}] | Harga < MIDDLE {middle:,.0f} | BLOCKED RAWAN/DISTRIBUSI! JANGAN ENTRY!"))
@@ -274,6 +290,8 @@ def main():
 
     def sort_vol(lst):
         return [t for _, t in sorted(lst, key=lambda x: x[0], reverse=True)]
+    # V30.13.7: TRENDING sort pake NAIK, bukan VOL! Biar NBT No.1!
+    trending_s = [t for _, _, t in sorted(trending_list, key=lambda x: x[0], reverse=True)]
     ngumpul_s = sort_vol(ngumpul_list); gas_awal_s = sort_vol(gas_awal_list); gas_dini_s = sort_vol(gas_dini_list); squeeze_s = sort_vol(squeeze_list); tier0_s = sort_vol(tier0_list)
     pump_cepet_s = sort_vol(pump_cepet_list); pump_jauh_s = sort_vol(pump_jauh_list); bandar_indo_s = sort_vol(bandar_indo_3j_list); bandar_global_s = sort_vol(bandar_global_list); bullish_global_s = sort_vol(bullish_global_list)
     siap_pump_s = sort_vol(siap_pump_list); discount_s = sort_vol(discount_list); unknown_s = sort_vol(unknown_list); tunggu_s = sort_vol(tunggu_list); bandar_diam_s = sort_vol(bandar_diam_list)
@@ -285,29 +303,30 @@ def main():
     top_text = "\n".join(top_lines) if top_lines else "Belum ada Priority - Tunggu dulu, jangan masuk!"
 
     total = len(tickers)
-    msg1a = f"=== V30.13.5 TOP PRIORITY 6EX {jam} - {total} KOINS (1/3) ===\n\n"
+    msg1a = f"=== V30.13.7 TOP PRIORITY 6EX {jam} - {total} KOINS (1/3) ===\n\n"
     msg1a += "🏆 TOP 5 ENTRY - BACA INI DULUAN! URUTAN 1-5:\n" + top_text + "\n\n"
+    msg1a += "🔥 TRENDING RUNNING! JANGAN KEJAR! TUNGGU RETEST! (SORT NAIK!):\n" + ("\n".join(trending_s[:10]) if trending_s else "Belum ada Trending Running") + "\n\n"
     msg1a += "👑 BANDAR DIAM! WATCHLIST! JANGAN BELI LANGSUNG!:\n" + ("\n".join(bandar_diam_s[:3]) if bandar_diam_s else "Belum ada Bandar Diam - Bandar lagi tidur") + "\n\n"
     msg1a += "🔥 GAS DINI! MAU NAIK!:\n" + ("\n".join(gas_dini_s[:3]) if gas_dini_s else "Belum ada Gas Dini") + "\n\n"
     msg1a += "🚨 SIAP PUMP!:\n" + ("\n".join(siap_pump_s[:3]) if siap_pump_s else "Belum ada Siap Pump") + "\n\n"
     msg1a += "⚡ GAS AWAL!:\n" + ("\n".join(gas_awal_s[:3]) if gas_awal_s else "Belum ada Gas Awal")
 
-    msg1b = f"=== V30.13.5 LANJUTAN (2/3) {jam} ===\n\n"
+    msg1b = f"=== V30.13.7 LANJUTAN (2/3) {jam} ===\n\n"
     msg1b += "⏸️ TUNGGU TEMBUS MIDDLE! JANGAN ENTRY DULU!:\n" + ("\n".join(tunggu_s[:3]) if tunggu_s else "Belum ada yang nunggu") + "\n\n"
     msg1b += "💎 DISCOUNT + BOUNCE!:\n" + ("\n".join(discount_s[:3]) if discount_s else "Belum ada Discount") + "\n\n"
-    msg1b += "❓ UNKNOWN! JANGAN DIBUANG! KAYAK ONL!:\n" + ("\n".join(unknown_s[:3]) if unknown_s else "Belum ada Unknown") + "\n\n"
+    msg1b += "❓ UNKNOWN! JANGAN DIBUANG! KAYAK ONL!:\n" + ("\n".join(unknown_s[:5]) if unknown_s else "Belum ada Unknown") + "\n\n"
     msg1b += "🧲 NGUMPUL POLA:\n" + ("\n".join(ngumpul_s[:3]) if ngumpul_s else "Belum ada Ngumpul") + "\n\n"
     msg1b += "💤 SQUEEZE + IGNITION:\n" + ("\n".join(squeeze_s[:3]) if squeeze_s else "Belum ada Squeeze") + "\n\n"
     msg1b += "🔥 TIER 0:\n" + ("\n".join(tier0_s[:3]) if tier0_s else "Belum ada Tier 0")
 
-    msg2 = f"=== V30.13.5 BANDAR & PUMP {jam} (3/3) ===\n\n"
+    msg2 = f"=== V30.13.7 BANDAR & PUMP {jam} (3/3) ===\n\n"
     msg2 += "⚡ PUMP CEPET (Pos <88%!):\n" + ("\n".join(pump_cepet_s[:3]) if pump_cepet_s else "Belum ada Pump Cepet") + "\n\n"
-    msg2 += "🚨 PUCUK + PUMP JAUH + HABIS PUMP + DISTRIBUSI + RAWAN JEBOL CUT:\n" + ("\n".join(pump_jauh_s[:3]) if pump_jauh_s else "Belum ada Pump Jauh") + "\n\n"
+    msg2 += "🚨 PUCUK + PUMP JAUH + HABIS PUMP + DISTRIBUSI + RAWAN JEBOL CUT (TAMPIL 10!):\n" + ("\n".join(pump_jauh_s[:10]) if pump_jauh_s else "Belum ada Pump Jauh") + "\n\n"
     msg2 += "👑 BANDAR INDO:\n" + ("\n".join(bandar_indo_s[:3]) if bandar_indo_s else "Belum ada bandar Indo") + "\n\n"
     msg2 += "🌍 BANDAR GLOBAL (6EX):\n" + ("\n".join(bandar_global_s[:3]) if bandar_global_s else "Belum ada bandar Global") + "\n\n"
     msg2 += "📈 BULLISH GLOBAL:\n" + ("\n".join(bullish_global_s[:3]) if bullish_global_s else "Belum ada Bullish Global")
 
-    print(msg1a); print(msg1b); print(msg2); send_tele(msg1a); send_tele(msg1b); send_tele(msg2); print("DONE V30.13.5")
+    print(msg1a); print(msg1b); print(msg2); send_tele(msg1a); send_tele(msg1b); send_tele(msg2); print("DONE V30.13.7")
 
 if __name__ == "__main__":
     main()
