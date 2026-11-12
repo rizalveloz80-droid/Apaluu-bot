@@ -1,13 +1,13 @@
-# === V33.7 BANDAR INDO FULL - FIX TRADES SEMUA FORMAT + TUNGGU/RAWAN BERSIH! ===
-# CRON: 5 MENIT!
-# BLACKLIST: TETEP 105! SEKTOR: DI-HAPUS TOTAL!
+# === V33.9 = V30 BALIK LAGI! AMAN! ===
+# PRINSIP V30: TICKERS 1x DOANG! GAK ADA TRADES 120x!
+# DEPTH + GLOBAL CUMA BUAT ENTRY! MAX 5 KOIN!
+# BLACKLIST 105! SEKTOR DI-HAPUS TOTAL!
 import requests, os, time
 from datetime import datetime, timezone, timedelta
 
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
 WIB = timezone(timedelta(hours=7))
-NOW_TS = lambda: int(datetime.now(WIB).timestamp())
 
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -22,15 +22,12 @@ BLACKLIST={
 }
 
 def send_tele(msg):
-    if not TELE_TOKEN or not TELE_CHAT:
-        print("TELE KOSONG!"); return
+    if not TELE_TOKEN or not TELE_CHAT: return
     for i in range(0, len(msg), 3800):
-        try:
-            r = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT, "text": msg[i:i+3800]}, timeout=20)
-            print(f"TELE {r.status_code}")
+        try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT, "text": msg[i:i+3800]}, timeout=20)
         except Exception as e: print("TELE ERR", e)
 
-def get_indodax():
+def get_tickers():
     for _ in range(3):
         try:
             r = requests.get("https://indodax.com/api/tickers", timeout=20).json()
@@ -45,217 +42,101 @@ def get_unknown_tag(coin):
     try:
         r = requests.get(f"https://api.mexc.com/api/v3/ticker/24hr?symbol={coin}USDT", timeout=2).json()
         if isinstance(r, dict) and "priceChangePercent" in r:
-            g = float(r["priceChangePercent"])
-            res = (False, f"Global {g:.1f}% [MEXC]")
+            res = (False, f"Global {float(r['priceChangePercent']):.1f}% [MEXC]")
             _unknown_cache[coin] = res; return res
     except: pass
     try:
         r = requests.get(f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={coin}USDT", timeout=2).json()
         lst = r.get("result", {}).get("list", [])
         if lst and "price24hPcnt" in lst[0]:
-            g = float(lst[0]["price24hPcnt"]) * 100
-            res = (False, f"Global {g:.1f}% [BYBIT]")
+            res = (False, f"Global {float(lst[0]['price24hPcnt'])*100:.1f}% [BYBIT]")
             _unknown_cache[coin] = res; return res
     except: pass
     res = (True, "❓ UNKNOWN! GLOBAL GAK KEDETEK! [CEK MANUAL] | KAYAK ONL! JANGAN DIBUANG!")
     _unknown_cache[coin] = res; return res
 
-def _norm_ts(v):
+def get_depth(pair):
+    # CUMA DIPANGGIL BUAT ENTRY! MAX 5x! KAYAK V30!
     try:
-        f = float(v)
-        if f > 100000000000: return int(f / 1000)  # mili-detik
-        if f > 10000000000: return int(f / 1000)  # micro? jaga-jaga
-        return int(f)
-    except: return 0
-
-def get_trades_stats(pair):
-    # V33.7: BISA BACA SEMUA FORMAT INDODAX!
-    # - {"trades": [...]} / {"data": [...]} / [...] 
-    # - [{"tid":.., "price":.., "amount":.., "type":"buy", "date":..}, ...]
-    # - [[ts, price, amount, "buy"], ...]
-    try:
-        r = requests.get(f"https://indodax.com/api/{pair}/trades", timeout=5).json()
-        lst = None
-        if isinstance(r, dict):
-            lst = r.get("trades") or r.get("data") or r.get("result") or []
-        elif isinstance(r, list):
-            lst = r
-        else:
-            return (0.0, 0.0, 1.0, 50.0, 0)
-        if not lst or len(lst) < 5: return (0.0, 0.0, 1.0, 50.0, 0)
-        rows = []
-        for t in lst:
-            try:
-                if isinstance(t, dict):
-                    ts = _norm_ts(t.get("date") or t.get("timestamp") or t.get("time") or t.get("tid") or 0)
-                    price = float(t.get("price") or t.get("p") or 0)
-                    amt = float(t.get("amount") or t.get("qty") or t.get("volume") or t.get("a") or 0)
-                    typ = str(t.get("type") or t.get("side") or t.get("taker_side") or "").lower()
-                elif isinstance(t, (list, tuple)) and len(t) >= 3:
-                    ts = _norm_ts(t[0]); price = float(t[1]); amt = float(t[2])
-                    typ = str(t[3]).lower() if len(t) > 3 else ""
-                else: continue
-                if ts == 0 or price <= 0 or amt <= 0: continue
-                rows.append((ts, price, amt, typ))
-            except: continue
-        if not rows: return (0.0, 0.0, 1.0, 50.0, 0)
-        # Sort terbaru dulu! Biar break nya bener!
-        rows = sorted(rows, key=lambda x: x[0], reverse=True)
-        now = NOW_TS()
-        vol_5m = 0.0; vol_1h = 0.0; buy_5m = 0.0; sell_5m = 0.0
-        price_now = 0.0; price_5m_ago = 0.0; cnt_5m = 0
-        for (ts, price, amt, typ) in rows:
-            val = price * amt
-            if now - ts <= 3600:
-                vol_1h += val
-                if now - ts <= 300:
-                    vol_5m += val; cnt_5m += 1
-                    if typ == "buy": buy_5m += val
-                    elif typ == "sell": sell_5m += val
-                    if price_now == 0: price_now = price
-                    price_5m_ago = price
-            else:
-                break
-        chg_5m = 0.0
-        if price_5m_ago > 0 and price_now > 0:
-            chg_5m = (price_now - price_5m_ago) / price_5m_ago * 100
-        avg_5m = vol_1h / 12 if vol_1h > 0 else 0
-        vol_naik = vol_5m / avg_5m if avg_5m > 0 else 1.0
-        tot = buy_5m + sell_5m
-        buy_pct = buy_5m / tot * 100 if tot > 0 else 50.0
-        return (chg_5m, vol_5m, vol_naik, buy_pct, cnt_5m)
-    except Exception as e:
-        print(f"TRADES ERR {pair} {e}")
-        return (0.0, 0.0, 1.0, 50.0, 0)
-
-def get_depth_anti_spoof(pair):
-    try:
-        r1 = requests.get(f"https://indodax.com/api/{pair}/depth", timeout=5).json()
-        # Depth Indodax bisa {"buy": [...], "sell": [...]} atau {"bids":..., "asks":...}
-        b1 = (r1.get("buy") or r1.get("bids") or [])[:10]; s1 = (r1.get("sell") or r1.get("asks") or [])[:10]
-        time.sleep(2)
-        r2 = requests.get(f"https://indodax.com/api/{pair}/depth", timeout=5).json()
-        b2 = (r2.get("buy") or r2.get("bids") or [])[:10]; s2 = (r2.get("sell") or r2.get("asks") or [])[:10]
-        if not b1 or not s1: return ("OB KOSONG - BANDAR GAK KEDETEK!", 0, 0, 1.0, "")
-        bid1 = sum(float(x[1]) * float(x[0]) for x in b1[:5])
-        ask1 = sum(float(x[1]) * float(x[0]) for x in s1[:5])
-        fake = ""
-        try:
-            top1 = max(b1, key=lambda x: float(x[1]) * float(x[0]))
-            p1 = float(top1[0]); v1 = float(top1[1]) * p1
-            v2 = 0.0
-            for x in b2:
-                if float(x[0]) == p1:
-                    v2 = float(x[1]) * float(x[0]); break
-            if v1 > 0 and v2 / v1 < 0.5:
-                fake = "⚠️ OB FAKE! Tembok di harga sama ilang 50% dalam 2 detik! BOT BANDAR!"
-        except: pass
-        ratio = bid1 / ask1 if ask1 > 0 else 1.0
-        if ratio >= 2: ket = "BANDAR JAGA! Bid 2x Ask!"
-        elif ratio <= 0.5: ket = "BANDAR MAU JUAL! Ask 2x Bid!"
-        else: ket = "OB SEIMBANG"
-        return (ket, bid1, ask1, ratio, fake)
-    except: return ("OB GAGAL - BANDAR GAK KEDETEK!", 0, 0, 1.0, "")
+        r = requests.get(f"https://indodax.com/api/depth/{pair}", timeout=5).json()
+        b = r.get("buy", [])[:5]; s = r.get("sell", [])[:5]
+        if not b or not s: return ("OB KOSONG - BANDAR GAK KEDETEK!", 0, 0, 1.0)
+        bid = sum(float(x[1])*float(x[0]) for x in b)
+        ask = sum(float(x[1])*float(x[0]) for x in s)
+        ratio = bid/ask if ask>0 else 1.0
+        if ratio>=2: ket="BANDAR JAGA! Bid 2x Ask!"
+        elif ratio<=0.5: ket="BANDAR MAU JUAL! Ask 2x Bid!"
+        else: ket="OB SEIMBANG"
+        return (ket, bid, ask, ratio)
+    except: return ("OB GAGAL - BANDAR GAK KEDETEK!", 0, 0, 1.0)
 
 def main():
-    print("START V33.7")
-    tickers = get_indodax()
+    print("START V33.9 = V30")
+    tickers = get_tickers()
     if not tickers:
-        send_tele("⚠️ V33.7 INDODAX GAGAL!"); return
+        send_tele("⚠️ V33.9 INDODAX GAGAL!"); return
     now = datetime.now(WIB); jam = now.strftime("%H:%M WIB")
-    base = []
+    # V30: SKOR DARI TICKER DOANG! GAK ADA TRADES!
+    # Naik Harian = (last-low)/low, Pos = posisi di High-Low, Vol = vol_idr
+    rows = []
     for pair, d in tickers.items():
         if not pair.endswith("_idr"): continue
         if pair in BLACKLIST: continue
-        coin = pair.replace("_idr", "").upper()
+        coin = pair.replace("_idr","").upper()
         try:
-            last = float(d["last"]); vol = float(d["vol_idr"]); high = float(d["high"]); low = float(d["low"])
-            if low == 0 or last < 2 or vol < 30000000: continue
-            naik_h = (last - low) / low * 100
-            pos_h = (last - low) / (high - low) * 100 if high != low else 0
-            middle = (high + low) / 2
-            rng = (high - low) / low * 100 if low > 0 else 0
-            if (0 <= naik_h <= 40 and 10 <= pos_h <= 95) or (naik_h >= 30) or (vol >= 300000000 and 0 <= naik_h <= 5 and pos_h < 35):
-                base.append((coin, pair, last, vol, high, low, naik_h, pos_h, middle, rng))
+            last=float(d["last"]); vol=float(d["vol_idr"]); high=float(d["high"]); low=float(d["low"])
+            if low==0 or last<2 or vol<30000000: continue
+            naik_h=(last-low)/low*100
+            pos_h=(last-low)/(high-low)*100 if high!=low else 0
+            middle=(high+low)/2
+            # Skor V30: Harian kuat + Pos tengah + Vol gede = Bandar masuk!
+            score=0; alasan=[]
+            if 2<=naik_h<=12 and 30<=pos_h<=65: score+=30; alasan.append(f"GAS DINI Naik {naik_h:.1f}% Pos {pos_h:.0f}%")
+            if vol>=500000000: score+=20; alasan.append(f"Vol Gede {vol/1000000:.0f}Mn!")
+            elif vol>=200000000: score+=10; alasan.append(f"Vol {vol/1000000:.0f}Mn")
+            if naik_h>=30: score+=10; alasan.append(f"Naik Harian {naik_h:.1f}%!")
+            rows.append((score, vol, coin, pair, last, vol, high, low, naik_h, pos_h, middle, alasan))
         except: continue
-    base = base[:120]
-    print(f"BASE {len(base)} dari {len(tickers)}")
-    scored = []
-    for (coin, pair, last, vol, high, low, naik_h, pos_h, middle, rng) in base:
-        chg_5m, vol_5m, vol_naik, buy_pct, cnt_5m = get_trades_stats(pair)
-        rank_score = 0
-        if chg_5m >= 1: rank_score += chg_5m * 10
-        if vol_naik >= 2: rank_score += 20
-        elif vol_naik >= 1.5: rank_score += 10
-        if buy_pct >= 60: rank_score += 10
-        scored.append((rank_score, coin, pair, last, vol, high, low, naik_h, pos_h, middle, rng, chg_5m, vol_5m, vol_naik, buy_pct, cnt_5m))
-    scored = sorted(scored, key=lambda x: x[0], reverse=True)[:30]
-    print(f"TOP 30 by RANK: {[x[1] for x in scored[:5]]} | DEBUG Trades: {[(x[1], round(x[11],2), round(x[13],1), x[15]) for x in scored[:5]]}")
-    akumulasi = []; entry_tmp = []; trending = []; tunggu = []; rawan = []; watch = []; bandar_gagal = []
-    for (rank_score, coin, pair, last, vol, high, low, naik_h, pos_h, middle, rng, chg_5m, vol_5m, vol_naik, buy_pct, cnt_5m) in scored:
-        jarak = (last - low) / low * 100
-        # V33.7: Kalo Trades 0, JANGAN masuk TUNGGU / RAWAN! Pisahin!
-        is_bandar_unknown = cnt_5m == 0 and vol_naik <= 1.0
-        if is_bandar_unknown:
-            bandar_gagal.append((vol, f"⚠️ UNKNOWN! BANDAR GAK KEDETEK! DATA TRADES GAGAL! | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | CHG 5M {chg_5m:.1f}% Trades {cnt_5m} | CEK MANUAL DI INDODAX!"))
-            continue
-        bandar_tag = "BANDAR KEDETEK!"
-        # V33.7: RAWAN dibenerin! Kalo last == low, bukan RAWAN! Ticker stale!
-        is_rawan = jarak < 3 and jarak > 0.05 and 0 <= naik_h <= 5 and pos_h < 35 and vol >= 300000000
-        is_trending = naik_h >= 40 or chg_5m > 10
-        is_pucuk = pos_h >= 90 and 8 <= naik_h <= 45 and chg_5m < 0
-        is_tunggu = last < middle and chg_5m < 0.5 and vol_naik < 2 and buy_pct < 60 and not is_rawan
+    rows = sorted(rows, key=lambda x: (x[0], x[1]), reverse=True)
+    print(f"ROWS {len(rows)} TOP: {[x[2] for x in rows[:5]]}")
+    akumulasi=[]; entry_tmp=[]; trending=[]; tunggu=[]; rawan=[]; watch=[]
+    for (score, vol, coin, pair, last, vol2, high, low, naik_h, pos_h, middle, alasan) in rows[:40]:
+        jarak=(last-low)/low*100
+        # RAWAN V30: jarak CUT kecil + Pos rendah + Vol gede!
+        is_rawan = 0.05 < jarak < 3 and 0<=naik_h<=5 and pos_h<35 and vol>=300000000
+        is_trending = naik_h>=40
+        is_pucuk = pos_h>=90 and 8<=naik_h<=45
+        is_tunggu = last < middle and naik_h < 5 and not is_rawan
         if is_rawan:
-            rawan.append((vol, f"⛔ RAWAN! | {coin} Rp{last:,.0f} | {bandar_tag} | Jarak CUT {low:,.0f} cuma {jarak:.1f}%! | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | CHG 5M {chg_5m:.1f}% | CUT {low:,.0f}")); continue
+            rawan.append((vol, f"⛔ RAWAN! | {coin} Rp{last:,.0f} | Jarak CUT {low:,.0f} cuma {jarak:.1f}%! | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | CUT {low:,.0f}")); continue
         if is_trending or is_pucuk:
-            trending.append((naik_h, vol, f"🔥 {'TRENDING' if is_trending else 'PUCUK'}! JANGAN KEJAR! | {coin} Rp{last:,.0f} | {bandar_tag} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% CHG 5M {chg_5m:.1f}% Vol {vol/1000000:.0f}Mn | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
+            trending.append((naik_h, vol, f"🔥 {'TRENDING' if is_trending else 'PUCUK'}! JANGAN KEJAR! | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
         if is_tunggu:
-            tunggu.append((vol, f"⏸️ TUNGGU! | {coin} Rp{last:,.0f} | {bandar_tag} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% CHG 5M {chg_5m:.1f}% Vol Naik {vol_naik:.1f}x Vol {vol/1000000:.0f}Mn | Harga {last:,.0f} < MIDDLE {middle:,.0f}")); continue
-        score = 0; alasan = []
-        if 1 <= chg_5m <= 5: score += 25; alasan.append(f"CHG 5M +{chg_5m:.1f}%!")
-        elif 0.5 <= chg_5m < 1: score += 10; alasan.append(f"CHG 5M +{chg_5m:.1f}%")
-        if vol_naik >= 2: score += 25; alasan.append(f"VOL NAIK {vol_naik:.1f}x! Bandar masuk!")
-        elif vol_naik >= 1.5: score += 10; alasan.append(f"VOL NAIK {vol_naik:.1f}x")
-        if buy_pct >= 60: score += 15; alasan.append(f"Trades Beli {buy_pct:.0f}%!")
-        elif buy_pct < 40: score -= 10; alasan.append(f"Trades Jual {100-buy_pct:.0f}%!")
-        if 2 <= naik_h <= 12 and 30 <= pos_h <= 65: score += 10; alasan.append("GAS DINI")
-        is_akum = abs(chg_5m) < 0.5 and vol_naik >= 2 and vol >= 100000000
-        if is_akum:
-            score += 15; alasan.append(f"AKUMULASI! CHG 5M {chg_5m:.1f}% datar + Vol {vol_naik:.1f}x!")
-            is_unk, unk_tag = get_unknown_tag(coin)
-            prefix = "❓ UNKNOWN! GLOBAL! " if is_unk else ""
-            akumulasi.append((vol, f"{prefix}🐋 AKUMULASI! Bandar Indo lagi kumpulin! | {coin} Rp{last:,.0f} | CHG 5M {chg_5m:.1f}% Vol Naik {vol_naik:.1f}x Vol {vol/1000000:.0f}Mn | {unk_tag} | Trades Beli {buy_pct:.0f}% | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}"))
-            continue
-        if score >= 40:
-            entry_tmp.append((score, vol, coin, pair, last, vol, high, low, naik_h, pos_h, middle, chg_5m, vol_naik, buy_pct, alasan))
-        elif score > 0:
-            is_unk, unk_tag = get_unknown_tag(coin) if len(watch) < 5 else (False, "")
-            unk_txt = f" | {unk_tag}" if is_unk else ""
-            watch.append((vol, f"👀 WATCH | {coin} Rp{last:,.0f} | {bandar_tag}{unk_txt} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% CHG 5M {chg_5m:.1f}% Vol Naik {vol_naik:.1f}x Vol {vol/1000000:.0f}Mn | Trades {cnt_5m} | {' + '.join(alasan) if alasan else 'BELUM KUAT'}"))
-    entry = []
-    entry_tmp = sorted(entry_tmp, key=lambda x: (x[0], x[1]), reverse=True)[:5]
-    for (score, vol, coin, pair, last, vol2, high, low, naik_h, pos_h, middle, chg_5m, vol_naik, buy_pct, alasan) in entry_tmp:
-        ket_ob, bid, ask, ratio, fake = get_depth_anti_spoof(pair)
+            tunggu.append((vol, f"⏸️ TUNGGU! | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | Harga {last:,.0f} < MIDDLE {middle:,.0f}")); continue
+        if score>=30:
+            entry_tmp.append((score, vol, coin, pair, last, vol, high, low, naik_h, pos_h, middle, alasan))
+        elif score>0:
+            watch.append((vol, f"👀 WATCH | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | {' + '.join(alasan) if alasan else 'BELUM KUAT'}"))
+    # ENTRY: CUMA DI SINI DEPTH + UNKNOWN DIPANGGIL! MAX 5! KAYAK V30!
+    entry=[]
+    for (score, vol, coin, pair, last, vol2, high, low, naik_h, pos_h, middle, alasan) in sorted(entry_tmp, key=lambda x: (x[0], x[1]), reverse=True)[:5]:
+        ket_ob, bid, ask, ratio = get_depth(pair)
         ob_txt = f"OB {ket_ob} Bid {bid/1000000:.0f}Mn / Ask {ask/1000000:.0f}Mn"
-        if fake:
-            watch.append((vol, f"👀 WATCH - OB FAKE! | {coin} Rp{last:,.0f} | CHG 5M {chg_5m:.1f}% Vol Naik {vol_naik:.1f}x | {ob_txt} | {fake} | SKIP! Bandar nipu pake BOT!"))
+        # BANDAR GAK KEDETEK dari OB doang! Bukan dari Trades!
+        if bid==0 and ask==0:
+            watch.append((vol, f"👀 WATCH - OB KOSONG! | {coin} Rp{last:,.0f} | ⚠️ UNKNOWN! BANDAR GAK KEDETEK! OB Sepi! | SKIP DULU!"))
             continue
         is_unk, unk_tag = get_unknown_tag(coin)
         prefix = "❓ UNKNOWN! GLOBAL GAK KEDETEK! " if is_unk else ""
-        if ratio >= 1.5: alasan2 = alasan + ["OB ASLI Bid gede!"]
-        elif ratio <= 0.5: alasan2 = alasan + ["OB Ask gede! Hati-hati!"]
-        else: alasan2 = alasan
-        entry.append((score, vol, f"{prefix}✅ ENTRY | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% CHG 5M {chg_5m:.1f}% Vol Naik {vol_naik:.1f}x Vol {vol/1000000:.0f}Mn | {unk_tag} | {' + '.join(alasan2)} | {ob_txt} | Trades Beli {buy_pct:.0f}% | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}"))
-    entry_s = [t for _, _, t in sorted(entry, key=lambda x: (x[0], x[1]), reverse=True)]
-    akum_s = [t for _, t in sorted(akumulasi, key=lambda x: x[0], reverse=True)]
-    trending_s = [t for _, _, t in sorted(trending, key=lambda x: x[0], reverse=True)]
-    tunggu_s = [t for _, t in sorted(tunggu, key=lambda x: x[0], reverse=True)]
-    rawan_s = [t for _, t in sorted(rawan, key=lambda x: x[0], reverse=True)]
-    watch_s = [t for _, t in sorted(watch, key=lambda x: x[0], reverse=True)]
-    gagal_s = [t for _, t in sorted(bandar_gagal, key=lambda x: x[0], reverse=True)]
-    msg1 = f"=== V33.7 BANDAR INDO {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 5 MENIT! SCAN PER 5 MENIT!\n\n🐋 AKUMULASI! Bandar Indo lagi kumpulin mau PUMP!:\n" + ("\n".join(akum_s[:5]) if akum_s else "Belum ada Akumulasi") + "\n\n✅ ENTRY (MAX 5! OB ASLI!):\n" + ("\n".join(entry_s[:5]) if entry_s else "Belum ada Entry - JANGAN MASUK!") + "\n\n🔥 TRENDING / PUCUK - JANGAN KEJAR!:\n" + ("\n".join(trending_s[:10]) if trending_s else "Belum ada Trending")
-    msg2 = f"=== V33.7 BANDAR INDO {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n" + ("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu") + "\n\n⛔ RAWAN!:\n" + ("\n".join(rawan_s[:10]) if rawan_s else "Belum ada Rawan") + "\n\n⚠️ BANDAR GAK KEDETEK - DATA TRADES GAGAL!:\n" + ("\n".join(gagal_s[:5]) if gagal_s else "Semua Trades ke-baca! Bagus!") + "\n\n👀 WATCH! (Termasuk OB FAKE!):\n" + ("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
-    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V33.7")
+        entry.append((score, vol, f"{prefix}✅ ENTRY | {coin} Rp{last:,.0f} | Naik Harian {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | {unk_tag} | {' + '.join(alasan)} | {ob_txt} | ENTRY {last*0.97:,.0f}-{last:,.0f} | RETEST {middle:,.0f} | CUT {low:,.0f}"))
+    entry_s=[t for _,_,t in sorted(entry, key=lambda x: (x[0], x[1]), reverse=True)]
+    trending_s=[t for _,_,t in sorted(trending, key=lambda x: x[0], reverse=True)]
+    tunggu_s=[t for _,t in sorted(tunggu, key=lambda x: x[0], reverse=True)]
+    rawan_s=[t for _,t in sorted(rawan, key=lambda x: x[0], reverse=True)]
+    watch_s=[t for _,t in sorted(watch, key=lambda x: x[0], reverse=True)]
+    msg1=f"=== V33.9 = V30 BALIK {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 5 MENIT! SCAN PER 5 MENIT!\n\n✅ ENTRY (MAX 5! OB ASLI!):\n" + ("\n".join(entry_s[:5]) if entry_s else "Belum ada Entry - JANGAN MASUK!") + "\n\n🔥 TRENDING / PUCUK - JANGAN KEJAR!:\n" + ("\n".join(trending_s[:10]) if trending_s else "Belum ada Trending")
+    msg2=f"=== V33.9 = V30 BALIK {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n" + ("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu") + "\n\n⛔ RAWAN!:\n" + ("\n".join(rawan_s[:10]) if rawan_s else "Belum ada Rawan") + "\n\n👀 WATCH!:\n" + ("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
+    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V33.9")
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
