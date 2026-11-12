@@ -1,9 +1,8 @@
-# === V35 PRE-PUMP - NANGKEP SEBELUM TERBANG! BUKAN SESUDAH! ===
-# PRINSIP: TICKERS 1x DOANG! DEPTH + GLOBAL CUMA BUAT PRE-PUMP MAX 5!
-# PRE-PUMP = Naik 1-5% + Pos 5-35% + Vol >=500Mn! BANDAR BARU MASUK!
-# UDAH TERBANG = Naik >15% -> JANGAN KEJAR! BIAR GAK NYANGKUT KAYAK TMG!
+# === V36 FINAL - PRE-PUMP LEBAR + OB GAK BLOCK ENTRY! ===
+# PRE-PUMP = Naik 0.5-12% + Pos 5-50% + Vol >=300Mn!
+# OB GAGAL = TETEP ENTRY! CUMA TAG! JANGAN BUANG!
 # BLACKLIST 105! SEKTOR DI-HAPUS!
-import requests, os
+import requests, os, time
 from datetime import datetime, timezone, timedelta
 TELE_TOKEN = os.getenv("TELE_TOKEN")
 TELE_CHAT = os.getenv("TELE_CHAT_ID") or os.getenv("CHAT_ID") or os.getenv("TELE_CHAT")
@@ -51,22 +50,33 @@ def get_unknown_tag(coin):
     res = (True, "❓ UNKNOWN! GLOBAL GAK KEDETEK! [CEK MANUAL]")
     _unknown_cache[coin] = res; return res
 def get_depth(pair):
-    try:
-        r = requests.get(f"https://indodax.com/api/depth/{pair}", timeout=5).json()
-        b = r.get("buy", [])[:5]; s = r.get("sell", [])[:5]
-        if not b or not s: return ("OB KOSONG!", 0, 0, 1.0)
-        bid = sum(float(x[1])*float(x[0]) for x in b); ask = sum(float(x[1])*float(x[0]) for x in s)
-        ratio = bid/ask if ask>0 else 1.0
-        if ratio>=2: ket="BANDAR JAGA! Bid 2x Ask!"
-        elif ratio<=0.5: ket="BANDAR MAU JUAL! Ask 2x Bid!"
-        else: ket="OB SEIMBANG"
-        return (ket, bid, ask, ratio)
-    except: return ("OB GAGAL!", 0, 0, 1.0)
+    # V36: Retry 2x + baca buy/bids + sell/asks!
+    for _ in range(2):
+        try:
+            r = requests.get(f"https://indodax.com/api/depth/{pair}", timeout=5)
+            if r.status_code != 200: continue
+            j = r.json()
+            # Depth bisa {"buy":..., "sell":...} atau {"bids":..., "asks":...} atau {"data": {...}}
+            if isinstance(j, dict) and "data" in j: j = j["data"]
+            b = (j.get("buy") or j.get("bids") or [])[:5]
+            s = (j.get("sell") or j.get("asks") or [])[:5]
+            if not b or not s: continue
+            bid = sum(float(x[1])*float(x[0]) for x in b if len(x)>=2)
+            ask = sum(float(x[1])*float(x[0]) for x in s if len(x)>=2)
+            if bid<=0 or ask<=0: continue
+            ratio = bid/ask if ask>0 else 1.0
+            if ratio>=2: ket="BANDAR JAGA! Bid 2x Ask!"
+            elif ratio<=0.5: ket="BANDAR MAU JUAL! Ask 2x Bid!"
+            else: ket="OB SEIMBANG"
+            return (ket, bid, ask, ratio)
+        except: continue
+        time.sleep(1)
+    return ("OB GAGAL - CEK MANUAL DI INDODAX!", 0, 0, 1.0)
 def main():
-    print("START V35 PRE-PUMP")
+    print("START V36")
     tickers = get_tickers()
     if not tickers:
-        send_tele("⚠️ V35 INDODAX GAGAL!"); return
+        send_tele("⚠️ V36 INDODAX GAGAL!"); return
     now = datetime.now(WIB); jam = now.strftime("%H:%M WIB")
     rows=[]
     for pair, d in tickers.items():
@@ -78,23 +88,21 @@ def main():
             if low==0 or last<2 or vol<30000000: continue
             naik_h=(last-low)/low*100; pos_h=(last-low)/(high-low)*100 if high!=low else 0; middle=(high+low)/2
             score=0; alasan=[]
-            # PRE-PUMP UTAMA! Naik baru 1-5% + Pos 5-35% + Vol gede = Bandar baru masuk!
-            if 1<=naik_h<=5 and 5<=pos_h<=35 and vol>=500000000: score+=50; alasan.append(f"PRE-PUMP! Naik baru {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn! Bandar baru masuk!")
-            elif 0.5<=naik_h<=8 and 5<=pos_h<=40 and vol>=300000000: score+=30; alasan.append(f"MAU JALAN! Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn")
+            # V36: PRE-PUMP DIPERLEBAR! 0.5-12%! Pos 5-50%! Vol >=300Mn!
+            if 0.5<=naik_h<=12 and 5<=pos_h<=50 and vol>=300000000: score+=50; alasan.append(f"PRE-PUMP! Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn!")
             if vol>=2000000000: score+=20; alasan.append(f"Vol GEDE BANGET {vol/1000000:.0f}Mn!")
             elif vol>=1000000000: score+=15; alasan.append(f"Vol Gede {vol/1000000:.0f}Mn!")
+            elif vol>=500000000: score+=10; alasan.append(f"Vol {vol/1000000:.0f}Mn")
             rows.append((score, vol, coin, pair, last, vol, high, low, naik_h, pos_h, middle, alasan))
         except: continue
     rows = sorted(rows, key=lambda x: (x[0], x[1]), reverse=True)
     print(f"ROWS {len(rows)} TOP: {[(x[2], x[0]) for x in rows[:8]]}")
     prepump=[]; terbang=[]; tunggu=[]; watch=[]
     for (score, vol, coin, pair, last, vol2, high, low, naik_h, pos_h, middle, alasan) in rows[:60]:
-        # UDAH TERBANG! JANGAN KEJAR! Biar gak nyangkut!
-        if naik_h>=15 or (naik_h>=40):
-            terbang.append((naik_h, vol, f"🔥 UDAH TERBANG! JANGAN KEJAR! NYANGKUT! | {coin} Rp{last:,.0f} | Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
+        if naik_h>=15:
+            terbang.append((naik_h, vol, f"🔥 UDAH TERBANG! JANGAN KEJAR! | {coin} Rp{last:,.0f} | Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
         if pos_h>=90 and 8<=naik_h<=45:
             terbang.append((naik_h, vol, f"🔥 PUCUK! JANGAN KEJAR! | {coin} Rp{last:,.0f} | Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | TUNGGU {last*0.82:,.0f}-{last*0.88:,.0f} | CUT {low:,.0f}")); continue
-        # TUNGGU cuma kalo Vol kecil + Naik kecil! Bukan koin bagus!
         if vol<300000000 and naik_h<2:
             tunggu.append((vol, f"⏸️ TUNGGU! | {coin} Rp{last:,.0f} | Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn")); continue
         if score>=30:
@@ -104,18 +112,17 @@ def main():
     entry=[]
     for (score, vol, coin, pair, last, vol2, high, low, naik_h, pos_h, middle, alasan) in sorted(prepump, key=lambda x: (x[0], x[1]), reverse=True)[:5]:
         ket_ob, bid, ask, ratio = get_depth(pair)
-        ob_txt = f"OB {ket_ob} Bid {bid/1000000:.0f}Mn / Ask {ask/1000000:.0f}Mn"
-        if bid==0 and ask==0:
-            watch.append((vol, f"👀 WATCH - OB KOSONG! | {coin} Rp{last:,.0f} | ⚠️ BANDAR GAK KEDETEK! SKIP!")); continue
+        # V36: OB GAGAL TETEP ENTRY! JANGAN BUANG!
+        ob_txt = f"OB {ket_ob} Bid {bid/1000000:.0f}Mn / Ask {ask/1000000:.0f}Mn" if bid>0 else f"OB {ket_ob} | CEK MANUAL DI INDODAX!"
         is_unk, unk_tag = get_unknown_tag(coin)
         prefix = "❓ UNKNOWN! GLOBAL GAK KEDETEK! " if is_unk else ""
-        entry.append((score, vol, f"{prefix}🐋 PRE-PUMP ENTRY! | {coin} Rp{last:,.0f} | Naik BARU {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | {unk_tag} | {' + '.join(alasan)} | {ob_txt} | ENTRY {last*0.97:,.0f}-{last:,.0f} | TARGET +10% {last*1.10:,.0f} | CUT {low:,.0f}"))
+        entry.append((score, vol, f"{prefix}🐋 PRE-PUMP ENTRY! | {coin} Rp{last:,.0f} | Naik {naik_h:.1f}% Pos {pos_h:.0f}% Vol {vol/1000000:.0f}Mn | {unk_tag} | {' + '.join(alasan)} | {ob_txt} | ENTRY {last*0.97:,.0f}-{last:,.0f} | TARGET +10% {last*1.10:,.0f} | CUT {low:,.0f}"))
     entry_s=[t for _,_,t in sorted(entry, key=lambda x: (x[0], x[1]), reverse=True)]
     terbang_s=[t for _,_,t in sorted(terbang, key=lambda x: x[0], reverse=True)]
     tunggu_s=[t for _,t in sorted(tunggu, key=lambda x: x[0], reverse=True)]
     watch_s=[t for _,t in sorted(watch, key=lambda x: x[0], reverse=True)]
-    msg1=f"=== V35 PRE-PUMP {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 5 MENIT!\n\n🐋 PRE-PUMP ENTRY! (BELUM TERBANG!):\n" + ("\n".join(entry_s[:5]) if entry_s else "Belum ada Pre-Pump - JANGAN MASUK ASAL!") + "\n\n🔥 UDAH TERBANG! JANGAN KEJAR! NYANGKUT!:\n" + ("\n".join(terbang_s[:10]) if terbang_s else "Belum ada yang terbang")
-    msg2=f"=== V35 PRE-PUMP {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n" + ("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu") + "\n\n👀 WATCH!:\n" + ("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
-    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V35")
+    msg1=f"=== V36 PRE-PUMP {jam} - {len(tickers)} KOINS (1/2) ===\n\n⚠️ EXPIRED 5 MENIT!\n\n🐋 PRE-PUMP ENTRY! (BELUM TERBANG!):\n" + ("\n".join(entry_s[:5]) if entry_s else "Belum ada Pre-Pump - JANGAN MASUK ASAL!") + "\n\n🔥 UDAH TERBANG! JANGAN KEJAR!:\n" + ("\n".join(terbang_s[:10]) if terbang_s else "Belum ada yang terbang")
+    msg2=f"=== V36 PRE-PUMP {jam} (2/2) ===\n\n⏸️ TUNGGU!:\n" + ("\n".join(tunggu_s[:5]) if tunggu_s else "Belum ada yang nunggu") + "\n\n👀 WATCH!:\n" + ("\n".join(watch_s[:5]) if watch_s else "Belum ada Watch")
+    print(msg1); print(msg2); send_tele(msg1); send_tele(msg2); print("DONE V36")
 if __name__=="__main__":
     main()
