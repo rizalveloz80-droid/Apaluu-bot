@@ -1,122 +1,198 @@
-# V18 TURBO ALL COIN - ANIME RANDOM + CYBER + ENJ FIX
-import requests, os, json, time
-from datetime import datetime, timezone, timedelta
+# === V19.0 AUTO BUY - ANTI KETINGGALAN MITO/KETE/AMZNX ===
+import requests, os
+from datetime import datetime
+import pytz
 
-TELE_TOKEN=os.getenv('TELE_TOKEN'); TELE_CHAT_ID=os.getenv('TELE_CHAT_ID'); CMC_API_KEY=os.getenv('CMC_API_KEY')
-MEMORY_FILE="price_memory.json"
+TELE_TOKEN = os.getenv('TELE_TOKEN')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID')
+WIB = pytz.timezone('Asia/Jakarta')
 
 BLACKLIST={
-    'usdt_idr','usdc_idr','dai_idr','busd_idr','btc_idr','eth_idr','bnb_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr',
-    'usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
-    'pepe_idr','xrp_idr','sol_idr','hype_idr','dodo_idr','pippin_idr','bome_idr','ada_idr','doge_idr','ena_idr','anoa_idr','ana_idr','sui_idr','ondo_idr','enb_idr','pengu_idr','pump_idr','shib_idr','nom_idr','mpro_idr','amph_idr','uni_idr','unmd_idr','fanch_idr','kdag_idr',
-    'bal_idr','collat_idr','dupe_idr','ladys_idr','perp_idr','poly_idr','rfc_idr','dlc_idr','voxel_idr','yfii_idr','moonpig_idr','doge2_idr','mshd_idr','vbg_idr','vra_idr','cht_idr','krd_idr','strm_idr','slp_idr','d_idr','bone_idr','aura_idr','honey_idr','lrc_idr','zeta_idr','shred_idr','h2o_idr','ern_idr',
-    'luna_idr','lunc_idr','ftt_idr','ustc_idr'
+    'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
+    'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
+    'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
+    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
+    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
 }
-ALIAS={'velodrome_idr':'velo','orderly_idr':'order','anime_idr':'anime','haedal_idr':'haedal','rez_idr':'rez','tag_idr':'tag','moca_idr':'moca','useless_idr':'useless','wld_idr':'wld','solv_idr':'solv','bsv_idr':'bsv','velofin_idr':'velo','puffer_idr':'puffer','cyber_idr':'cyber','enj_idr':'enj','beat_idr':'beat'}
 
 def send_tele(msg):
-    if not TELE_TOKEN or not TELE_CHAT_ID: return
-    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id":TELE_CHAT_ID,"text":msg,"parse_mode":"HTML"}, timeout=15)
-    except: pass
-def fnum(v,d=0.0):
-    try: return float(str(v).replace(',','').strip()) if str(v).strip() else d
-    except: return d
-def fmt_vol(v): return f"{v/1e9:.2f}Bn" if v>=1e9 else f"{v/1e6:.0f}Mn"
-def load_memory():
-    try: return json.load(open(MEMORY_FILE))
-    except: return {}
-def save_memory(d): json.dump(d, open(MEMORY_FILE,"w"))
-
-memory=load_memory(); now_ts=time.time()
-try: tickers=requests.get("https://indodax.com/api/tickers",timeout=15).json().get('tickers',{})
-except: tickers={}
-
-cmc_map={}
-if CMC_API_KEY:
     try:
-        url="https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
-        headers={'X-CMC_PRO_API_KEY':CMC_API_KEY}
-        params={'start':'1','limit':'300','convert':'USD','sort':'percent_change_1h','sort_dir':'desc','market_cap_max':'150000000'}
-        r=requests.get(url,headers=headers,params=params,timeout=20).json()
-        for coin in r.get('data',[]):
-            sym=coin['symbol'].lower(); q=coin.get('quote',{}).get('USD',{})
-            cmc_map[sym]={'mcap':fnum(q.get('market_cap')),'vol24':fnum(q.get('volume_24h')),'chg1h':fnum(q.get('percent_change_1h')),'chg24h':fnum(q.get('percent_change_24h'))}
-            for pair, al in ALIAS.items():
-                if al.lower()==sym: cmc_map[pair[:-4]]=cmc_map[sym]
-    except: pass
+        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage",
+                      json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
+    except Exception as e: print(e)
 
-binance_map={}
-try:
-    b=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",headers={'User-Agent':'Mozilla/5.0'},timeout=15).json()
-    for x in b:
-        if x['symbol'].endswith('USDT'): binance_map[x['symbol'].replace('USDT','').lower()]=x
-except: pass
+def get_tickers():
+    r = requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    out=[]
+    for pair,d in r.items():
+        if not pair.endswith('_idr'): continue
+        if pair in BLACKLIST: continue
+        if float(d['vol_idr']) < 10_000_000: continue
+        last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
+        if last==0 or low==0 or high==low: continue
+        pos=((last-low)/(high-low)*100) if high!=low else 0
+        naik=((last-low)/low*100) if low!=0 else 0
+        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
+    return out
 
-result_akum=[]; result_early=[]; result_running=[]; new_memory={}
-wib=timezone(timedelta(hours=7)); now=datetime.now(wib).strftime("%H:%M WIB %d-%m")
-
-for pair,d in tickers.items():
-    if pair in BLACKLIST or not pair.endswith('_idr'): continue
-    last=fnum(d.get('last')); low=fnum(d.get('low')); high=fnum(d.get('high')); vol_idr=fnum(d.get('vol_idr'))
-    if last<1: continue
-    base=pair[:-4]; cmc=cmc_map.get(base) or cmc_map.get(ALIAS.get(pair,'').lower(),{})
-    mcap=cmc.get('mcap',0) if cmc else 0; vol24=cmc.get('vol24',0) if cmc else 0; chg1h=cmc.get('chg1h',0) if cmc else 0
-    ratio=vol24/mcap if mcap>0 else 0
-    pct_low=(last-low)/low*100 if low>0 else 0
-    pct_high=(high-last)/high*100 if high>0 else 0
-
-    # MEMORY V18 TURBO - 1 menit udah dihitung, 1.5% langsung bunyi
-    early_pct=0
-    if pair in memory:
-        prev=memory[pair]
-        elapsed=(now_ts - prev['ts'])/60
-        if 1 <= elapsed <= 60:
-            if prev['last']>0: early_pct=(last-prev['last'])/prev['last']*100
-    new_memory[pair]={'last':last,'ts':now_ts}
-
-    # BINANCE 1H untuk turbo
-    bin_chg1h=0
+def get_global_12exch():
+    g = {}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    # BYBIT
     try:
-        sym_bin=ALIAS.get(pair,base).lower()
-        if sym_bin in binance_map: bin_chg1h=fnum(binance_map[sym_bin].get('priceChangePercent',0))
+        r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", timeout=6).json()
+        for x in r['result']['list']:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['price24hPcnt'])*100)
     except: pass
+    # GATE
+    try:
+        r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=6).json()
+        for x in r:
+            if x['currency_pair'].endswith('_USDT'):
+                key = x['currency_pair'].replace('_USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['change_percentage']))
+    except: pass
+    # KUCOIN
+    try:
+        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=6).json()
+        for x in r['data']['ticker']:
+            if x['symbol'].endswith('-USDT'):
+                key = x['symbol'].replace('-USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['changeRate'])*100)
+    except: pass
+    # BITGET
+    try:
+        r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=6).json()
+        for x in r['data']:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['change24h'])*100)
+    except: pass
+    # MEXC
+    try:
+        r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+    except: pass
+    # BINANCE VISION (ANTI BLOCK)
+    try:
+        r = requests.get("https://data-api.binance.vision/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'):
+                key = x['symbol'].replace('USDT','').lower()+'_idr'
+                g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+    except:
+        try:
+            r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6, headers=headers).json()
+            for x in r:
+                if x['symbol'].endswith('USDT'):
+                    key = x['symbol'].replace('USDT','').lower()+'_idr'
+                    g[key] = max(g.get(key, -100), float(x['priceChangePercent']))
+        except: pass
+    # OKX
+    try:
+        r = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", timeout=6, headers=headers).json()
+        for x in r['data']:
+            if x['instId'].endswith('-USDT'):
+                key = x['instId'].replace('-USDT','').lower()+'_idr'
+                try:
+                    open_price = float(x['open24h']); last = float(x['last'])
+                    pct = ((last-open_price)/open_price*100) if open_price else 0
+                    g[key] = max(g.get(key, -100), pct)
+                except: pass
+    except: pass
+    # BITFINEX
+    try:
+        r = requests.get("https://api-pub.bitfinex.com/v2/tickers?symbols=ALL", timeout=6).json()
+        for x in r:
+            if isinstance(x, list) and len(x)>6 and isinstance(x[0], str) and x[0].startswith('t') and x[0].endswith('USD'):
+                sym = x[0][1:-3].lower()+'_idr'
+                try: g[sym] = max(g.get(sym, -100), float(x[6])*100)
+                except: pass
+    except: pass
+    return g
 
-    # TIER1 AKUM TURBO - MCap 100M Ratio 0.8x 1H 1% Vol 3Mn + Binance 1H 1%
-    if ((mcap>0 and mcap<=100_000_000 and ratio>=0.8 and chg1h>=1.0) or bin_chg1h>=2.0) and vol_idr>=3_000_000:
-        cat_ratio="5x" if ratio>=5 else "3x" if ratio>=3 else "1x" if ratio>=1 else "0.8x"
-        cat_mcap="SPEC" if mcap<=10_000_000 else "MID" if mcap<=50_000_000 else "BIG"
-        tag="TIPIS" if vol_idr<80_000_000 else "TEBAL"
-        result_akum.append({'sort':ratio if ratio>0 else bin_chg1h,'cat':f"🔥 AKUM TURBO {cat_ratio} {cat_mcap} {tag}",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr,'bin':bin_chg1h})
+def detect_ob_and_entry(t):
+    low=t['low']; last=t['last']; pos=t['pos']; naik=t['naik']; vol=t['vol']
+    if pos <= 80 and vol >= 20_000_000 and naik >= 0:
+        ob_low = low * 0.995
+        ob_high = low * 1.03
+        if pos > 25 or naik > 60:
+            entry_low = last * 0.93
+            entry_high = last * 0.97
+            entry_type = "RETEST"
+        else:
+            entry_low = low * 1.01
+            entry_high = low * 1.03
+            entry_type = "OB REAL"
+        sl = ob_low * 0.95
+        return ob_low, ob_high, entry_low, entry_high, entry_type, sl
+    return None, None, None, None, None, None
 
-    # TIER2 EARLY TURBO V18 - Memory 1.5% Vol 50Mn (biar CYBER 7705->8407 & ENJ ke-tangkep)
-    if early_pct>=1.5 and vol_idr>=50_000_000:
-        result_early.append({'sort':early_pct,'cat':f"⚡ EARLY TURBO {early_pct:.1f}%",'pair':pair,'last':last,'pct':pct_low,'mcap':mcap,'chg1h':chg1h,'ratio':ratio,'vol':vol_idr})
+def scan():
+    now = datetime.now(WIB).strftime("%H:%M WIB")
+    tickers=get_tickers()
+    gdata=get_global_12exch()
+    tier_autobuy=[]; tier_ngumpul=[]; tier_sepi=[]; tier0=[]; tier1_global=[]; tier2=[]
 
-    # TIER3 RUNNING TURBO - Naik 3% Jauh 10% Vol 80Mn (biar ENJ 700 +36% masuk)
-    if 0<=pct_high<=10 and pct_low>=3 and vol_idr>=80_000_000:
-        result_running.append({'sort':vol_idr,'pair':pair,'last':last,'pct':pct_low,'jauh':pct_high,'vol':vol_idr})
+    for t in tickers:
+        sym=t['sym']; price=t['last']; low=t['low']
+        naik=t['naik']; pos=t['pos']; vol=t['vol']
+        gp=gdata.get(t['pair'], -100)
+        if gp < -2: continue
+        ob_low, ob_high, ent_low, ent_high, ent_type, sl = detect_ob_and_entry(t)
+        if ob_low is None: continue
+        if price < sl: continue
+        ob_txt = f"OB {ob_low:.0f}-{ob_high:.0f}"
+        entry_txt = f"{ent_low:.0f}-{ent_high:.0f} {ent_type}"
 
-result_akum=sorted(result_akum,key=lambda x:x['sort'],reverse=True)[:6]
-result_early=sorted(result_early,key=lambda x:x['sort'],reverse=True)[:6]
-result_running=sorted(result_running,key=lambda x:x['sort'],reverse=True)[:10]
+        # === V19.0 AUTO BUY - JANGAN TUNGGU OB! ===
+        # MITO 145 Pos 12% Global 3% Vol 135Mn -> INI HARUS LANGSUNG BELI!
+        if 0.5 <= naik <= 7.0 and 3 <= pos <= 20 and 80_000_000 <= vol <= 400_000_000 and gp >= 2.5:
+            tier_autobuy.append(f"⚡ AUTO BUY! BELI SEKARANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY MARKET {price:.0f} | {ob_txt} | JANGAN TUNGGU OB!")
 
-msg=f"V18 TURBO ALL COIN {now}\nT1 AKUM: MCap100M 0.8x 1H1% Vol3Mn BIN2% | T2 EARLY 1.5% Vol50Mn | T3 RUNNING 3% Vol80Mn\n------\n"
-if result_akum:
-    msg+=f"--- 🔥 TIER1 AKUM TURBO ---\n"
-    for c in result_akum:
-        mcap_s=f"${c['mcap']/1e6:.1f}M" if c['mcap']>0 else f"BIN {c['bin']:.1f}%"
-        msg+=f"{c['cat']} | {c['pair'][:-4].upper()} Rp{c['last']:,.0f} +{c['pct']:.1f}% | {mcap_s} 1H {c['chg1h']:.1f}% Ratio {c['ratio']:.1f}x Vol {fmt_vol(c['vol'])}\n"
-if result_early:
-    msg+=f"--- ⚡ TIER2 EARLY TURBO ---\n"
-    for c in result_early:
-        msg+=f"{c['cat']} | {c['pair'][:-4].upper()} Rp{c['last']:,.0f} Naik {c['pct']:.1f}% Vol {fmt_vol(c['vol'])} Ratio {c['ratio']:.1f}x\n"
-if result_running:
-    msg+=f"--- 🏃 TIER3 RUNNING TURBO ---\n"
-    for i,c in enumerate(result_running,11):
-        msg+=f"#{i} RUNNING {c['pair'][:-4].upper()} Rp{int(c['last']):,} Naik {c['pct']:.1f}% Jauh {c['jauh']:.0f}% Vol {fmt_vol(c['vol'])}\n"
+        # === AMZNX GAP - GLOBAL 30%+ TAPI INDO MASIH 0% ===
+        if gp >= 10 and naik <= 3.0 and pos <= 15 and vol >= 20_000_000:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY MARKET {price:.0f} {ent_type} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | GAP {gp-naik:.1f}% BURU!")
+            continue
 
-if not result_akum and not result_early and not result_running:
-    msg+=f"Belum ada BANDAR CMC {len(cmc_map)} BIN {len(binance_map)} flat\n"
+        # TIER NGUMPUL BIASA
+        if 0.5 <= naik <= 6.0 and 5 <= pos <= 35 and 40_000_000 <= vol <= 350_000_000 and gp >= 1.0:
+            # Skip yang udah masuk autobuy biar ga dobel
+            if not (3 <= pos <= 20 and gp >= 2.5 and vol >= 80_000_000):
+                tier_ngumpul.append(f"💰 NGUMPUL! BUYER MASUK! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | ENTRY {entry_txt} | {ob_txt}")
 
-msg+=f"\n---- V18 {len(new_memory)} block CMC {len(cmc_map)} BIN {len(binance_map)} ----"
-print(msg); send_tele(msg); save_memory(new_memory)
+        if gp >= 2.5 and naik <= 3.0 and pos <= 25 and 30_000_000 <= vol <= 400_000_000 and gp < 10:
+            tier_sepi.append(f"🤫 SEPI! GLOBAL {gp:.1f}% | {sym} Rp{price:.0f} | ENTRY {entry_txt} | {ob_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | BURU!")
+
+        is_global_zero = abs(gp) < 0.15
+        if is_global_zero and vol < 500_000_000:
+            continue
+
+        if low < 1000 and vol>=80_000_000 and 2<=naik<=1200 and pos<=80:
+            tier0.append(f"💥 NEW {naik:.0f}% + {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+        if gp>=2.5 and vol>=100_000_000 and 2<=naik<=35 and pos<=60:
+            tier1_global.append(f"🚀 GLOBAL {gp:.1f}% {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+        if 2<=naik<=50 and pos<=15 and vol>=100_000_000:
+            if not (is_global_zero and vol < 500_000_000):
+                tier2.append(f"🔥 IGNITION {ob_txt} | {sym} Rp{price:.0f} | ENTRY {entry_txt} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}%")
+
+    msg=f"=== V19.0 AUTO BUY {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"⚡ TIER AUTO BUY - BELI SEKARANG JANGAN TUNGGU OB (MITO MODE):\n"+("\n".join(tier_autobuy[:15]) if tier_autobuy else "Belum ada autobuy")+"\n\n"
+    msg+=f"💰 TIER NGUMPUL - MASIH DI BAWAH TAPI BUYER MASUK:\n"+("\n".join(tier_ngumpul[:15]) if tier_ngumpul else "Belum ada ngumpul")+"\n\n"
+    msg+=f"🤫 TIER SEPI (2.5%+):\n"+("\n".join(tier_sepi[:10]) if tier_sepi else "Belum ada sepi")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH:\n"+("\n".join(tier0[:10]) if tier0 else "Tidak ada")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL (2.5%+):\n"+("\n".join(tier1_global[:10]) if tier1_global else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION:\n"+("\n".join(tier2[:10]) if tier2 else "Tidak ada")+"\n\n"
+    return msg
+
+if __name__=="__main__":
+    msg=scan()
+    print(msg)
+    send_tele(msg)
