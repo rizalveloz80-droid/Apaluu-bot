@@ -1,9 +1,8 @@
-# === V37 RECOVERY - CUMA 2 TIER! ===
-# V37 = V28.4 FIX + BENERIN NAIK 24H PAKE summaries/prices24h (BUKAN DARI LOW!)
-# TIER 1 AKUMULASI = Koin baru, bandar lagi kumpul, mau running, mau terbang! INI YANG DIBELI!
-# TIER 2 PANTAU = Udah pump, jangan kejar, cukup dipantau! TUNGGU RETEST!
-# GAK ADA HOLDING! GAK ADA TIER 0! GAK ADA BULLISH! GAK ADA PUMP CEPET!
-# FIX: Naik 24h dari summaries, Pantulan dari Low dipisah! ONL -26% gak akan ketipu jadi +9% lagi!
+# === V37.1 RECOVERY - BALIK KE YANG BENER! ===
+# V37.1 = V37 - summaries! - CoinGecko! BALIK KE Global 6EX + Bandar Indodax!
+# Naik24h = Global 6EX (BYBIT+GATE+KUCOIN+BITGET+MEXC+BINANCE)! BUKAN summaries! BUKAN dari Low!
+# Kalo Global [-] = UNKNOWN! Bukan 0.0%! Jangan dilolosin ke AKUMULASI Global!
+# TIER 1 AKUMULASI = Bandar lagi kumpul, mau running! TIER 2 PANTAU = Udah pump, jangan kejar!
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -54,38 +53,15 @@ def send_tele(msg):
         requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
     except: pass
 
-def get_coingecko_chg():
-    # Buat cadangan Naik 24h kalo summaries gagal
-    out={}
-    try:
-        for page in [1,2]:
-            r=requests.get(f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page={page}&sparkline=false", timeout=12).json()
-            for x in r:
-                sym=x['symbol'].upper()
-                chg=x.get('price_change_percentage_24h')
-                if chg is not None: out[sym]=float(chg)
-    except: pass
-    return out
-
 def get_tickers():
-    # PAKAI summaries! Karena summaries punya prices24h = harga 24 jam lalu!
-    # tickers doang gak punya Open, makanya dulu ketipu ONL!
-    prices24h={}
-    tickers_data=None
+    # CUMA PAKE tickers! GAK PAKE summaries LAGI!
+    # tickers cuma buat: last, low, high, vol_idr -> Pantulan + Pos + Vol!
+    # Naik24h JANGAN dari sini! Naik24h dari Global 6EX!
     try:
-        s=requests.get("https://indodax.com/api/summaries", timeout=15).json()
-        # summaries bisa format: {"tickers": {...}, "prices_24h": {...}} atau {"tickers":..., "prices24h":...}
-        tickers_data=s.get('tickers') or s.get('ticker') or {}
-        prices24h=s.get('prices24h') or s.get('prices_24h') or s.get('prices24') or {}
-        # prices24h format bisa: {"btc_idr": 123} atau {"btc": 123}
-    except: pass
-    if not tickers_data:
-        try:
-            tickers_data=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
-        except: return []
-    cg_chg=get_coingecko_chg()
+        r=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    except: return []
     out=[]
-    for pair,d in tickers_data.items():
+    for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
         try:
@@ -94,32 +70,19 @@ def get_tickers():
         except: continue
         if last==0 or low==0 or high==low: continue
         pos=((last-low)/(high-low)*100) if high!=low else 0
-        # PANTULAN = dari Low! Bukan Naik!
         pantulan=((last-low)/low*100) if low!=0 else 0
-        # NAIK 24H YANG BENER = dari harga 24 jam lalu!
-        sym=pair.replace('_idr','').upper()
-        p24=None
-        if pair in prices24h:
-            try: p24=float(prices24h[pair])
-            except: p24=None
-        if p24 is None and sym.lower() in prices24h:
-            try: p24=float(prices24h[sym.lower()])
-            except: p24=None
-        if p24 and p24>0:
-            naik24h=(last-p24)/p24*100
-        else:
-            # Fallback ke CoinGecko kalo summaries gak kasih prices24h
-            naik24h=cg_chg.get(sym, 0)
-        out.append({'pair':pair,'sym':sym,'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'pantulan':pantulan,'naik24h':naik24h})
+        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'pantulan':pantulan})
     return out
 
 def get_global():
+    # Global 6EX = Naik24h yang bener!
+    # Kalo gak ada di 6EX, gp = None = UNKNOWN! Bukan 0.0%!
     g={}; src={}
     def upd(sym, val, name):
         try: val=float(val)
         except: return
         key=sym.lower()+'_idr'
-        if val>g.get(key,-100): g[key]=val; src[key]=name
+        if key not in g or val>g[key]: g[key]=val; src[key]=name
     h={"User-Agent":"Mozilla/5.0"}
     try:
         r=requests.get("https://api.bybit.com/v5/market/tickers?category=spot",timeout=6).json()
@@ -168,8 +131,11 @@ def scan():
     tier_akumulasi=[]; tier_pantau=[]
     hist_kosong=True
     for t in tickers:
-        sym=t['sym']; price=t['last']; low=t['low']; pantulan=t['pantulan']; naik24h=t['naik24h']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-")
+        sym=t['sym']; price=t['last']; low=t['low']; pantulan=t['pantulan']; pos=t['pos']; vol=t['vol']
+        # Global 6EX = Naik24h! Kalo gak ada = None = UNKNOWN!
+        gp=gdata.get(t['pair'])  # None kalo gak ada! Bukan 0!
+        gname=gsrc.get(t['pair'],"-")
+        gp_txt=f"{gp:.1f}% [{gname}]" if gp is not None else "UNKNOWN [-]"
         # Vol history 3 jam - anti crash!
         hist=vol_hist.get(t['pair'],[])
         if not isinstance(hist, list): hist=[]
@@ -178,37 +144,36 @@ def scan():
         if vol_3h: hist_kosong=False
         vol_ratio=(vol/vol_3h) if vol_3h and vol_3h>0 else 0
         hist.append({"ts": now_ts, "vol": vol}); new_vol[t['pair']]=hist
-        # === TIER 2 PANTAU DULU! Biar yang udah terbang gak masuk AKUMULASI! ===
-        # Udah terbang = Naik24h >=40% ATAU Pantulan >=10% + Pos >=60%
-        if naik24h>=40 or (pantulan>=10 and pos>=60):
+        # === TIER 2 PANTAU DULU! ===
+        # Udah pump = Global >=40% ATAU Pantulan >=10% + Pos >=60%
+        # HUMA Global 34.8% + Pantulan 41% + Pos 65% -> PANTAU! Bukan 0.0% lagi!
+        if (gp is not None and gp>=40) or (pantulan>=10 and pos>=60):
             retest_low=price*0.70; retest_high=price*0.80
-            tier_pantau.append((naik24h, f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR]! | {sym} Rp{price:.0f} | Naik24h {naik24h:.1f}% Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | TUNGGU RETEST {retest_low:.0f}-{retest_high:.0f} | Kalo beli sekarang = jadi ONL -72%!"))
+            tier_pantau.append((gp if gp is not None else pantulan, f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | TUNGGU RETEST {retest_low:.0f}-{retest_high:.0f} | Kalo beli sekarang = jadi ONL -72%!"))
             continue
-        # === TIER 1 AKUMULASI - BANDAR LAGI KUMPUL, MAU RUNNING! ===
-        # Syarat ketat! Biar ONL yang -26% gak lolos!
-        # 1. Naik24h harus di -5% sampai +5%! Kalo -26% berarti lagi jatuh! BUKAN akumulasi!
-        # 2. Pantulan 0-3%! Masih nempel Low!
-        # 3. Pos 15-45%! Masih di bawah!
-        # 4. Vol 3J naik >=2.5x ATAU Vol Indo >=100Mn (bandar global via Indo langsung)!
-        # 5. Global belum terbang (<5%)!
-        if -5<=naik24h<=5 and 0<=pantulan<=3.0 and 15<=pos<=45 and gp<5:
-            entry_low=low*1.01; entry_high=low*1.03
-            target=entry_high*1.10; cut=low*0.995
-            if vol_ratio>=2.5 and vol>=30_000_000:
-                tier_akumulasi.append(f"🔥 AKUMULASI [BANDAR INDO 3J]! | {sym} Rp{price:.0f} | Naik24h {naik24h:.1f}% Pantulan {pantulan:.1f}% Pos {pos:.0f}% | Vol 3J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_3h/1e6:.0f}Mn) | Global {gp:.1f}% [{gname}] | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | BANDAR LAGI KUMPUL!")
+        # === TIER 1 AKUMULASI - 2 JALUR! ===
+        # Jalur A: BANDAR INDODAX 3J! Vol 3J naik >=2.5x + Pantulan 0-3% + Pos 15-45% + Vol >=30Mn
+        # Kalo Global ada, harus <5%! Kalo Global UNKNOWN, boleh, tapi tulis UNKNOWN!
+        # Jalur B: BANDAR GLOBAL VIA INDO! Vol >=100Mn + Pantulan 0-3% + Pos <=45% + Global HARUS ADA dan 0-5%!
+        # Kalo Global UNKNOWN, JANGAN lolos Jalur B! Itu yang bikin PM/SHOW kemarin lolos!
+        entry_low=low*1.01; entry_high=low*1.03
+        target=entry_high*1.10; cut=low*0.995
+        if 0<=pantulan<=3.0 and 15<=pos<=45 and vol>=30_000_000 and vol_ratio>=2.5:
+            # Global kalo ada harus belum terbang (<5%)! Kalo Global udah >5%, bukan akumulasi!
+            if gp is None or gp<5:
+                tier_akumulasi.append(f"🔥 AKUMULASI [BANDAR INDO 3J]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% | Vol 3J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_3h/1e6:.0f}Mn) | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | BANDAR LAGI KUMPUL!")
                 continue
-            if vol>=100_000_000:
-                tier_akumulasi.append(f"🌍 AKUMULASI [BANDAR GLOBAL VIA INDO]! | {sym} Rp{price:.0f} | Naik24h {naik24h:.1f}% Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn GEDE! | Global {gp:.1f}% [{gname}] | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | INDO VOL GEDE, BELUM TERBANG!")
-                continue
+        if 0<=pantulan<=3.0 and pos<=45 and vol>=100_000_000 and gp is not None and -2<=gp<=5:
+            tier_akumulasi.append(f"🌍 AKUMULASI [BANDAR GLOBAL VIA INDO]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn GEDE! | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | INDO VOL GEDE, GLOBAL BELUM TERBANG!")
+            continue
     save_json(VOL_FILE, new_vol)
-    # Urutin PANTAU dari Naik24h paling gede!
     tier_pantau_sorted=[x[1] for x in sorted(tier_pantau, key=lambda x: x[0], reverse=True)]
-    msg=f"=== V37 RECOVERY {now} - {len(tickers)} KOINS ===\n"
+    msg=f"=== V37.1 RECOVERY [Global 6EX + Bandar Indo] {now} - {len(tickers)} KOINS ===\n"
     if hist_kosong:
-        msg+=f"⚠️ History baru! Vol 3J belum valid! Tunggu 3 jam biar Vol 3J keisi! AKUMULASI 3J mungkin kosong dulu, wajar!\n\n"
+        msg+=f"⚠️ History baru! Vol 3J belum valid! Tunggu 3 jam! AKUMULASI 3J mungkin kosong dulu, wajar!\n\n"
     msg+=f"🔥 AKUMULASI [BANDAR LAGI KUMPUL - MAU TERBANG - INI YANG DIBELI]:\n"+("\n".join(tier_akumulasi[:8]) if tier_akumulasi else "Belum ada akumulasi - Bandar belum kumpul / Market kalem")+"\n\n"
     msg+=f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR - CUMA DIPANTAU]:\n"+("\n".join(tier_pantau_sorted[:8]) if tier_pantau_sorted else "Belum ada yang pump - Market kalem")+"\n\n"
-    msg+=f"📌 Cara baca: Naik24h = dari harga 24 jam lalu (summaries)! Pantulan = dari Low hari ini! Kalo Naik24h -26% tapi Pantulan +9%, itu lagi JATUH, bukan naik!\n"
+    msg+=f"📌 Cara baca: Global = Naik24h dari 6EX! Pantulan = dari Low Indodax! Kalo Global UNKNOWN, berarti gak ada di 6EX, koin lokal!\n"
     return msg
 
 if __name__=="__main__":
