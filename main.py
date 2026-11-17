@@ -1,13 +1,17 @@
-# === V39 FINAL - BANDAR INDODAX + BANDAR GLOBAL 6EX ===
-# V39 = V38 + BANDAR GLOBAL 6EX! V38 cuma Bandar Indo, V39 ada 2 bandar!
-# 9EX Global: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
-# FIX: Vol >=100Mn biar VELODROME/NBT gak muncul!
+# === V40 FINAL BENERAN - 5 RUMUS DIPERBAIKI DARI AUDIT PORTO ===
+# PERBAIKAN 1: ENTRY = Low*1.01-1.03 SEMUA! CUT = ENTRY_BAWAH*0.97! CUT SELALU DI BAWAH ENTRY!
+# PERBAIKAN 2: Vol 6J harus >=20Mn! Vol sekarang >=150Mn! Vol 22x dari 4Mn TIDAK DIHITUNG!
+# PERBAIKAN 3: PREMIUM CHECK! Kalo Indodax > Global*1.10 (mahal 10%+), SKIP!
+# PERBAIKAN 4: HOLD_LIST! Koin yang lu udah pegang (BTC UAI QNT MYX BIRB AIH MCT ONL HOME) TIDAK AKAN MUNCUL LAGI!
+# PERBAIKAN 5: CUMA 2 TIER! BANDAR + GLOBAL! Kalo kosong = SEPI, JANGAN MAKSA!
 import requests, os, json, time
 from datetime import datetime
 import pytz
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
+# === KOIN YANG LU HOLD - JANGAN DIBELI LAGI! ===
+HOLD_LIST={'btc_idr','uai_idr','qnt_idr','myx_idr','birb_idr','aih_idr','mct_idr','onl_idr','home_idr'}
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
@@ -49,6 +53,7 @@ def get_tickers():
     for pair,d in r.items():
         if not pair.endswith('_idr'): continue
         if pair in BLACKLIST: continue
+        if pair in HOLD_LIST: continue
         try:
             if float(d['vol_idr'])<15_000_000: continue
             last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
@@ -59,50 +64,51 @@ def get_tickers():
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
     return out
 def get_global():
-    g={}; src={}
-    def upd(sym, val, name):
+    g={}; src={}; gp_usd={}
+    def upd(sym, val, name, usd_price=None):
         try: val=float(val)
         except: return
         key=sym.lower()+'_idr'
         if val>g.get(key,-100): g[key]=val; src[key]=name
+        if usd_price is not None:
+            try: gp_usd[key]=float(usd_price)
+            except: pass
     h={"User-Agent":"Mozilla/5.0"}
-    # === 6EX UTAMA BANDAR GLOBAL ===
     try:
         r=requests.get("https://api.bybit.com/v5/market/tickers?category=spot",timeout=6).json()
         for x in r['result']['list']:
-            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['price24hPcnt'])*100, "BYBIT")
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['price24hPcnt'])*100, "BYBIT", x.get('lastPrice'))
     except: pass
     try:
         r=requests.get("https://api.gateio.ws/api/v4/spot/tickers",timeout=6).json()
         for x in r:
-            if x['currency_pair'].endswith('_USDT'): upd(x['currency_pair'].replace('_USDT',''), float(x['change_percentage']), "GATE")
+            if x['currency_pair'].endswith('_USDT'): upd(x['currency_pair'].replace('_USDT',''), float(x['change_percentage']), "GATE", x.get('last'))
     except: pass
     try:
         r=requests.get("https://api.kucoin.com/api/v1/market/allTickers",timeout=6).json()
         for x in r['data']['ticker']:
-            if x['symbol'].endswith('-USDT'): upd(x['symbol'].replace('-USDT',''), float(x['changeRate'])*100, "KUCOIN")
+            if x['symbol'].endswith('-USDT'): upd(x['symbol'].replace('-USDT',''), float(x['changeRate'])*100, "KUCOIN", x.get('last'))
     except: pass
     try:
         r=requests.get("https://api.bitget.com/api/v2/spot/market/tickers",timeout=6).json()
         for x in r['data']:
-            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['change24h']), "BITGET")
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['change24h']), "BITGET", x.get('lastPr'))
     except: pass
     try:
         r=requests.get("https://api.mexc.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
         for x in r:
-            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "MEXC")
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "MEXC", x.get('lastPrice'))
     except: pass
     try:
         r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",timeout=6,headers=h).json()
         for x in r:
-            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE")
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE", x.get('lastPrice'))
     except:
         try:
             r=requests.get("https://api.binance.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
             for x in r:
-                if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE")
+                if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE", x.get('lastPrice'))
         except: pass
-    # === 3EX TAMBAHAN ===
     try:
         r=requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT",timeout=6,headers=h).json()
         for x in r.get('data',[]):
@@ -110,8 +116,8 @@ def get_global():
                 sym=x['instId'].replace('-USDT','')
                 try:
                     last=float(x['last']); open24=float(x.get('open24h',0))
-                    if open24>0: upd(sym, (last-open24)/open24*100, "OKX")
-                    else: upd(sym, float(x.get('chgUtc8',0))*100, "OKX")
+                    if open24>0: upd(sym, (last-open24)/open24*100, "OKX", last)
+                    else: upd(sym, float(x.get('chgUtc8',0))*100, "OKX", last)
                 except: pass
     except: pass
     try:
@@ -122,7 +128,7 @@ def get_global():
                 sym=s.replace('usdt','')
                 try:
                     close=float(x['close']); open24=float(x['open'])
-                    if open24>0: upd(sym, (close-open24)/open24*100, "HTX")
+                    if open24>0: upd(sym, (close-open24)/open24*100, "HTX", close)
                 except: pass
     except: pass
     try:
@@ -130,20 +136,36 @@ def get_global():
         for x in r.get('data',[]):
             sym=x.get('base',''); ch=x.get('price_percent_change_24h')
             if ch is not None:
-                try: upd(sym, float(ch), "COINBASE")
+                try: upd(sym, float(ch), "COINBASE", x.get('price'))
                 except: pass
     except: pass
-    return g, src
+    return g, src, gp_usd
 def scan():
     now=datetime.now(WIB).strftime("%H:%M WIB"); now_ts=int(time.time())
     vol_hist=load_json(VOL_FILE); price_hist=load_json(PRICE_FILE)
     new_vol={}; new_price={}
-    tickers=get_tickers(); gdata, gsrc=get_global()
-    tier_indo=[]; tier_global=[]; tier_early=[]; tier_spike=[]; tier_pantau=[]
+    tickers=get_tickers(); gdata, gsrc, gprice=get_global()
+    tier_indo=[]; tier_global=[]
     seen=set()
+    # Kurs USD-IDR perkiraan dari BTC Indodax vs Global - pake 16500 kalo gagal
+    USD_IDR=16500
+    try:
+        r=requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
+        btc_idr=float(r['btc_idr']['last'])
+        if 'btc_idr' in gprice and gprice['btc_idr']>0:
+            USD_IDR=btc_idr/float(gprice['btc_idr'])
+    except: pass
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-"); gp_txt=f"Global {gp:.1f}% [{gname}]"
+        # === PERBAIKAN 3: PREMIUM CHECK! ===
+        if t['pair'] in gprice and gprice[t['pair']]>0:
+            fair=gprice[t['pair']]*USD_IDR
+            premium=(price-fair)/fair*100 if fair>0 else 0
+            if premium>10:
+                continue
+        else:
+            premium=0
         hist=vol_hist.get(t['pair'],[])
         if isinstance(hist, dict): hist=[hist]
         if not isinstance(hist, list): hist=[]
@@ -159,48 +181,29 @@ def scan():
         if prev_price and prev_price>0 and 240<=(now_ts-prev_ts)<=420:
             spike_5m=(price-prev_price)/prev_price*100
         new_price[t['pair']]={"ts": now_ts, "price": price}
-        if pos>25:
-            ent_low=price*0.93; ent_high=price*0.97; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} RETEST"
-        else:
-            ent_low=low*1.01; ent_high=low*1.03; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB REAL"
-        cut=low*0.995; target=ent_high*1.10
-        # === PANTAU ===
-        if (gp>=40) or (naik>=10 and pos>=60):
+        # === PERBAIKAN 1: ENTRY & CUT BENER! ===
+        ent_low=low*1.01; ent_high=low*1.03; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB"
+        cut=ent_low*0.97; target=ent_high*1.10
+        # Spike 5M - cuma info, bukan beli!
+        if spike_5m>=4.0 and vol>=150_000_000:
+            pass
+        # === BANDAR INDODAX - PERBAIKAN 2: Vol 6J >=20Mn! ===
+        if vol_ratio>=2.5 and vol_6h and vol_6h>=20_000_000 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=150_000_000:
             if t['pair'] not in seen:
-                tier_pantau.append(f"👀 PANTAU! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | TUNGGU {price*0.70:.0f}-{price*0.80:.0f} | UDAH TERBANG!")
+                tier_indo.append(f"👑 BANDAR INDODAX! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Naik {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MODAL 200rb!")
                 seen.add(t['pair'])
             continue
-        # === SPIKE 5M ===
-        if spike_5m>=4.0 and vol>=100_000_000:
+        # === BANDAR GLOBAL 6EX ===
+        if gp>=3.0 and 0.3<=naik<=8.0 and pos<=50 and vol>=150_000_000:
             if t['pair'] not in seen:
-                tier_spike.append(f"⚡ SPIKE 5M! | {sym} Rp{price:.0f} | +{spike_5m:.1f}% 5mnt | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | JANGAN KEJAR PUCUK!")
-                seen.add(t['pair'])
-            continue
-        # === BANDAR INDODAX - V33.8 ===
-        if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=100_000_000:
-            if t['pair'] not in seen:
-                tier_indo.append(f"👑 BANDAR INDODAX! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Naik {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MASUK SEBELUM TERBANG!")
-                seen.add(t['pair'])
-            continue
-        # === BANDAR GLOBAL 6EX - INI YANG BARU! ===
-        if gp>=3.0 and 0.3<=naik<=8.0 and pos<=50 and vol>=100_000_000:
-            if t['pair'] not in seen:
-                tier_global.append(f"🌍 BANDAR GLOBAL 6EX! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | GLOBAL UDAH GAS, INDODAX BELUM!")
-                seen.add(t['pair'])
-            continue
-        # === EARLY RUNNER ===
-        if 5<=naik<=15 and 15<=pos<=45 and vol>=100_000_000:
-            if t['pair'] not in seen:
-                tier_early.append(f"🏃 EARLY RUNNER! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | GAS!")
+                tier_global.append(f"🌍 BANDAR GLOBAL! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MODAL 200rb!")
                 seen.add(t['pair'])
             continue
     save_json(VOL_FILE, new_vol); save_json(PRICE_FILE, new_price)
-    msg=f"=== V39 FINAL - INDO + GLOBAL 6EX {now} - {len(tickers)} KOINS ===\n"
-    msg+=f"👑 BANDAR INDODAX [DIBELI]:\n"+("\n".join(tier_indo[:8]) if tier_indo else "Belum ada bandar Indo")+"\n\n"
-    msg+=f"🌍 BANDAR GLOBAL 6EX [DIBELI]:\n"+("\n".join(tier_global[:8]) if tier_global else "Belum ada bandar Global")+"\n\n"
-    msg+=f"🏃 EARLY RUNNER [CADANGAN]:\n"+("\n".join(tier_early[:8]) if tier_early else "Belum ada early runner")+"\n\n"
-    msg+=f"⚡ SPIKE 5M [JANGAN KEJAR]:\n"+("\n".join(tier_spike[:8]) if tier_spike else "Belum ada spike")+"\n\n"
-    msg+=f"👀 PANTAU [UDAH PUMP]:\n"+("\n".join(tier_pantau[:8]) if tier_pantau else "Belum ada yang pump")+"\n\n"
+    msg=f"=== V40 FINAL BENERAN - 5 RUMUS DIPERBAIKI {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg+=f"👑 BANDAR INDODAX [MAX 2 - MODAL 200rb]:\n"+("\n".join(tier_indo[:2]) if tier_indo else "Belum ada bandar - SEPI, JANGAN MAKSA!")+"\n\n"
+    msg+=f"🌍 BANDAR GLOBAL 6EX [MAX 2 - MODAL 200rb]:\n"+("\n".join(tier_global[:2]) if tier_global else "Belum ada bandar Global - SEPI!")+"\n\n"
+    msg+=f"📌 HOLD LU (BTC UAI QNT MYX BIRB AIH MCT ONL HOME) DISKIP! ENTRY=Low*1.01-1.03! CUT=ENTRY*0.97! TARGET=ENTRY*1.10! PREMIUM>10% DISKIP!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
