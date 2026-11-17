@@ -1,166 +1,206 @@
-# === V26 FINAL - V25 + BANDAR V20 BALIK LAGI ===
-# V25 = BANDAR GALAK 0-3% + SPIKE 5M + BANDAR 6JAM
-# V26 = + BANDAR V20 LONGGAR 3-15% BIAR STIK GAK KELEWAT LAGI!
-
-import requests, json, os, time
-from datetime import datetime, timedelta, timezone
-
-TELE_TOKEN = os.getenv("TELE_TOKEN")
-TELE_CHAT_ID = os.getenv("TELE_CHAT_ID")
-WIB = timezone(timedelta(hours=7))
-
-def send_tele(msg):
-    url = f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": TELE_CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=20)
-    except Exception as e:
-        print("Tele error:", e)
-
-def load_json(path):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f)
-
-# 1. AMBIL DATA INDODAX
-try:
-    r = requests.get("https://indodax.com/api/tickers", timeout=30).json()
-    tickers = r.get("tickers", {})
-except Exception as e:
-    print("Fetch error", e)
-    tickers = {}
-
-now = datetime.now(WIB)
-now_ts = now.timestamp()
-now_str = now.strftime("%H:%M")
-
-vol_hist = load_json("vol_history.json")  # {koin: [[ts, vol], ...]}
-price_hist = load_json("price_history.json") # {koin: {"ts": ts, "price": price}}
-
-bandar_galak = []  # V25 - 0-3% - ENTRY TERBAIK
-bandar_v20 = []    # V26 - 3-15% - UDAH JALAN, WATCHLIST!
-early = []
-spike = []
-all_coins = []
-
-for pair, d in tickers.items():
-    if not pair.endswith("_idr"):
-        continue
-    koin = pair.replace("_idr", "").upper()
-    try:
-        price = float(d["last"])
-        vol_idr = float(d["vol_idr"])
-        chg_24 = float(d.get("change_24h", 0)) if d.get("change_24h") else 0
-    except:
-        continue
-
-    # Simpan vol history, keep 7 jam terakhir
-    lst = vol_hist.get(koin, [])
-    lst.append([now_ts, vol_idr])
-    lst = [x for x in lst if now_ts - x[0] <= 7*3600]
-    vol_hist[koin] = lst
-
-    # Cari vol 6 jam lalu - ambil yang paling deket 6 jam lalu
-    vol_6j_lalu = None
-    for ts, v in lst:
-        if now_ts - ts >= 6*3600 - 300: # toleransi 5 menit
-            vol_6j_lalu = v
-            break
-    if vol_6j_lalu is None and len(lst) > 1:
-        vol_6j_lalu = lst[0][1]
-    if not vol_6j_lalu or vol_6j_lalu == 0:
-        vol_ratio = 0
-    else:
-        vol_ratio = vol_idr / vol_6j_lalu
-
-    # SPIKE 5 MENIT - bandingin harga 5 menit lalu
-    spike_pct = 0
-    prev = price_hist.get(koin)
-    if prev and prev.get("price"):
+# === V39 FINAL - BANDAR INDODAX + BANDAR GLOBAL 6EX ===
+# V39 = V38 + BANDAR GLOBAL 6EX! V38 cuma Bandar Indo, V39 ada 2 bandar!
+# 9EX Global: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
+# FIX: Vol >=100Mn biar VELODROME/NBT gak muncul!
+import requests, os, json, time
+from datetime import datetime
+import pytz
+TELE_TOKEN = os.getenv('TELE_TOKEN')
+TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
+WIB = pytz.timezone('Asia/Jakarta')
+BLACKLIST={
+    'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
+    'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
+    'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
+    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
+    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr','enj_idr',
+    'flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr','rvn_idr',
+    'ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
+}
+VOL_FILE="vol_history.json"; PRICE_FILE="price_history.json"
+def load_json(f):
+    if os.path.exists(f):
         try:
-            spike_pct = (price - prev["price"]) / prev["price"] * 100
-        except:
-            spike_pct = 0
-    # Update price history buat run berikutnya
-    price_hist[koin] = {"ts": now_ts, "price": price}
-
-    # Hitung OB simpel: Pos = chg_24, OB = range harga
-    # OB = low 24h - high? Kita pake aproksimasi dari chg
-    ob_low = int(price * 0.97)
-    ob_high = int(price * 1.00) if price > 100 else round(price * 0.97, 2)
-
-    data = {
-        "koin": koin, "price": price, "vol": vol_idr,
-        "chg": chg_24, "ratio": vol_ratio, "spike": spike_pct,
-        "ob": f"{ob_low}-{ob_high}"
-    }
-    all_coins.append(data)
-
-    # === SPIKE 5M - UDAH NGEGAS ===
-    if spike_pct >= 2.0:
-        spike.append(data)
-
-    # === BANDAR GALAK V25 - 0-3% - ENTRY TERBAIK ===
-    if vol_ratio >= 3 and 0 <= chg_24 <= 3 and vol_idr >= 50000000:
-        bandar_galak.append(data)
-    # === BANDAR V20 V26 - 3-15% - UDAH JALAN! JANGAN SAMPE KELEWAT ===
-    elif vol_ratio >= 3 and 3 < chg_24 <= 15 and vol_idr >= 50000000:
-        bandar_v20.append(data)
-    # === EARLY RUNNER ===
-    elif 1.5 <= vol_ratio < 3 and 0 <= chg_24 <= 5:
-        early.append(data)
-
-# Sort
-bandar_galak = sorted(bandar_galak, key=lambda x: x["ratio"], reverse=True)[:5]
-bandar_v20 = sorted(bandar_v20, key=lambda x: x["ratio"], reverse=True)[:5]
-early = sorted(early, key=lambda x: x["ratio"], reverse=True)[:5]
-spike = sorted(spike, key=lambda x: x["spike"], reverse=True)[:5]
-
-save_json("vol_history.json", vol_hist)
-save_json("price_history.json", price_hist)
-
-# 2. BIKIN PESAN TELE
-msg = f"=== V26 9EX + SPIKE 5M + BANDAR 6JAM {now_str} WIB - {len(all_coins)} KOINS ===\n\n"
-
-# SPIKE
-msg += "⚡ SPIKE 5 MENIT - UDAH NGEGAS, JANGAN DIKEJAR!\n"
-if spike:
-    for c in spike:
-        msg += f"⚡ {c['koin']} Rp{c['price']} | Spike +{c['spike']:.1f}% | 24h {c['chg']:.1f}%\n"
-else:
-    msg += "Belum ada spike 5 menit\n"
-msg += "\n"
-
-# BANDAR GALAK
-msg += "👑 BANDAR 6JAM - ENTRY TERBAIK 0-3%!\n"
-if bandar_galak:
-    for c in bandar_galak:
-        msg += f"👑 {c['koin']} Rp{c['price']} | Vol 6J Naik {c['ratio']:.1f}x | Harga {c['chg']:.1f}% | OB {c['ob']}\n"
-else:
-    msg += "Belum ada bandar galak\n"
-msg += "\n"
-
-# BANDAR V20 - YANG BARU BALIK!
-msg += "👀 BANDAR V20 - UDAH JALAN 3-15%! WATCHLIST!\n"
-if bandar_v20:
-    for c in bandar_v20:
-        msg += f"👀 {c['koin']} Rp{c['price']} | Vol 6J Naik {c['ratio']:.1f}x | Harga {c['chg']:.1f}% | OB {c['ob']} | UDAH JALAN, SIAP-SIAP!\n"
-else:
-    msg += "Belum ada bandar V20\n"
-msg += "\n"
-
-# EARLY
-msg += "🏃 EARLY RUNNER:\n"
-if early:
-    for c in early:
-        msg += f"🏃 {c['koin']} Rp{c['price']} | Vol {c['ratio']:.1f}x | 24h {c['chg']:.1f}%\n"
-else:
-    msg += "Belum ada early runner\n"
-
-print(msg)
-send_tele(msg)
+            d=json.load(open(f)); return d if isinstance(d,dict) else {}
+        except: return {}
+    return {}
+def save_json(f,d):
+    try: json.dump(d, open(f,"w"))
+    except: pass
+def get_vol_6h(hist_list, now_ts):
+    best=None; best_diff=999999
+    if not isinstance(hist_list, list): return None
+    for e in hist_list:
+        if not isinstance(e, dict): continue
+        age=now_ts-e.get("ts",0)
+        if 5*3600<=age<=7*3600:
+            diff=abs(age-6*3600)
+            if diff<best_diff: best_diff=diff; best=e.get("vol",0)
+    return best
+def send_tele(msg):
+    print(msg); msg=msg[:3800]
+    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
+    except: pass
+def get_tickers():
+    try: r=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    except: return []
+    out=[]
+    for pair,d in r.items():
+        if not pair.endswith('_idr'): continue
+        if pair in BLACKLIST: continue
+        try:
+            if float(d['vol_idr'])<15_000_000: continue
+            last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
+        except: continue
+        if last==0 or low==0 or high==low: continue
+        pos=((last-low)/(high-low)*100) if high!=low else 0
+        naik=((last-low)/low*100) if low!=0 else 0
+        out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
+    return out
+def get_global():
+    g={}; src={}
+    def upd(sym, val, name):
+        try: val=float(val)
+        except: return
+        key=sym.lower()+'_idr'
+        if val>g.get(key,-100): g[key]=val; src[key]=name
+    h={"User-Agent":"Mozilla/5.0"}
+    # === 6EX UTAMA BANDAR GLOBAL ===
+    try:
+        r=requests.get("https://api.bybit.com/v5/market/tickers?category=spot",timeout=6).json()
+        for x in r['result']['list']:
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['price24hPcnt'])*100, "BYBIT")
+    except: pass
+    try:
+        r=requests.get("https://api.gateio.ws/api/v4/spot/tickers",timeout=6).json()
+        for x in r:
+            if x['currency_pair'].endswith('_USDT'): upd(x['currency_pair'].replace('_USDT',''), float(x['change_percentage']), "GATE")
+    except: pass
+    try:
+        r=requests.get("https://api.kucoin.com/api/v1/market/allTickers",timeout=6).json()
+        for x in r['data']['ticker']:
+            if x['symbol'].endswith('-USDT'): upd(x['symbol'].replace('-USDT',''), float(x['changeRate'])*100, "KUCOIN")
+    except: pass
+    try:
+        r=requests.get("https://api.bitget.com/api/v2/spot/market/tickers",timeout=6).json()
+        for x in r['data']:
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['change24h']), "BITGET")
+    except: pass
+    try:
+        r=requests.get("https://api.mexc.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "MEXC")
+    except: pass
+    try:
+        r=requests.get("https://data-api.binance.vision/api/v3/ticker/24hr",timeout=6,headers=h).json()
+        for x in r:
+            if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE")
+    except:
+        try:
+            r=requests.get("https://api.binance.com/api/v3/ticker/24hr",timeout=6,headers=h).json()
+            for x in r:
+                if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE")
+        except: pass
+    # === 3EX TAMBAHAN ===
+    try:
+        r=requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT",timeout=6,headers=h).json()
+        for x in r.get('data',[]):
+            if x.get('instId','').endswith('-USDT'):
+                sym=x['instId'].replace('-USDT','')
+                try:
+                    last=float(x['last']); open24=float(x.get('open24h',0))
+                    if open24>0: upd(sym, (last-open24)/open24*100, "OKX")
+                    else: upd(sym, float(x.get('chgUtc8',0))*100, "OKX")
+                except: pass
+    except: pass
+    try:
+        r=requests.get("https://api.huobi.pro/market/tickers",timeout=6,headers=h).json()
+        for x in r.get('data',[]):
+            s=x.get('symbol','')
+            if s.endswith('usdt'):
+                sym=s.replace('usdt','')
+                try:
+                    close=float(x['close']); open24=float(x['open'])
+                    if open24>0: upd(sym, (close-open24)/open24*100, "HTX")
+                except: pass
+    except: pass
+    try:
+        r=requests.get("https://api.coinbase.com/v2/assets/prices?base=USD",timeout=6,headers=h).json()
+        for x in r.get('data',[]):
+            sym=x.get('base',''); ch=x.get('price_percent_change_24h')
+            if ch is not None:
+                try: upd(sym, float(ch), "COINBASE")
+                except: pass
+    except: pass
+    return g, src
+def scan():
+    now=datetime.now(WIB).strftime("%H:%M WIB"); now_ts=int(time.time())
+    vol_hist=load_json(VOL_FILE); price_hist=load_json(PRICE_FILE)
+    new_vol={}; new_price={}
+    tickers=get_tickers(); gdata, gsrc=get_global()
+    tier_indo=[]; tier_global=[]; tier_early=[]; tier_spike=[]; tier_pantau=[]
+    seen=set()
+    for t in tickers:
+        sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
+        gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-"); gp_txt=f"Global {gp:.1f}% [{gname}]"
+        hist=vol_hist.get(t['pair'],[])
+        if isinstance(hist, dict): hist=[hist]
+        if not isinstance(hist, list): hist=[]
+        hist=[e for e in hist if isinstance(e,dict) and now_ts-e.get("ts",0)<7*3600]
+        vol_6h=get_vol_6h(hist, now_ts)
+        vol_ratio=(vol/vol_6h) if vol_6h and vol_6h>0 else 0
+        hist.append({"ts": now_ts, "vol": vol}); new_vol[t['pair']]=hist
+        prev=price_hist.get(t['pair'],{})
+        if isinstance(prev, list): prev=prev[-1] if prev else {}
+        if not isinstance(prev, dict): prev={}
+        prev_price=prev.get("price",0); prev_ts=prev.get("ts",0)
+        spike_5m=0
+        if prev_price and prev_price>0 and 240<=(now_ts-prev_ts)<=420:
+            spike_5m=(price-prev_price)/prev_price*100
+        new_price[t['pair']]={"ts": now_ts, "price": price}
+        if pos>25:
+            ent_low=price*0.93; ent_high=price*0.97; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} RETEST"
+        else:
+            ent_low=low*1.01; ent_high=low*1.03; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB REAL"
+        cut=low*0.995; target=ent_high*1.10
+        # === PANTAU ===
+        if (gp>=40) or (naik>=10 and pos>=60):
+            if t['pair'] not in seen:
+                tier_pantau.append(f"👀 PANTAU! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | TUNGGU {price*0.70:.0f}-{price*0.80:.0f} | UDAH TERBANG!")
+                seen.add(t['pair'])
+            continue
+        # === SPIKE 5M ===
+        if spike_5m>=4.0 and vol>=100_000_000:
+            if t['pair'] not in seen:
+                tier_spike.append(f"⚡ SPIKE 5M! | {sym} Rp{price:.0f} | +{spike_5m:.1f}% 5mnt | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | JANGAN KEJAR PUCUK!")
+                seen.add(t['pair'])
+            continue
+        # === BANDAR INDODAX - V33.8 ===
+        if vol_ratio>=2.5 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=100_000_000:
+            if t['pair'] not in seen:
+                tier_indo.append(f"👑 BANDAR INDODAX! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Naik {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MASUK SEBELUM TERBANG!")
+                seen.add(t['pair'])
+            continue
+        # === BANDAR GLOBAL 6EX - INI YANG BARU! ===
+        if gp>=3.0 and 0.3<=naik<=8.0 and pos<=50 and vol>=100_000_000:
+            if t['pair'] not in seen:
+                tier_global.append(f"🌍 BANDAR GLOBAL 6EX! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | GLOBAL UDAH GAS, INDODAX BELUM!")
+                seen.add(t['pair'])
+            continue
+        # === EARLY RUNNER ===
+        if 5<=naik<=15 and 15<=pos<=45 and vol>=100_000_000:
+            if t['pair'] not in seen:
+                tier_early.append(f"🏃 EARLY RUNNER! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | GAS!")
+                seen.add(t['pair'])
+            continue
+    save_json(VOL_FILE, new_vol); save_json(PRICE_FILE, new_price)
+    msg=f"=== V39 FINAL - INDO + GLOBAL 6EX {now} - {len(tickers)} KOINS ===\n"
+    msg+=f"👑 BANDAR INDODAX [DIBELI]:\n"+("\n".join(tier_indo[:8]) if tier_indo else "Belum ada bandar Indo")+"\n\n"
+    msg+=f"🌍 BANDAR GLOBAL 6EX [DIBELI]:\n"+("\n".join(tier_global[:8]) if tier_global else "Belum ada bandar Global")+"\n\n"
+    msg+=f"🏃 EARLY RUNNER [CADANGAN]:\n"+("\n".join(tier_early[:8]) if tier_early else "Belum ada early runner")+"\n\n"
+    msg+=f"⚡ SPIKE 5M [JANGAN KEJAR]:\n"+("\n".join(tier_spike[:8]) if tier_spike else "Belum ada spike")+"\n\n"
+    msg+=f"👀 PANTAU [UDAH PUMP]:\n"+("\n".join(tier_pantau[:8]) if tier_pantau else "Belum ada yang pump")+"\n\n"
+    return msg
+if __name__=="__main__":
+    send_tele(scan())
