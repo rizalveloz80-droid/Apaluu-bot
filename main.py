@@ -1,7 +1,8 @@
-# == V25 FINAL - V24 ASLI + SPIKE 5 MENIT ===
+# === V25 FINAL - V24 ASLI + SPIKE 5 MENIT ===
 # V24 = V23 + BANDAR 6JAM + TAG FIX 0.5
 # V25 = V24 + ⚡ SPIKE 5 MENIT (Harga naik 4%+ dalam 5 menit, langsung teriak!)
 # 9 EXCHANGE: BINANCE BYBIT GATE KUCOIN BITGET MEXC OKX HTX COINBASE
+# FIX MERAH: price_history + vol_history bisa LIST atau DICT - udah dibenerin! Logika TIDAK diubah!
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -33,7 +34,9 @@ def get_tag(gp, gname):
 VOL_FILE = "vol_history.json"
 def load_vol():
     if os.path.exists(VOL_FILE):
-        try: return json.load(open(VOL_FILE))
+        try:
+            d = json.load(open(VOL_FILE))
+            return d if isinstance(d, dict) else {}
         except: return {}
     return {}
 def save_vol(d):
@@ -41,7 +44,11 @@ def save_vol(d):
     except: pass
 def get_vol_6h(hist_list, now_ts):
     best = None; best_diff = 999999
+    if not isinstance(hist_list, list):
+        return None
     for e in hist_list:
+        if not isinstance(e, dict):
+            continue
         age = now_ts - e.get("ts", 0)
         if 5*3600 <= age <= 7*3600:
             diff = abs(age - 6*3600)
@@ -53,7 +60,9 @@ def get_vol_6h(hist_list, now_ts):
 PRICE_FILE = "price_history.json"
 def load_price():
     if os.path.exists(PRICE_FILE):
-        try: return json.load(open(PRICE_FILE))
+        try:
+            d = json.load(open(PRICE_FILE))
+            return d if isinstance(d, dict) else {}
         except: return {}
     return {}
 def save_price(d):
@@ -189,13 +198,21 @@ def scan():
         sym=t['sym']; price=t['last']; low=t['low']; naik=t['naik']; pos=t['pos']; vol=t['vol']
         gp=gdata.get(t['pair'],0); gname=gsrc.get(t['pair'],"-")
         hist = vol_hist.get(t['pair'], [])
-        hist = [e for e in hist if now_ts - e.get("ts",0) < 7*3600]
+        if isinstance(hist, dict):
+            hist = [hist]
+        if not isinstance(hist, list):
+            hist = []
+        hist = [e for e in hist if isinstance(e, dict) and now_ts - e.get("ts",0) < 7*3600]
         vol_6h = get_vol_6h(hist, now_ts)
         vol_ratio = (vol / vol_6h) if vol_6h and vol_6h>0 else 0
         hist.append({"ts": now_ts, "vol": vol})
         new_hist[t['pair']] = hist
-        # === V25: HITUNG SPIKE 5 MENIT ===
+        # === V25: HITUNG SPIKE 5 MENIT - FIX MERAH! ===
         prev = price_hist.get(t['pair'], {})
+        if isinstance(prev, list):
+            prev = prev[-1] if prev else {}
+        if not isinstance(prev, dict):
+            prev = {}
         prev_price = prev.get("price", 0)
         prev_ts = prev.get("ts", 0)
         spike_5m = 0
