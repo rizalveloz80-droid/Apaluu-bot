@@ -1,19 +1,15 @@
-# === V41.1 FULL - EARLY UDAH DIBENERIN! SALIN FULL! ===
-# PERBAIKAN DARI V41: Vol_ratio kalo history kosong = 1.0 (bukan 0)! EARLY bisa jalan walau baru hapus history!
-# 1. ENTRY = Low*1.01-1.03! CUT = ENTRY*0.97! CUT SELALU DI BAWAH ENTRY!
-# 2. Vol 6J >=20Mn untuk BANDAR! Vol >=80Mn untuk EARLY!
-# 3. PREMIUM >10% SKIP! PREMIUM >20% / NAIK >15% = PUMP BAHAYA!
-# 4. HOLD_LIST 9 koin lu DISKIP!
-# 5. NO COOLDOWN! Koin bener naik boleh muncul terus!
-# 6. MAX 5 PER TIER!
-# 7. EARLY: Nangkep ENJ pas 548 sebelum terbang ke 730!
+# === V42 FULL - V41.1 + NEW 5%+ DIGABUNG! SALIN FULL! ===
+# 1. EARLY: Nangkep sebelum terbang (ENJ 548)
+# 2. NEW 5%+: Nangkep yang baru naik Global 2%+ tapi Indo belum jauh! (ANKR, HUMA, PHA, RARE) - INI YANG LU MAU!
+# 3. BANDAR INDODAX + BANDAR GLOBAL
+# 4. PUMP BAHAYA: Jangan beli!
+# 5. ENTRY = Low*1.01-1.03! CUT = ENTRY*0.97! NO COOLDOWN! MAX 5 EARLY/BANDAR, MAX 7 NEW! HOLD 9 KOIN DISKIP!
 import requests, os, json, time
 from datetime import datetime
 import pytz
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
-# === KOIN YANG LU HOLD - JANGAN DIBELI LAGI! ===
 HOLD_LIST={'btc_idr','uai_idr','qnt_idr','myx_idr','birb_idr','aih_idr','mct_idr','onl_idr','home_idr'}
 BLACKLIST={
     'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
@@ -148,7 +144,7 @@ def scan():
     vol_hist=load_json(VOL_FILE); price_hist=load_json(PRICE_FILE)
     new_vol={}; new_price={}
     tickers=get_tickers(); gdata, gsrc, gprice=get_global()
-    tier_early=[]; tier_indo=[]; tier_global=[]; tier_bahaya=[]
+    tier_early=[]; tier_new=[]; tier_indo=[]; tier_global=[]; tier_bahaya=[]
     seen=set()
     USD_IDR=16500
     try:
@@ -186,34 +182,51 @@ def scan():
         new_price[t['pair']]={"ts": now_ts, "price": price}
         ent_low=low*1.01; ent_high=low*1.03; ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB"
         cut=ent_low*0.97; target=ent_high*1.10
-        if naik>15:
+        # OB untuk NEW: Low*1.01-1.03 sama, tapi RETEST = Harga*0.93-0.97 kalo Pos udah tinggi
+        # Biar kayak screenshot lama: ENTRY RETEST di bawah harga sekarang!
+        retest_low=price*0.93; retest_high=price*0.97
+        if pos>40:
+            ent_txt2=f"{retest_low:.0f}-{retest_high:.0f} RETEST"
+            cut2=retest_low*0.97; target2=retest_high*1.10
+        else:
+            ent_txt2=ent_txt; cut2=cut; target2=target
+        if naik>15 and premium>10:
             if t['pair'] not in seen:
                 tier_bahaya.append(f"⚠️ PUMP BAHAYA! JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | Udah terbang {naik:.1f}%! Jangan kejar!")
                 seen.add(t['pair'])
             continue
-        # === 🐣 EARLY - UDAH DIBENERIN V41.1! ===
-        # Kalo history kosong, vol_ratio=1.0, cukup Vol >=150Mn! Biar gak kosong terus!
+        if naik>35:
+            if t['pair'] not in seen:
+                tier_bahaya.append(f"⚠️ PUMP BAHAYA! JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | Udah terbang {naik:.1f}%! Jangan kejar!")
+                seen.add(t['pair'])
+            continue
+        # === 🐣 EARLY - BELUM TERBANG ===
         if 0<=naik<=2.5 and 5<=pos<=30 and vol>=80_000_000 and (vol_ratio>=1.8 or (vol_ratio==1.0 and vol>=150_000_000)) and gp>=0.5 and premium<5:
             tier_early.append(f"🐣 EARLY BELUM TERBANG! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x) | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MODAL 200rb! | INI BARU MAU TERBANG!")
+        # === 💥 NEW 5%+ - YANG LU MAU! DARI SCREENSHOT LAMA! ===
+        # Ciri: Global >=2%! Indo 2-30%! Pos 10-70%! Vol >=40Mn! Prem <10%! Ini ANKR, HUMA, PHA, RARE!
+        if gp>=2.0 and 2<=naik<=30 and 10<=pos<=70 and vol>=40_000_000 and premium<10:
+            tier_new.append(f"💥 NEW {gp:.0f}% | {sym} Rp{price:.0f} | ENTRY {ent_txt2} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | OB {ent_txt} | ENTRIAN BANDAR {ent_txt2} | CUT {cut2:.0f} | TARGET {target2:.0f} | MODAL 200rb!")
         # === 👑 BANDAR INDODAX ===
         if vol_ratio>=2.5 and vol_6h and vol_6h>=20_000_000 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=150_000_000:
             if t['pair'] not in seen:
                 tier_indo.append(f"👑 BANDAR INDODAX! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_6h/1e6:.0f}Mn) | Naik {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MODAL 200rb!")
                 seen.add(t['pair'])
             continue
-        # === 🌍 BANDAR GLOBAL 6EX ===
+        # === 🌍 BANDAR GLOBAL ===
         if gp>=3.0 and 0.3<=naik<=8.0 and pos<=50 and vol>=150_000_000:
             if t['pair'] not in seen:
                 tier_global.append(f"🌍 BANDAR GLOBAL! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TARGET {target:.0f} | MODAL 200rb!")
                 seen.add(t['pair'])
             continue
     save_json(VOL_FILE, new_vol); save_json(PRICE_FILE, new_price)
-    msg=f"=== V41.1 EARLY - UDAH DIBENERIN {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
-    msg+=f"🐣 EARLY - BELUM TERBANG [MAX 5 - INI YANG LU MAU!]:\n"+("\n".join(tier_early[:5]) if tier_early else "Belum ada yang mau terbang - market lagi tidur!")+"\n\n"
+    msg=f"=== V42 - V41.1 + NEW 5%+ {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg+=f"🐣 EARLY - BELUM TERBANG [MAX 5]:\n"+("\n".join(tier_early[:5]) if tier_early else "Belum ada yang mau terbang - market lagi tidur!")+"\n\n"
+    msg+=f"💥 NEW 5%+ [MAX 7 - INI YANG BAGUS DARI SCREENSHOT LAMA!]:\n"+("\n".join(tier_new[:7]) if tier_new else "Belum ada NEW - market sepi!")+"\n\n"
     msg+=f"👑 BANDAR INDODAX [MAX 5 - MODAL 200rb]:\n"+("\n".join(tier_indo[:5]) if tier_indo else "Belum ada bandar - SEPI, JANGAN MAKSA!")+"\n\n"
     msg+=f"🌍 BANDAR GLOBAL 6EX [MAX 5 - MODAL 200rb]:\n"+("\n".join(tier_global[:5]) if tier_global else "Belum ada bandar Global - SEPI!")+"\n\n"
     msg+=f"⚠️ PUMP BAHAYA - JANGAN BELI!:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 HOLD LU (BTC UAI QNT MYX BIRB AIH MCT ONL HOME) DISKIP! NO COOLDOWN! ENTRY=Low*1.01-1.03! CUT=ENTRY*0.97! TARGET=ENTRY*1.10! PREMIUM>10% DISKIP!\n"
+    msg+=f"📌 HOLD LU (BTC UAI QNT MYX BIRB AIH MCT ONL HOME) DISKIP! NO COOLDOWN! ENTRY=Low*1.01-1.03! Kalo Pos>40% ENTRY=Harga*0.93-0.97 RETEST! CUT=ENTRY*0.97! TARGET=ENTRY*1.10!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
