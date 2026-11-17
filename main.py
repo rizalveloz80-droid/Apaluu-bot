@@ -1,43 +1,24 @@
-# === V37.2 RECOVERY - CARI PIEVERSE BERIKUTNYA! BUKAN PIEVERSE LAGI! ===
-# V37.2 = V37.1 FIX + AUTO BUY MINI dari V19!
-# FIX 1: Pos HARUS 15-45% di SEMUA jalur! TLM Pos 0% GAK LOLOS LAGI!
-# FIX 2: Pantulan HARUS 0.3-3.0%! Bukan 0.0%! Biar CUT gak sama kayak ENTRY!
-# FIX 3: PIEVERSE, RARE, ISLM, HUMA yang udah pump -> KUNCI DI PANTAU! Gak bisa nyusup ke AKUMULASI!
-# FIX 4: AUTO BUY MINI! Kalo Vol >=500Mn + Global 3-5% + Pos 30-45% = kayak PIEVERSE 03:55! Bagi 2: 50% BELI SEKARANG + 50% TUNGGU RETEST!
-# FIX 5: Harga >10.000 = MODAL GEDE! Diurutin paling belakang! Biar koin murah kayak PIEVERSE muncul duluan buat porto 2jt!
-# DATA: CUMA tickers (last, low, high, vol) + Global 6EX (BYBIT+GATE+KUCOIN+BITGET+MEXC+BINANCE)! GAK PAKE summaries! GAK PAKE CoinGecko!
+# === V37.3 FIX - BALIKIN BIAR BISA ENTRY LAGI! ===
+# V37.3 = V37.2 + AUTO BUY MEDIUM! Biar gak kosong terus!
+# DATA: CUMA tickers + Global 6EX! GAK PAKE summaries!
 import requests, os, json, time
 from datetime import datetime
 import pytz
-
 TELE_TOKEN = os.getenv('TELE_TOKEN')
 TELE_CHAT_ID = os.getenv('TELE_CHAT_ID') or os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
-
-BLACKLIST={
-    'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr',
-    'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
-    'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
-    'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
-    'bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr','enj_idr',
-    'flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr',
-    'ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
-}
-
-VOL_FILE = "vol_history.json"
+BLACKLIST={'usdt_idr','usdc_idr','dai_idr','busd_idr','usde_idr','paxg_idr','xaut_idr','xaus_idr','eurc_idr','usdp_idr','tusd_idr','gusd_idr','usdd_idr','wbtc_idr','weth_idr','weur_idr','btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr','luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr','shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr','ondo_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr','bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr','enj_idr','flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr','ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',}
+VOL_FILE="vol_history.json"
 def load_json(f):
     if os.path.exists(f):
         try:
-            d = json.load(open(f))
-            if isinstance(d, dict): return d
-            return {}
+            d=json.load(open(f))
+            return d if isinstance(d,dict) else {}
         except: return {}
     return {}
 def save_json(f,d):
     try: json.dump(d, open(f,"w"))
     except: pass
-
 def get_vol_3h(hist_list, now_ts):
     best=None; best_diff=999999
     for e in hist_list:
@@ -45,20 +26,14 @@ def get_vol_3h(hist_list, now_ts):
         age=now_ts-e.get("ts",0)
         if 2.5*3600<=age<=3.5*3600:
             diff=abs(age-3*3600)
-            if diff<best_diff:
-                best_diff=diff; best=e.get("vol",0)
+            if diff<best_diff: best_diff=diff; best=e.get("vol",0)
     return best
-
 def send_tele(msg):
-    print(msg)
-    msg=msg[:3800]
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
+    print(msg); msg=msg[:3800]
+    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", json={"chat_id": TELE_CHAT_ID, "text": msg}, timeout=20)
     except: pass
-
 def get_tickers():
-    try:
-        r=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
+    try: r=requests.get("https://indodax.com/api/tickers", timeout=15).json()['tickers']
     except: return []
     out=[]
     for pair,d in r.items():
@@ -73,7 +48,6 @@ def get_tickers():
         pantulan=((last-low)/low*100) if low!=0 else 0
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'pantulan':pantulan})
     return out
-
 def get_global():
     g={}; src={}
     def upd(sym, val, name):
@@ -118,20 +92,13 @@ def get_global():
                 if x['symbol'].endswith('USDT'): upd(x['symbol'].replace('USDT',''), float(x['priceChangePercent']), "BINANCE")
         except: pass
     return g, src
-
 def scan():
-    now=datetime.now(WIB).strftime("%H:%M WIB")
-    now_ts=int(time.time())
-    vol_hist=load_json(VOL_FILE)
-    new_vol={}
-    tickers=get_tickers()
-    gdata, gsrc=get_global()
-    tier_akumulasi=[]; tier_pantau=[]
-    hist_kosong=True
+    now=datetime.now(WIB).strftime("%H:%M WIB"); now_ts=int(time.time())
+    vol_hist=load_json(VOL_FILE); new_vol={}; tickers=get_tickers(); gdata, gsrc=get_global()
+    tier_akumulasi=[]; tier_pantau=[]; hist_kosong=True
     for t in tickers:
         sym=t['sym']; price=t['last']; low=t['low']; pantulan=t['pantulan']; pos=t['pos']; vol=t['vol']
-        gp=gdata.get(t['pair'])  # None = UNKNOWN! Bukan 0.0%!
-        gname=gsrc.get(t['pair'],"-")
+        gp=gdata.get(t['pair']); gname=gsrc.get(t['pair'],"-")
         gp_txt=f"{gp:.1f}% [{gname}]" if gp is not None else "UNKNOWN [-]"
         hist=vol_hist.get(t['pair'],[])
         if not isinstance(hist, list): hist=[]
@@ -140,47 +107,38 @@ def scan():
         if vol_3h: hist_kosong=False
         vol_ratio=(vol/vol_3h) if vol_3h and vol_3h>0 else 0
         hist.append({"ts": now_ts, "vol": vol}); new_vol[t['pair']]=hist
-        # === KUNCI PANTAU DULUAN! Biar PIEVERSE 38.000, RARE 282, ISLM 51, HUMA 160 GAK BISA MASUK AKUMULASI LAGI! ===
         if (gp is not None and gp>=40) or (pantulan>=10 and pos>=60):
             retest_low=price*0.70; retest_high=price*0.80
             tier_pantau.append((gp if gp is not None else pantulan, f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | TUNGGU RETEST {retest_low:.0f}-{retest_high:.0f} | UDAH TERBANG!"))
             continue
-        # === TIER 1 AKUMULASI - CARI PIEVERSE BERIKUTNYA! ===
-        # Syarat WAJIB semua jalur: Pantulan 0.3-3.0% (TLM 0.0% GAK LOLOS!) + Pos 15-45% (TLM 0% GAK LOLOS!) + Global <5% kalo ada!
-        # Kalo Global UNKNOWN, boleh, tapi tulis UNKNOWN!
-        if not (0.3<=pantulan<=3.0 and 15<=pos<=45): continue
-        if gp is not None and gp>=5: continue
-        entry_low=low*1.01; entry_high=low*1.03
-        target=entry_high*1.10; cut=low*0.995
-        # Safety: CUT harus di bawah ENTRY! Kalo CUT == ENTRY, skip! Ini bug TLM kemarin!
+        if not (0.3<=pantulan<=4.0 and 15<=pos<=50): continue
+        if gp is not None and gp>=6: continue
+        entry_low=low*1.01; entry_high=low*1.03; target=entry_high*1.10; cut=low*0.995
         if cut>=entry_low: continue
-        if target<=entry_high*1.05: continue
-        # Harga >10.000 = MODAL GEDE! Tandain, biar porto 2jt gak kekunci! Tapi tetep ditampilin, di belakang!
-        modal_tag=" [MODAL GEDE - SKIP BUAT 2JT]" if price>10000 else ""
-        # Prioritas: harga murah (10-5000) duluan! Kayak PIEVERSE dulu!
+        modal_tag=" [MODAL GEDE]" if price>10000 else ""
         prioritas=0 if price<=5000 else 1
-        # --- JALUR AUTO BUY MINI (V19)! Kayak PIEVERSE 03:55! Vol >=500Mn + Global 3-5% + Pos 30-45% ---
+        # AUTO BUY KUAT - kayak PIEVERSE!
         if vol>=500_000_000 and gp is not None and 3<=gp<=5 and 30<=pos<=45:
-            tier_akumulasi.append((prioritas, f"⚡ AKUMULASI + AUTO BUY MINI [KAYAK PIEVERSE 03:55]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn GEDE!{modal_tag} | AUTO BUY 50% di {price:.0f} SEKARANG! + TUNGGU RETEST 50% di {entry_low:.0f}-{entry_high:.0f}! | TARGET {target:.0f} | CUT {cut:.0f} | JANGAN TUNGGU SEMUA! BAGI 2!"))
+            tier_akumulasi.append((prioritas, f"⚡ AUTO BUY KUAT [KAYAK PIEVERSE]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{modal_tag} | AUTO BUY 50% di {price:.0f} + RETEST 50% di {entry_low:.0f}-{entry_high:.0f}! | TARGET {target:.0f} | CUT {cut:.0f} |"))
             continue
-        # --- JALUR BANDAR INDO 3J! Vol 3J Naik >=2.5x + Vol >=30Mn ---
+        # AUTO BUY MEDIUM - baru! biar gak kosong!
+        if vol>=250_000_000 and gp is not None and 1<=gp<=6 and 25<=pos<=50:
+            tier_akumulasi.append((prioritas, f"⚡ AUTO BUY MEDIUM! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{modal_tag} | AUTO BUY 30% di {price:.0f} + RETEST 70% di {entry_low:.0f}-{entry_high:.0f}! | TARGET {target:.0f} | CUT {cut:.0f} | MODAL KECIL AJA!"))
+            continue
         if vol_ratio>=2.5 and vol>=30_000_000:
-            tier_akumulasi.append((prioritas, f"🔥 AKUMULASI [BANDAR INDO 3J]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% | Vol 3J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_3h/1e6:.0f}Mn){modal_tag} | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | BANDAR LAGI KUMPUL!"))
+            tier_akumulasi.append((prioritas, f"🔥 AKUMULASI [BANDAR INDO 3J]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% | Vol 3J Naik {vol_ratio:.1f}x ({vol/1e6:.0f}Mn vs {vol_3h/1e6:.0f}Mn){modal_tag} | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} |"))
             continue
-        # --- JALUR BANDAR GLOBAL VIA INDO! Vol >=100Mn + Global HARUS ADA + -2 sampai 5% ---
         if vol>=100_000_000 and gp is not None and -2<=gp<=5:
-            tier_akumulasi.append((prioritas, f"🌍 AKUMULASI [BANDAR GLOBAL VIA INDO]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn GEDE!{modal_tag} | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} | INDO VOL GEDE, GLOBAL BELUM TERBANG!"))
+            tier_akumulasi.append((prioritas, f"🌍 AKUMULASI [BANDAR GLOBAL VIA INDO]! | {sym} Rp{price:.0f} | Global {gp_txt} Pantulan {pantulan:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn{modal_tag} | ENTRY {entry_low:.0f}-{entry_high:.0f} | TARGET {target:.0f} | CUT {cut:.0f} |"))
             continue
     save_json(VOL_FILE, new_vol)
     tier_pantau_sorted=[x[1] for x in sorted(tier_pantau, key=lambda x: x[0], reverse=True)]
     tier_akumulasi_sorted=[x[1] for x in sorted(tier_akumulasi, key=lambda x: x[0])]
-    msg=f"=== V37.2 RECOVERY [Cari PIEVERSE Berikutnya] {now} - {len(tickers)} KOINS ===\n"
-    if hist_kosong:
-        msg+=f"⚠️ History baru! Vol 3J belum valid! Tunggu 3 jam! BANDAR INDO 3J mungkin kosong dulu, wajar!\n\n"
-    msg+=f"🔥 AKUMULASI [BANDAR LAGI KUMPUL - MAU TERBANG - INI YANG DIBELI]:\n"+("\n".join(tier_akumulasi_sorted[:8]) if tier_akumulasi_sorted else "Belum ada akumulasi - Bandar belum kumpul / Market kalem")+"\n\n"
-    msg+=f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR - CUMA DIPANTAU]:\n"+("\n".join(tier_pantau_sorted[:8]) if tier_pantau_sorted else "Belum ada yang pump - Market kalem")+"\n\n"
-    msg+=f"📌 Cara baca: Global = Naik24h dari 6EX! Pantulan = dari Low Indodax! Kalo Global UNKNOWN, berarti koin lokal! PIEVERSE 38.000 + RARE 282 + ISLM 51 + HUMA 160 udah pump, harusnya di PANTAU, bukan AKUMULASI!\n"
+    msg=f"=== V37.3 FIX [Biar Bisa Entry Lagi] {now} - {len(tickers)} KOINS ===\n"
+    if hist_kosong: msg+=f"⚠️ History baru! Vol 3J belum valid! Tunggu 3 jam!\n\n"
+    msg+=f"🔥 AKUMULASI [INI YANG DIBELI]:\n"+("\n".join(tier_akumulasi_sorted[:8]) if tier_akumulasi_sorted else "Belum ada akumulasi - Market kalem")+"\n\n"
+    msg+=f"👀 PANTAU [UDAH PUMP - JANGAN KEJAR]:\n"+("\n".join(tier_pantau_sorted[:8]) if tier_pantau_sorted else "Belum ada yang pump")+"\n\n"
+    msg+=f"📌 Global = Naik24h 6EX! Pantulan = dari Low Indodax! AUTO BUY MEDIUM modal kecil aja 30%!\n"
     return msg
-
 if __name__=="__main__":
     send_tele(scan())
