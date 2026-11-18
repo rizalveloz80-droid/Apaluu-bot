@@ -1,10 +1,11 @@
-# === V48 ULTIMATE PREMIUM - SATU AJA! BUANG V46, V46 FINAL, V47! DIKUNCI! ===
-# GABUNGAN: V46 (Breakout 15m) + V46 FINAL (Fix Harga >50rb + TP 2 Stage + CUT 5%) + V47 (Gak Ngejar!)
-# VALIDASI INDODAX: PIPPIN, S, PIEVERSE, ICNT, ANKR semua ke-tangkep PAS TIDUR! Bukan pas udah lari!
-# BANDAR INDODAX: Vol 24H >=150Mn + Vol 1J >=3% + Vol 6J >=1,5x = LAGI NGUMPULIN!
-# BANDAR GLOBAL: Global >=0% (gak minus!) + Premium -2% sampai +10% = MASIH MURAH! Global >=2% itu BONUS!
-# ATURAN: CUMA BELI YANG MASIH TIDUR! Naik 0-4%! Pos 5-30%! +15m <1,5%! +1J <2%! Kalo udah Naik >5% -> JANGAN KEJAR!
-# ENTRY Low*1,01-1,03! CUT 3% (Pre-Pump) / 5% (kalo udah lari dikit)! TP1 10% jual setengah! TP2 25% jual sisa! MODAL 200rb! 2 JAM!
+# === V49 FINAL - 5 TIER GABUNG! SALIN FULL! DIKUNCI! ===
+# GABUNGAN DARI 5 TIER YANG LU MINTA! BUKAN V48! FARTCOIN + PUMP DILUPAIN!
+# 1. GAS AWAL - V29.9 FIX URUTAN 450 KOIN: Koin masih awal, diurutin dari yang paling siap! Naik 0-4%! Pos 5-35%! Vol >=80Mn!
+# 2. PUMP CEPET - V29.9 FIX BANDAR DAN PUMP: Bandar Indo udah masuk! Vol 6J >=1,5x! Vol 1J >=3%! Naik 0-5%!
+# 3. TOP 5 ENTRI - V30.10 TOP PRIORITY: 5 entry terbaik! Digabung dari GAS AWAL + PUMP CEPET + BULLISH GLOBAL! Diurutin dari yang paling aman!
+# 4. BULLISH GLOBAL - V30.10 TOP PRIORITY: Global ngegas! Global >=3%! Indo 0-5%! Prem <10%! Indo belum ikut!
+# 5. PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX: Naik >30% ATAU Prem >30% = BAHAYA! Bukan Naik >10%! Biar breakout gak ke-buang!
+# ENTRY Low*1,01-1,03! CUT 3%! TP1 10% jual setengah! TP2 25% jual sisa! MODAL 200rb! 2 JAM! Bot jalan tiap 5 menit!
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -69,7 +70,6 @@ def get_tickers():
             last=float(d['last']); low=float(d['low']); high=float(d['high']); vol=float(d['vol_idr'])
         except: continue
         if last==0 or low==0 or high==low: continue
-        # FIX V46: Harga >50rb DIHAPUS! PIPPIN 345rb + PIEVERSE 51rb BOLEH! Indodax bisa beli pecahan!
         pos=((last-low)/(high-low)*100) if high!=low else 0
         naik=((last-low)/low*100) if low!=0 else 0
         out.append({'pair':pair,'sym':pair.replace('_idr','').upper(),'last':last,'low':low,'high':high,'vol':vol,'pos':pos,'naik':naik})
@@ -157,8 +157,8 @@ def scan():
     vol_hist=load_json(VOL_FILE); price_hist=load_json(PRICE_FILE)
     new_vol={}; new_price={}
     tickers=get_tickers(); gdata, gsrc, gprice, has_global=get_global()
-    tier_prepump=[]; tier_akumulasi=[]; tier_indo=[]; tier_global=[]; tier_jangan_kejar=[]; tier_bahaya=[]
-    seen=set()
+    tier_gas=[]; tier_pumpcepet=[]; tier_global=[]; tier_bahaya=[]
+    top_priority=[]  # Gabungan untuk TOP 5 ENTRI V30.10!
     USD_IDR=16500
     try:
         r=requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
@@ -199,57 +199,68 @@ def scan():
         if ent_high<=ent_low: ent_low=price*0.98; ent_high=price*0.99
         ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB"
         cut=ent_low*0.97; tp1=ent_high*1.10; tp2=ent_high*1.25
-        # === ⛔ JANGAN KEJAR! UDAH PUMP! INI YANG LU GAK MAU! ===
-        # Kalo Naik >5% / +15m >3% / Pos >35% -> UDAH LARI! JANGAN KEJAR!
-        if naik>5 or (p15 is not None and chg_15m>3.0) or pos>35:
-            if naik>10 or (p15 is not None and chg_15m>5.0):
-                tier_jangan_kejar.append(f"⛔ JANGAN KEJAR! UDAH PUMP! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | UDAH LARI! CARI YANG MASIH TIDUR!")
+        # === 5. PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX! ===
+        # V44 ASLI: Naik >10% = BAHAYA! SALAH! Breakout ke-buang!
+        # V49 FIX: Naik >30% ATAU Prem >30% ATAU Naik >15% + Pos >70% = BAHAYA BENERAN!
+        # Naik 10-30% + Prem <10% = BUKAN BAHAYA! Itu BREAKOUT! Jangan dibuang!
+        is_bahaya = naik>30 or (has_g and premium>30) or (naik>15 and pos>70)
+        if is_bahaya:
+            tier_bahaya.append(f"⛔ PUMP BAHAYA - JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | UDAH PUMP! JANGAN KEJAR!")
             continue
-        if has_g and premium>30:
-            tier_bahaya.append(f"⚠️ PUMP BAHAYA! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | Prem {premium:.1f}% | Udah telat!")
-            continue
-        # === 😴 PRE-PUMP ULTIMATE - MASIH TIDUR! INI YANG LU MAU! ===
-        # BANDAR INDODAX: Vol >=80Mn + Vol 1J >=3% + Vol 6J >=1,5x!
-        # BANDAR GLOBAL: Global >=0% (gak minus!) + Prem -2% sampai +10%! Global >=2% itu BONUS!
-        # MASIH TIDUR: Naik 0-4%! Pos 5-30%! +15m <1,5%! +1J <2%!
-        if 0<=naik<=4.0 and 5<=pos<=30 and p15 is not None and p60 is not None and abs(chg_15m)<1.5 and abs(chg_60m)<2.0 and vol>=80_000_000 and (vol_ratio>=1.5 or vol_1j_ratio>=3.0) and has_g and gp>=0 and -2<=premium<=10:
-            tier_prepump.append(f"😴 PRE-PUMP ULTIMATE - MASIH TIDUR! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} (3%!) | TP1 {tp1:.0f} (10%!) TP2 {tp2:.0f} (25%!) | MODAL 200rb! | BELUM LARI! BELI DI BAWAH!")
-        # === 🐋 AKUMULASI - BANDAR INDODAX LAGI NGUMPULIN! GAK BUTUH GLOBAL! ===
-        # Syarat: Naik 0-4%! Pos 5-35%! +1J <3%! Vol >=150Mn! Vol 6J >=1,2x! Vol 1J >=2%!
-        if 0<=naik<=4.0 and 5<=pos<=35 and p60 is not None and abs(chg_60m)<3.0 and vol>=150_000_000 and vol_ratio>=1.2 and vol_1j_ratio>=2.0:
-            tier_akumulasi.append(f"🐋 AKUMULASI - BANDAR INDODAX NGUMPULIN! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!")
-        # === 👑 BANDAR INDODAX V32 FINAL - DIVERSI! CUMA YANG PRE-PUMP! ===
-        # Tipe A: Vol 6J >=2,5x, Vol >=150Mn, Naik 0-3%, Pos 15-45%! Tipe B: Vol >=300Mn, Vol 6J >=1,5x, Naik 0-5%, Pos 10-50%!
-        is_bandar_indo_a = vol_ratio>=2.5 and vol_6h and vol_6h>=20_000_000 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=150_000_000
-        is_bandar_indo_b = vol>=300_000_000 and vol_ratio>=1.5 and 0<=naik<=5.0 and 10<=pos<=50
-        if (is_bandar_indo_a or is_bandar_indo_b) and naik<=5.0 and pos<=45:
-            if t['pair'] not in seen:
-                tipe="A-MELEDAK" if is_bandar_indo_a else "B-GEDE"
-                tier_indo.append(f"👑 BANDAR INDODAX [{tipe}]! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!")
-                seen.add(t['pair'])
-            continue
-        # === 🌍 BANDAR GLOBAL V32 FINAL - DIVERSI! CUMA YANG PRE-PUMP! ===
-        # Tipe A: Global >=3%, Indo 0,3-5%, Pos <=45%, Vol >=150Mn! Tipe B: Global >=5%, Indo 0-5%, Pos <=45%, Vol >=80Mn! Tipe C: Global >=2%, Indo 0-3%, Pos <=30%, Vol >=200Mn!
-        is_global_a = has_g and gp>=3.0 and 0.3<=naik<=5.0 and pos<=45 and vol>=150_000_000
-        is_global_b = has_g and gp>=5.0 and 0<=naik<=5.0 and pos<=45 and vol>=80_000_000
-        is_global_c = has_g and gp>=2.0 and 0<=naik<=3.0 and pos<=30 and vol>=200_000_000
+        # === 1. GAS AWAL - V29.9 FIX URUTAN 450 KOIN! ===
+        # V29.9: Koin masih awal! Naik 0-4%! Pos 5-35%! Vol >=80Mn! +15m <1,5%! +1J <2%! Vol 1J >=2%!
+        # URUTAN 450 KOIN: Diurutin dari Vol 1J paling gede! (Bandar paling gede ngumpulin!) Bukan dari harga!
+        # Skor GAS = Vol 1J ratio + Vol 6J ratio! Makin gede, makin atas!
+        score_gas = vol_1j_ratio + (vol_ratio*2 if vol_ratio else 0)
+        if 0<=naik<=4.0 and 5<=pos<=35 and p15 is not None and p60 is not None and abs(chg_15m)<1.5 and abs(chg_60m)<2.0 and vol>=80_000_000 and vol_1j_ratio>=2.0:
+            tier_gas.append((score_gas, f"⛽ GAS AWAL - V29.9! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_gas+10, f"🏆 TOP PRIORITY [GAS AWAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
+        # === 2. PUMP CEPET - V29.9 FIX BANDAR DAN PUMP! ===
+        # V29.9: Bandar Indo udah masuk! Vol 6J >=1,5x! Vol 1J >=3%! Vol >=150Mn! Naik 0-5%! Pos 5-45%!
+        # Tipe BANDAR: Vol 6J >=2,5x = MELEDAK! Vol >=300Mn = GEDE!
+        if 0<=naik<=5.0 and 5<=pos<=45 and vol>=150_000_000 and vol_ratio>=1.5 and vol_1j_ratio>=3.0:
+            if vol_ratio>=2.5: tipe="BANDAR MELEDAK"
+            elif vol>=300_000_000: tipe="BANDAR GEDE"
+            else: tipe="BANDAR NGUMPULIN"
+            score_pump = vol_1j_ratio + (vol_ratio*3 if vol_ratio else 0)
+            tier_pumpcepet.append((score_pump, f"🚀 PUMP CEPET - V29.9 [{tipe}]! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_pump+20, f"🏆 TOP PRIORITY [PUMP CEPET]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
+        # === 4. BULLISH GLOBAL - V30.10 TOP PRIORITY! ===
+        # V30.10: Global ngegas! Global >=3%! Indo 0-5%! Pos <=45%! Vol >=150Mn! Prem <10%! Indo belum ikut! Ini paling enak!
+        # Tipe A: Global >=3%! Tipe B: Global >=5%! Tipe C: Global >=2% + Vol >=200Mn!
+        is_global_a = has_g and gp>=3.0 and 0.3<=naik<=5.0 and pos<=45 and vol>=150_000_000 and premium<10
+        is_global_b = has_g and gp>=5.0 and 0<=naik<=5.0 and pos<=45 and vol>=80_000_000 and premium<10
+        is_global_c = has_g and gp>=2.0 and 0<=naik<=3.0 and pos<=30 and vol>=200_000_000 and premium<10
         if is_global_a or is_global_b or is_global_c:
-            if t['pair'] not in seen:
-                if is_global_a: tipe="A-GLOBAL NGEGAS"
-                elif is_global_b: tipe="B-GLOBAL GEDE"
-                else: tipe="C-GLOBAL MULAI"
-                tier_global.append(f"🌍 BANDAR GLOBAL [{tipe}]! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!")
-                seen.add(t['pair'])
-            continue
+            if is_global_a: tipe="A-GLOBAL NGEGAS"
+            elif is_global_b: tipe="B-GLOBAL GEDE"
+            else: tipe="C-GLOBAL MULAI"
+            score_global = gp + (vol_1j_ratio)
+            tier_global.append((score_global, f"🌍 BULLISH GLOBAL - V30.10 [{tipe}]! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_global+15, f"🏆 TOP PRIORITY [BULLISH GLOBAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
     save_json(VOL_FILE, new_vol); save_json(PRICE_FILE, new_price)
-    msg=f"=== V48 ULTIMATE PREMIUM - SATU AJA! DIKUNCI! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
-    msg+=f"😴 PRE-PUMP ULTIMATE [MAX 5 - INI YANG LU MAU! MASIH TIDUR!]:\n"+("\n".join(tier_prepump[:5]) if tier_prepump else "Belum ada pre-pump - semua masih tidur pulas / udah lari!")+"\n\n"
-    msg+=f"🐋 AKUMULASI - BANDAR INDODAX [MAX 5]:\n"+("\n".join(tier_akumulasi[:5]) if tier_akumulasi else "Belum ada akumulasi!")+"\n\n"
-    msg+=f"👑 BANDAR INDODAX V32 [MAX 5 - PRE-PUMP DOANG!]:\n"+("\n".join(tier_indo[:5]) if tier_indo else "Belum ada bandar!")+"\n\n"
-    msg+=f"🌍 BANDAR GLOBAL V32 [MAX 5 - PRE-PUMP DOANG!]:\n"+("\n".join(tier_global[:5]) if tier_global else "Belum ada bandar Global!")+"\n\n"
-    msg+=f"⛔ JANGAN KEJAR - UDAH PUMP!:\n"+("\n".join(tier_jangan_kejar[:5]) if tier_jangan_kejar else "Gak ada yang udah pump!")+"\n\n"
-    msg+=f"⚠️ PUMP BAHAYA:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 ULTIMATE: ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% jual setengah! TP2 25% jual sisa! 2 JAM! Kalo Naik >5% JANGAN KEJAR! Bot jalan tiap 5 menit! Cron job lu udah bener!\n"
+    # Urutin GAS AWAL dari skor paling gede! Ini URUTAN 450 KOIN V29.9!
+    tier_gas_sorted = [x[1] for x in sorted(tier_gas, key=lambda y: y[0], reverse=True)]
+    tier_pump_sorted = [x[1] for x in sorted(tier_pumpcepet, key=lambda y: y[0], reverse=True)]
+    tier_global_sorted = [x[1] for x in sorted(tier_global, key=lambda y: y[0], reverse=True)]
+    top_sorted = [x[1] for x in sorted(top_priority, key=lambda y: y[0], reverse=True)]
+    # TOP 5 ENTRI: Ambil 5 teratas dari gabungan! Hapus duplikat koin yang sama!
+    seen_top=set(); top_5=[]
+    for line in top_sorted:
+        # Ambil nama koin dari line: setelah " | " kedua!
+        try:
+            sym_part = line.split("|")[1].strip().split(" ")[0]
+        except: sym_part=line
+        if sym_part not in seen_top:
+            seen_top.add(sym_part); top_5.append(line)
+        if len(top_5)>=5: break
+    msg=f"=== V49 FINAL - 5 TIER GABUNG! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg+=f"🏆 TOP 5 ENTRI - V30.10 TOP PRIORITY [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5 - semua masih tidur pulas / udah pump!")+"\n\n"
+    msg+=f"⛽ GAS AWAL - V29.9 FIX URUTAN 450 KOIN [MAX 5 - DIURUTIN DARI BANDAR PALING GEDE!]:\n"+("\n".join(tier_gas_sorted[:5]) if tier_gas_sorted else "Belum ada GAS AWAL!")+"\n\n"
+    msg+=f"🚀 PUMP CEPET - V29.9 FIX BANDAR DAN PUMP [MAX 5]:\n"+("\n".join(tier_pump_sorted[:5]) if tier_pump_sorted else "Belum ada PUMP CEPET!")+"\n\n"
+    msg+=f"🌍 BULLISH GLOBAL - V30.10 TOP PRIORITY [MAX 5]:\n"+("\n".join(tier_global_sorted[:5]) if tier_global_sorted else "Belum ada BULLISH GLOBAL!")+"\n\n"
+    msg+=f"⛔ PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX [MAX 5]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
+    msg+=f"📌 V49: TOP 5 = Gabungan GAS + PUMP CEPET + GLOBAL! ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! 2 JAM! Kalo Naik >30% / Prem >30% JANGAN BELI! Bot jalan tiap 5 menit!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
