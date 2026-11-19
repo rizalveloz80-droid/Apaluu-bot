@@ -1,5 +1,5 @@
 # === V49 FINAL - FULL! SALIN FULL! BUKAN V50! ===
-# 1. GAS AWAL V29.9 | 2. PUMP CEPET V29.9 | 3. TOP 5 ENTRI V30.10 | 4. BULLISH GLOBAL V30.10 | 5. BANDAR INDO V30.10 DIPISAH! | 6. PUMP BAHAYA V44-GENERIC FIX | 7. GAP V32 TIER 0 / 1B / 2!
+# 1. GAS AWAL V29.9 | 2. PUMP CEPET V29.9 | 3. TOP 5 ENTRI V30.10 | 4. BULLISH GLOBAL V30.10 | 5. BANDAR INDO V30.10 DIPISAH! | 6. PUMP BAHAYA V44-GENERIC FIX | 7. GAP V19.1b TIER 0 / 1B / 2! DALEMAN ASLI!
 # LYFEL BALIK! NVDAX DIBUANG! ENTRY Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! MODAL 200rb! 2 JAM! Bot tiap 5 menit!
 import requests, os, json, time
 from datetime import datetime
@@ -196,14 +196,28 @@ def scan():
         if ent_high<=ent_low: ent_low=price*0.98; ent_high=price*0.99
         ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB"
         cut=ent_low*0.97; tp1=ent_high*1.10; tp2=ent_high*1.25
-        # === GAP V32 - TIER 0 / 1B / 2! GAP = Global - Indo! ===
+        # === GAP V19.1b DALEMAN ASLI! GAP + BEAM + OB REAL vs RETEST + NEW! ===
         gap = (gp - naik) if has_g else 0
+        # BEAM FILTER V19.1b: Pos <5% = BEAM! Harga nempel Low! Paling enak!
+        is_beam = pos < 5.0
+        beam_txt = "BEAM!" if is_beam else ""
+        # OB REAL vs RETEST V19.1b: Harga masih di OB (price <= ent_high*1.02) = OB REAL! Udah di atas OB = RETEST! Tunggu turun!
+        if price <= ent_high*1.02:
+            ob_type = "OB REAL"
+        else:
+            ob_type = "RETEST"
+        # NEW V19.1b: GAP baru muncul! Kalo Indo 1 jam lalu masih flat / minus, tapi sekarang GAP gede = NEW!
+        is_new = has_g and gap>2.0 and chg_60m<2.0
+        new_txt = "NEW " if is_new else ""
+        # TIER 0 - NEW LAUNCH V19.1b! GAP >2% + Vol >=100Mn + Indo <5% + Pos <60%!
         if has_g and gap>2.0 and vol>=100_000_000 and naik<5.0 and pos<60:
-            tier_gap0.append((gap, f"💥 TIER 0 - NEW LAUNCH! | NEW {gap:.0f}% GAP {naik:.1f}% + OB {ent_low:.0f}-{ent_high:.0f} | {sym} Rp{price:.0f} | ENTRY {ent_low:.0f}-{ent_high:.0f} RETEST | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | Prem {premium:.1f}% | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            tier_gap0.append((gap, f"💥 TIER 0 - NEW LAUNCH! | {new_txt}{gap:.0f}% GAP {naik:.1f}% + OB {ent_low:.0f}-{ent_high:.0f} {beam_txt} | {sym} Rp{price:.0f} | ENTRY {ent_low:.0f}-{ent_high:.0f} {ob_type} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | Prem {premium:.1f}% | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+        # TIER 1B - BANDAR GLOBAL GAP RUNNING V19.1b! GAP >2% + Global >=3% + Indo 2-8% + Vol >=150Mn + Prem <10%!
         if has_g and gap>2.0 and gp>=3.0 and 2.0<=naik<=8.0 and vol>=150_000_000 and premium<10:
-            tier_gap1b.append((gap, f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING! | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
-        if has_g and gap>2.0 and naik>=0.5 and chg_15m>0.5 and vol>=100_000_000 and premium<10:
-            tier_gap2.append((gap, f"🔥 TIER 2 - IGNITION GAP! | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% +15m {chg_15m:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            tier_gap1b.append((gap, f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING! | {sym} Rp{price:.0f} | GAP {gap:.1f}% {beam_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | Prem {premium:.1f}% | ENTRY {ent_txt} {ob_type} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+        # TIER 2 - IGNITION GAP V19.1b! GAP >2% + Indo +15m >0,5% + Vol 1J >3% + Pos <35%!
+        if has_g and gap>2.0 and naik>=0.5 and chg_15m>0.5 and vol>=100_000_000 and vol_1j_ratio>=3.0 and pos<35 and premium<10:
+            tier_gap2.append((gap, f"🔥 TIER 2 - IGNITION GAP! | {sym} Rp{price:.0f} | GAP {gap:.1f}% {beam_txt} | Indo {naik:.1f}% +15m {chg_15m:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (1J {vol_1j_ratio:.1f}%) | Global {gp:.1f}% | Prem {premium:.1f}% | ENTRY {ent_txt} {ob_type} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
         # === PUMP BAHAYA V44-GENERIC FIX! ===
         is_bahaya_pump = naik>30 or (naik>15 and pos>70)
         is_bahaya_mahal = has_g and premium>30
@@ -264,11 +278,11 @@ def scan():
     msg+=f"🚀 PUMP CEPET - V29.9 FIX BANDAR DAN PUMP [MAX 5 - DIPISAH!]:\n"+("\n".join(tier_pump_sorted[:5]) if tier_pump_sorted else "Belum ada PUMP CEPET!")+"\n\n"
     msg+=f"🌍 BULLISH GLOBAL - V30.10 TOP PRIORITY [MAX 5]:\n"+("\n".join(tier_global_sorted[:5]) if tier_global_sorted else "Belum ada BULLISH GLOBAL!")+"\n\n"
     msg+=f"👑 BANDAR INDO - V30.10 TOP PRIORITY [MAX 5 - DIPISAH! BUKAN GABUNG!]:\n"+("\n".join(tier_indo_sorted[:5]) if tier_indo_sorted else "Belum ada BANDAR INDO!")+"\n\n"
-    msg+=f"💥 TIER 0 - NEW LAUNCH GAP V32 [MAX 5 - GAP = Global - Indo! GAP >2% = Bisa running puluhan %!]:\n"+("\n".join(tier_gap0_sorted[:5]) if tier_gap0_sorted else "Belum ada GAP!")+"\n\n"
-    msg+=f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING V32 [MAX 5]:\n"+("\n".join(tier_gap1b_sorted[:5]) if tier_gap1b_sorted else "Tidak ada")+"\n\n"
-    msg+=f"🔥 TIER 2 - IGNITION GAP V32 [MAX 5]:\n"+("\n".join(tier_gap2_sorted[:5]) if tier_gap2_sorted else "Tidak ada")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH GAP V19.1b [MAX 5 - GAP = Global - Indo! GAP >2% = Bisa running puluhan %!]:\n"+("\n".join(tier_gap0_sorted[:5]) if tier_gap0_sorted else "Belum ada GAP!")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING V19.1b [MAX 5]:\n"+("\n".join(tier_gap1b_sorted[:5]) if tier_gap1b_sorted else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION GAP V19.1b [MAX 5]:\n"+("\n".join(tier_gap2_sorted[:5]) if tier_gap2_sorted else "Tidak ada")+"\n\n"
     msg+=f"⛔ PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX [MAX 5]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 V49 FINAL: TOP 5 = GAS + PUMP CEPET + GLOBAL + BANDAR INDO! LYFEL BALIK! NVDAX DIBUANG! BANDAR INDO DIPISAH! GAP = Global - Indo! ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! 2 JAM! Bot jalan tiap 5 menit!\n"
+    msg+=f"📌 V49 FINAL: TOP 5 = GAS + PUMP CEPET + GLOBAL + BANDAR INDO! LYFEL BALIK! NVDAX DIBUANG! BANDAR INDO DIPISAH! GAP V19.1b = Global - Indo + BEAM + OB REAL vs RETEST + NEW! ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! 2 JAM! Bot jalan tiap 5 menit!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
