@@ -1,11 +1,6 @@
-# === V49 FINAL - 5 TIER GABUNG! SALIN FULL! DIKUNCI! ===
-# GABUNGAN DARI 5 TIER YANG LU MINTA! BUKAN V48! FARTCOIN + PUMP DILUPAIN!
-# 1. GAS AWAL - V29.9 FIX URUTAN 450 KOIN: Koin masih awal, diurutin dari yang paling siap! Naik 0-4%! Pos 5-35%! Vol >=80Mn!
-# 2. PUMP CEPET - V29.9 FIX BANDAR DAN PUMP: Bandar Indo udah masuk! Vol 6J >=1,5x! Vol 1J >=3%! Naik 0-5%!
-# 3. TOP 5 ENTRI - V30.10 TOP PRIORITY: 5 entry terbaik! Digabung dari GAS AWAL + PUMP CEPET + BULLISH GLOBAL! Diurutin dari yang paling aman!
-# 4. BULLISH GLOBAL - V30.10 TOP PRIORITY: Global ngegas! Global >=3%! Indo 0-5%! Prem <10%! Indo belum ikut!
-# 5. PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX: Naik >30% ATAU Prem >30% = BAHAYA! Bukan Naik >10%! Biar breakout gak ke-buang!
-# ENTRY Low*1,01-1,03! CUT 3%! TP1 10% jual setengah! TP2 25% jual sisa! MODAL 200rb! 2 JAM! Bot jalan tiap 5 menit!
+# === V49 FINAL - FULL! SALIN FULL! BUKAN V50! ===
+# 1. GAS AWAL V29.9 | 2. PUMP CEPET V29.9 | 3. TOP 5 ENTRI V30.10 | 4. BULLISH GLOBAL V30.10 | 5. BANDAR INDO V30.10 DIPISAH! | 6. PUMP BAHAYA V44-GENERIC FIX | 7. GAP V32 TIER 0 / 1B / 2!
+# LYFEL BALIK! NVDAX DIBUANG! ENTRY Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! MODAL 200rb! 2 JAM! Bot tiap 5 menit!
 import requests, os, json, time
 from datetime import datetime
 import pytz
@@ -21,7 +16,8 @@ BLACKLIST={
     'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
     'bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr',
     'flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr','rvn_idr',
-    'ena_idr','hype_idr','pippin_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
+    'ena_idr','hype_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
+    'msftx_idr',
 }
 VOL_FILE="vol_history.json"; PRICE_FILE="price_history.json"
 def load_json(f):
@@ -157,8 +153,9 @@ def scan():
     vol_hist=load_json(VOL_FILE); price_hist=load_json(PRICE_FILE)
     new_vol={}; new_price={}
     tickers=get_tickers(); gdata, gsrc, gprice, has_global=get_global()
-    tier_gas=[]; tier_pumpcepet=[]; tier_global=[]; tier_bahaya=[]
-    top_priority=[]  # Gabungan untuk TOP 5 ENTRI V30.10!
+    tier_gas=[]; tier_pumpcepet=[]; tier_global=[]; tier_indo=[]; tier_bahaya=[]
+    tier_gap0=[]; tier_gap1b=[]; tier_gap2=[]
+    top_priority=[]
     USD_IDR=16500
     try:
         r=requests.get("https://indodax.com/api/tickers", timeout=10).json()['tickers']
@@ -199,35 +196,42 @@ def scan():
         if ent_high<=ent_low: ent_low=price*0.98; ent_high=price*0.99
         ent_txt=f"{ent_low:.0f}-{ent_high:.0f} OB"
         cut=ent_low*0.97; tp1=ent_high*1.10; tp2=ent_high*1.25
-        # === 5. PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX! ===
-        # V44 ASLI: Naik >10% = BAHAYA! SALAH! Breakout ke-buang!
-        # V49 FIX: Naik >30% ATAU Prem >30% ATAU Naik >15% + Pos >70% = BAHAYA BENERAN!
-        # Naik 10-30% + Prem <10% = BUKAN BAHAYA! Itu BREAKOUT! Jangan dibuang!
-        is_bahaya = naik>30 or (has_g and premium>30) or (naik>15 and pos>70)
-        if is_bahaya:
-            tier_bahaya.append(f"⛔ PUMP BAHAYA - JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | UDAH PUMP! JANGAN KEJAR!")
+        # === GAP V32 - TIER 0 / 1B / 2! GAP = Global - Indo! ===
+        gap = (gp - naik) if has_g else 0
+        if has_g and gap>2.0 and vol>=100_000_000 and naik<5.0 and pos<60:
+            tier_gap0.append((gap, f"💥 TIER 0 - NEW LAUNCH! | NEW {gap:.0f}% GAP {naik:.1f}% + OB {ent_low:.0f}-{ent_high:.0f} | {sym} Rp{price:.0f} | ENTRY {ent_low:.0f}-{ent_high:.0f} RETEST | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | Prem {premium:.1f}% | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+        if has_g and gap>2.0 and gp>=3.0 and 2.0<=naik<=8.0 and vol>=150_000_000 and premium<10:
+            tier_gap1b.append((gap, f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING! | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+        if has_g and gap>2.0 and naik>=0.5 and chg_15m>0.5 and vol>=100_000_000 and premium<10:
+            tier_gap2.append((gap, f"🔥 TIER 2 - IGNITION GAP! | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% +15m {chg_15m:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+        # === PUMP BAHAYA V44-GENERIC FIX! ===
+        is_bahaya_pump = naik>30 or (naik>15 and pos>70)
+        is_bahaya_mahal = has_g and premium>30
+        if is_bahaya_pump or is_bahaya_mahal:
+            if is_bahaya_mahal and not is_bahaya_pump:
+                tier_bahaya.append(f"⛔ PUMP BAHAYA - MAHAL! JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | INDO MAHAL {premium:.0f}% DARI GLOBAL! JANGAN BELI!")
+            else:
+                tier_bahaya.append(f"⛔ PUMP BAHAYA - UDAH PUMP! JANGAN BELI! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | UDAH PUMP! JANGAN KEJAR!")
             continue
-        # === 1. GAS AWAL - V29.9 FIX URUTAN 450 KOIN! ===
-        # V29.9: Koin masih awal! Naik 0-4%! Pos 5-35%! Vol >=80Mn! +15m <1,5%! +1J <2%! Vol 1J >=2%!
-        # URUTAN 450 KOIN: Diurutin dari Vol 1J paling gede! (Bandar paling gede ngumpulin!) Bukan dari harga!
-        # Skor GAS = Vol 1J ratio + Vol 6J ratio! Makin gede, makin atas!
+        # === GAS AWAL V29.9 FIX! ===
         score_gas = vol_1j_ratio + (vol_ratio*2 if vol_ratio else 0)
         if 0<=naik<=4.0 and 5<=pos<=35 and p15 is not None and p60 is not None and abs(chg_15m)<1.5 and abs(chg_60m)<2.0 and vol>=80_000_000 and vol_1j_ratio>=2.0:
             tier_gas.append((score_gas, f"⛽ GAS AWAL - V29.9! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_gas+10, f"🏆 TOP PRIORITY [GAS AWAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
-        # === 2. PUMP CEPET - V29.9 FIX BANDAR DAN PUMP! ===
-        # V29.9: Bandar Indo udah masuk! Vol 6J >=1,5x! Vol 1J >=3%! Vol >=150Mn! Naik 0-5%! Pos 5-45%!
-        # Tipe BANDAR: Vol 6J >=2,5x = MELEDAK! Vol >=300Mn = GEDE!
+        # === PUMP CEPET V29.9 FIX! DIPISAH! ===
         if 0<=naik<=5.0 and 5<=pos<=45 and vol>=150_000_000 and vol_ratio>=1.5 and vol_1j_ratio>=3.0:
-            if vol_ratio>=2.5: tipe="BANDAR MELEDAK"
-            elif vol>=300_000_000: tipe="BANDAR GEDE"
-            else: tipe="BANDAR NGUMPULIN"
             score_pump = vol_1j_ratio + (vol_ratio*3 if vol_ratio else 0)
-            tier_pumpcepet.append((score_pump, f"🚀 PUMP CEPET - V29.9 [{tipe}]! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            tier_pumpcepet.append((score_pump, f"🚀 PUMP CEPET - V29.9! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_pump+20, f"🏆 TOP PRIORITY [PUMP CEPET]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
-        # === 4. BULLISH GLOBAL - V30.10 TOP PRIORITY! ===
-        # V30.10: Global ngegas! Global >=3%! Indo 0-5%! Pos <=45%! Vol >=150Mn! Prem <10%! Indo belum ikut! Ini paling enak!
-        # Tipe A: Global >=3%! Tipe B: Global >=5%! Tipe C: Global >=2% + Vol >=200Mn!
+        # === BANDAR INDO V30.10 DIPISAH! ===
+        is_indo_a = vol_ratio>=2.5 and vol_6h and vol_6h>=20_000_000 and 0<=naik<=3.0 and 15<=pos<=45 and vol>=150_000_000
+        is_indo_b = vol>=300_000_000 and vol_ratio>=1.5 and 0<=naik<=5.0 and 10<=pos<=50
+        if is_indo_a or is_indo_b:
+            tipe="A-MELEDAK" if is_indo_a else "B-GEDE"
+            score_indo = vol_1j_ratio + (vol_ratio*3 if vol_ratio else 0)
+            tier_indo.append((score_indo, f"👑 BANDAR INDO - V30.10 [{tipe}]! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_indo+18, f"🏆 TOP PRIORITY [BANDAR INDO]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x) | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
+        # === BULLISH GLOBAL V30.10! ===
         is_global_a = has_g and gp>=3.0 and 0.3<=naik<=5.0 and pos<=45 and vol>=150_000_000 and premium<10
         is_global_b = has_g and gp>=5.0 and 0<=naik<=5.0 and pos<=45 and vol>=80_000_000 and premium<10
         is_global_c = has_g and gp>=2.0 and 0<=naik<=3.0 and pos<=30 and vol>=200_000_000 and premium<10
@@ -239,28 +243,32 @@ def scan():
             tier_global.append((score_global, f"🌍 BULLISH GLOBAL - V30.10 [{tipe}]! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_global+15, f"🏆 TOP PRIORITY [BULLISH GLOBAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | Prem {premium:.1f}% | MODAL 200rb!"))
     save_json(VOL_FILE, new_vol); save_json(PRICE_FILE, new_price)
-    # Urutin GAS AWAL dari skor paling gede! Ini URUTAN 450 KOIN V29.9!
     tier_gas_sorted = [x[1] for x in sorted(tier_gas, key=lambda y: y[0], reverse=True)]
     tier_pump_sorted = [x[1] for x in sorted(tier_pumpcepet, key=lambda y: y[0], reverse=True)]
+    tier_indo_sorted = [x[1] for x in sorted(tier_indo, key=lambda y: y[0], reverse=True)]
     tier_global_sorted = [x[1] for x in sorted(tier_global, key=lambda y: y[0], reverse=True)]
+    tier_gap0_sorted = [x[1] for x in sorted(tier_gap0, key=lambda y: y[0], reverse=True)]
+    tier_gap1b_sorted = [x[1] for x in sorted(tier_gap1b, key=lambda y: y[0], reverse=True)]
+    tier_gap2_sorted = [x[1] for x in sorted(tier_gap2, key=lambda y: y[0], reverse=True)]
     top_sorted = [x[1] for x in sorted(top_priority, key=lambda y: y[0], reverse=True)]
-    # TOP 5 ENTRI: Ambil 5 teratas dari gabungan! Hapus duplikat koin yang sama!
     seen_top=set(); top_5=[]
     for line in top_sorted:
-        # Ambil nama koin dari line: setelah " | " kedua!
-        try:
-            sym_part = line.split("|")[1].strip().split(" ")[0]
+        try: sym_part = line.split("|")[1].strip().split(" ")[0]
         except: sym_part=line
         if sym_part not in seen_top:
             seen_top.add(sym_part); top_5.append(line)
         if len(top_5)>=5: break
-    msg=f"=== V49 FINAL - 5 TIER GABUNG! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
-    msg+=f"🏆 TOP 5 ENTRI - V30.10 TOP PRIORITY [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5 - semua masih tidur pulas / udah pump!")+"\n\n"
-    msg+=f"⛽ GAS AWAL - V29.9 FIX URUTAN 450 KOIN [MAX 5 - DIURUTIN DARI BANDAR PALING GEDE!]:\n"+("\n".join(tier_gas_sorted[:5]) if tier_gas_sorted else "Belum ada GAS AWAL!")+"\n\n"
-    msg+=f"🚀 PUMP CEPET - V29.9 FIX BANDAR DAN PUMP [MAX 5]:\n"+("\n".join(tier_pump_sorted[:5]) if tier_pump_sorted else "Belum ada PUMP CEPET!")+"\n\n"
+    msg=f"=== V49 FINAL - 6 TIER + GAP! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg+=f"🏆 TOP 5 ENTRI - V30.10 TOP PRIORITY [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5!")+"\n\n"
+    msg+=f"⛽ GAS AWAL - V29.9 FIX URUTAN 450 KOIN [MAX 5]:\n"+("\n".join(tier_gas_sorted[:5]) if tier_gas_sorted else "Belum ada GAS AWAL!")+"\n\n"
+    msg+=f"🚀 PUMP CEPET - V29.9 FIX BANDAR DAN PUMP [MAX 5 - DIPISAH!]:\n"+("\n".join(tier_pump_sorted[:5]) if tier_pump_sorted else "Belum ada PUMP CEPET!")+"\n\n"
     msg+=f"🌍 BULLISH GLOBAL - V30.10 TOP PRIORITY [MAX 5]:\n"+("\n".join(tier_global_sorted[:5]) if tier_global_sorted else "Belum ada BULLISH GLOBAL!")+"\n\n"
+    msg+=f"👑 BANDAR INDO - V30.10 TOP PRIORITY [MAX 5 - DIPISAH! BUKAN GABUNG!]:\n"+("\n".join(tier_indo_sorted[:5]) if tier_indo_sorted else "Belum ada BANDAR INDO!")+"\n\n"
+    msg+=f"💥 TIER 0 - NEW LAUNCH GAP V32 [MAX 5 - GAP = Global - Indo! GAP >2% = Bisa running puluhan %!]:\n"+("\n".join(tier_gap0_sorted[:5]) if tier_gap0_sorted else "Belum ada GAP!")+"\n\n"
+    msg+=f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING V32 [MAX 5]:\n"+("\n".join(tier_gap1b_sorted[:5]) if tier_gap1b_sorted else "Tidak ada")+"\n\n"
+    msg+=f"🔥 TIER 2 - IGNITION GAP V32 [MAX 5]:\n"+("\n".join(tier_gap2_sorted[:5]) if tier_gap2_sorted else "Tidak ada")+"\n\n"
     msg+=f"⛔ PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX [MAX 5]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 V49: TOP 5 = Gabungan GAS + PUMP CEPET + GLOBAL! ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! 2 JAM! Kalo Naik >30% / Prem >30% JANGAN BELI! Bot jalan tiap 5 menit!\n"
+    msg+=f"📌 V49 FINAL: TOP 5 = GAS + PUMP CEPET + GLOBAL + BANDAR INDO! LYFEL BALIK! NVDAX DIBUANG! BANDAR INDO DIPISAH! GAP = Global - Indo! ENTRY=Low*1,01-1,03! CUT 3%! TP1 10% TP2 25%! 2 JAM! Bot jalan tiap 5 menit!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
