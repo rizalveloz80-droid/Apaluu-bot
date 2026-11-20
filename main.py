@@ -1,8 +1,9 @@
-# === V49 FINAL - FULL 4 TIPE! SALIN FULL! BUKAN V50! ===
+# === V49 FINAL - FULL 4 TIPE - HTX DIBUANG! SALIN FULL! BUKAN V50! ===
 # TIPE 1: RETEST OB! GAS AWAL V29.9 | PUMP CEPET V29.9 | TOP 5 V30.10 | BULLISH GLOBAL V30.10 | BANDAR INDO V30.10 | PUMP BAHAYA V44 FIX | GAP V19.1b BEAM + OB REAL vs RETEST + NEW!
 # TIPE 2: BREAKOUT RETEST! BUAT KOIN VOL GEDE! Naik 10-40% + Pos 50-75% + Vol >=1 Miliar + +15m >0,5%! Contoh: PIEVERSE!
 # TIPE 3: OI + MARKET CAP! BUAT KOIN OI NAIK! OI 1J >3% + Market Cap Naik + Global Naik + Indo Naik! Contoh: ICNT!
-# TIPE 4: GLOBAL LEAD - INDO LAG! BUAT KOIN KECIL GLOBAL GEDE! Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn! Contoh UMUM: KOIN APA AJA YANG GLOBAL LARI DULUAN!
+# TIPE 4: GLOBAL LEAD - INDO LAG! BUAT KOIN KECIL GLOBAL GEDE! Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn! UMUM! BUKAN KHUSUS 1 KOIN!
+# FIX: HTX DIBUANG! HTX NIPU VVV 904% + PIEVERSE 902%! FILTER Global >100% DIBUANG!
 # LYFEL BALIK! NVDAX DIBUANG! ENTRY TIPE 1=Low*1,01-1,03! ENTRY TIPE 2,3,4=Harga Sekarang! CUT 3-5%! TP1 10% TP2 25%! MODAL 200rb! 2 JAM! Bot tiap 5 menit!
 import requests, os, json, time
 from datetime import datetime
@@ -78,6 +79,7 @@ def get_global():
     def upd(sym, val, name, usd_price=None):
         try: val=float(val)
         except: return
+        if val>100 or val<-50: return  # FIX HTX! Kalo Global >100% atau <-50%, itu PALSU! Buang! Kayak VVV 904% + PIEVERSE 902%!
         key=sym.lower()+'_idr'
         has_global.add(key)
         if val>g.get(key,-100): g[key]=val; src[key]=name
@@ -131,17 +133,7 @@ def get_global():
                     else: upd(sym, float(x.get('chgUtc8',0))*100, "OKX", last)
                 except: pass
     except: pass
-    try:
-        r=requests.get("https://api.huobi.pro/market/tickers",timeout=6,headers=h).json()
-        for x in r.get('data',[]):
-            s=x.get('symbol','')
-            if s.endswith('usdt'):
-                sym=s.replace('usdt','')
-                try:
-                    close=float(x['close']); open24=float(x['open'])
-                    if open24>0: upd(sym, (close-open24)/open24*100, "HTX", close)
-                except: pass
-    except: pass
+    # HTX DIBUANG! HTX NIPU VVV 904% + PIEVERSE 902%! Gak dipake lagi!
     try:
         r=requests.get("https://api.coinbase.com/v2/assets/prices?base=USD",timeout=6,headers=h).json()
         for x in r.get('data',[]):
@@ -277,10 +269,6 @@ def scan():
             tier_oi.append((score_oi, f"🔥 OI + MCAP! | {sym} Rp{price:.0f} | {oi_txt} MCAP {mcap_chg:.1f}% | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | Prem {premium:.1f}% | ENTRY {price:.0f} OI! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_oi+30, f"🏆 TOP PRIORITY [OI+MCAP]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} OI! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | {oi_txt} Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | MODAL 200rb!"))
         # === TIPE 4: GLOBAL LEAD - INDO LAG! UMUM! BUKAN KHUSUS 1 KOIN! ===
-        # Pola umum: Global udah lari duluan, Indo masih ketinggalan, Vol Indo masih kecil, Prem masih murah!
-        # Berlaku buat KOIN APA AJA! Bukan cuma 1 koin! Contoh: Global 44% Indo 36% GAP 7,8%!
-        # Pengaman: Naik max 40%! Kalo udah >40%, itu udah terbang! Jangan beli! Prem max 10%! GAP min 5%!
-        # Jangan pake Pos! Karena Pos menipu kalo High masih kecil! Pake GAP aja!
         gap_lead = (gp - naik) if has_g else 0
         is_global_lead = has_g and gp>=20.0 and gap_lead>5.0 and premium<10 and 10.0<=naik<=40.0 and 20_000_000<=vol<=500_000_000
         if is_global_lead:
@@ -289,7 +277,6 @@ def scan():
             tier_lead.append((score_lead, f"🌍 GLOBAL LEAD - INDO LAG! | {sym} Rp{price:.0f} | Global {gp:.1f}% [{gname}] GAP {gap_lead:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% | Vol {vol/1e6:.0f}Mn KECIL TAPI GLOBAL GEDE! | Prem {premium:.1f}% | ENTRY {price:.0f} GLOBAL LEAD! | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_lead+28, f"🏆 TOP PRIORITY [GLOBAL LEAD]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} GLOBAL LEAD! | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | Global {gp:.1f}% GAP {gap_lead:.1f}% | MODAL 200rb!"))
         # === PUMP BAHAYA V44 FIX! ===
-        # Kalo TIPE 2 / 3 / 4 lolos, jangan bilang bahaya! Kalo udah >40% naik, baru bahaya!
         is_global_lead_now = has_g and gp>=20.0 and (gp - naik)>5.0 and premium<10 and 10.0<=naik<=40.0
         is_oi_breakout = (10.0<=naik<=40.0 and 50<=pos<=75 and vol>=1_000_000_000) or (oi_ok and mcap_ok and vol>=500_000_000) or is_global_lead_now
         is_bahaya_pump = (naik>30 and vol<1_000_000_000 and not is_oi_breakout) or (naik>15 and pos>70 and vol<1_000_000_000 and not is_oi_breakout)
@@ -348,7 +335,7 @@ def scan():
         if sym_part not in seen_top:
             seen_top.add(sym_part); top_5.append(line)
         if len(top_5)>=5: break
-    msg=f"=== V49 FINAL - 4 TIPE! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg=f"=== V49 FINAL - 4 TIPE - HTX DIBUANG! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
     msg+=f"🏆 TOP 5 ENTRI - V30.10 + BREAKOUT + OI + GLOBAL LEAD [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5!")+"\n\n"
     msg+=f"⛽ TIPE 1 - GAS AWAL - V29.9 FIX [MAX 5]:\n"+("\n".join(tier_gas_sorted[:5]) if tier_gas_sorted else "Belum ada GAS AWAL!")+"\n\n"
     msg+=f"🚀 TIPE 1 - PUMP CEPET - V29.9 FIX [MAX 5 - DIPISAH!]:\n"+("\n".join(tier_pump_sorted[:5]) if tier_pump_sorted else "Belum ada PUMP CEPET!")+"\n\n"
@@ -361,7 +348,7 @@ def scan():
     msg+=f"🔥 TIPE 3 - OI + MARKET CAP - KOIN OI NAIK! [MAX 5 - OI 1J >3% + MCAP Naik + Global Naik!]:\n"+("\n".join(tier_oi_sorted[:5]) if tier_oi_sorted else "Belum ada OI!")+"\n\n"
     msg+=f"🌍 TIPE 4 - GLOBAL LEAD - INDO LAG - KOIN APA AJA! [MAX 5 - Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn!]:\n"+("\n".join(tier_lead_sorted[:5]) if tier_lead_sorted else "Belum ada GLOBAL LEAD!")+"\n\n"
     msg+=f"⛔ PUMP BAHAYA - JANGAN BELI - V44-GENERIC FIX [MAX 5 - TIPE 2/3/4 Bukan Bahaya! Naik >40% Baru Bahaya!]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 V49 FINAL 4 TIPE: TIPE 1 = RETEST OB! TIPE 2 = BREAKOUT! TIPE 3 = OI + MCAP! TIPE 4 = GLOBAL LEAD! LYFEL BALIK! NVDAX DIBUANG! BANDAR INDO DIPISAH! GAP V19.1b = Global - Indo + BEAM + OB REAL vs RETEST + NEW! ENTRY TIPE 1=Low*1,01-1,03! ENTRY TIPE 2,3,4=Harga Sekarang! CUT 3-5%! TP1 10% TP2 25%! 2 JAM! Bot jalan tiap 5 menit!\n"
+    msg+=f"📌 V49 FINAL 4 TIPE - HTX DIBUANG! TIPE 1 = RETEST OB! TIPE 2 = BREAKOUT! TIPE 3 = OI + MCAP! TIPE 4 = GLOBAL LEAD! LYFEL BALIK! NVDAX DIBUANG! BANDAR INDO DIPISAH! GAP V19.1b = Global - Indo + BEAM + OB REAL vs RETEST + NEW! ENTRY TIPE 1=Low*1,01-1,03! ENTRY TIPE 2,3,4=Harga Sekarang! CUT 3-5%! TP1 10% TP2 25%! 2 JAM! Bot jalan tiap 5 menit!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
