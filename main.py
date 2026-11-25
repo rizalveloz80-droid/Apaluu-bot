@@ -1,20 +1,18 @@
-# === V49.5 FINAL - FULL 4 TIPE + INDO LEAD WATCH + PUMP LANJUTAN! SALIN FULL! ===
+# === V49.6 FINAL - FULL 4 TIPE + OI REAL + VOL+GLOBAL + INDO LEAD WATCH + PUMP LANJUTAN! SALIN FULL! ===
 # POLA SIMPEN V49.3 - JANGAN DIUBAH! UDAH MASUK!
 # 1. GLOBAL LEAD - LISTA + SAHARA! Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn!
 # 2. BREAKOUT - PIEVERSE! Naik 10-50% + Pos 40-75% + Vol >=1 Miliar + +15m >0,5%!
 # 3. OI + MCAP - SMART MONEY! OI 1J >3% + MCAP Naik + Global Naik + Indo Naik + Vol >=500Mn!
-# FIX V49.5:
-# 1. INDO LEAD WATCH DIBENERIN! Tambah +15m >= -2,0% + Vol >=30Mn! Biar SONIC +15m -6,7% Vol 32Mn GAK LOLOS LAGI! ENJ 535 +15m 0% tetep LOLOS!
-# FIX V49.4:
-# 1. PUMP BAHAYA DIPECAH! BAHAYA BENERAN = Pos >80% + Naik >15% ATAU +15m < -3% + Pos >70%! Kayak ACE + HUMANITY + SKYAI!
-# 2. WATCH PUMP LANJUTAN - INDO SOLO PUMP! Naik 30-60% + Pos 40-70% + Vol 20Mn-200Mn + Prem < -20% ATAU Prem >30% + +15m -3% sampai +1%! Kayak STG 2055!
-# 3. INDO LEAD WATCH! Prem 30-100% + Naik 0-10% + Pos <20%! Kayak ENJ 535!
-# 4. PIRAMIDA DIHAPUS! Entry balik normal: ENTRY, OB, CUT, TP1, TP2! Manual aja!
-# FIX V49.3: BREAKOUT AMAN: Naik 10-50% + Pos 40-75% + Vol >=1 Miliar!
-# FIX V49.2: BYBIT .get()! USD_IDR dari USDT_IDR! except print ERR! PREM FIX! HTX DIBUANG!
+# FIX V49.6 - BIAR GAK KECELE TAPI GAK KETINGGALAN:
+# 1. OI REAL DIPISAH! Harus has_oi True + OI 1J >3% + MCAP >0% + +15m >0,5% + +1J >-2% + Harga/High >0,80 + Vol >=500Mn + Prem <15% + Pos <=70%! Masuk TOP!
+# 2. VOL+GLOBAL BARU! Kalo OI gak ada, jangan pura-pura OI! Syarat: Vol 1J >=5% + Global >=2% + +15m >0,5% + +1J >-2% + Harga/High >0,80 + Vol >=500Mn + Prem <15% + Pos <=70%! Masuk TOP juga! Biar MOODENG 20:05 tetep ke-detek! MOODENG 19:30 yang +15m merah GAGAL!
+# 3. OI? DIHAPUS! Gak ada lagi tulisan OI? Vol! Jujur! OI ya OI! Vol ya Vol!
+# FIX V49.5: INDO LEAD WATCH +15m >= -2% + Vol >=30Mn! Biar SONIC -6,7% GAK LOLOS!
+# FIX V49.4: PUMP LANJUTAN - STG! Naik 30-60% + Pos 40-70% + Vol 20Mn-200Mn + Prem < -20% ATAU >30% + +15m -3% sampai +1%!
+# FIX V49.4: PIRAMIDA DIHAPUS! Entry ENTRY, OB, CUT, TP1, TP2! Manual!
 # TIPE 1: RETEST OB! GAS AWAL V29.9 | PUMP CEPET V29.9 | BULLISH GLOBAL V30.10 | BANDAR INDO V30.10 | GAP V19.1b!
 # TIPE 2: BREAKOUT RETEST! Naik 10-50% + Pos 40-75% + Vol >=1 Miliar + +15m >0,5%!
-# TIPE 3: OI + MARKET CAP! OI 1J >3% + MCAP Naik + Global Naik + Indo Naik!
+# TIPE 3: OI REAL + VOL+GLOBAL! OI REAL = OI beneran! VOL+GLOBAL = Vol + Global! 2 jalur! Biar gak ketinggalan!
 # TIPE 4: GLOBAL LEAD - INDO LAG! Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn! UMUM!
 import requests, os, json, time
 from datetime import datetime
@@ -28,7 +26,7 @@ BLACKLIST={
     'btc_idr','eth_idr','bnb_idr','sol_idr','xrp_idr','ada_idr','doge_idr','trx_idr','dot_idr','matic_idr','avax_idr','link_idr','ltc_idr','bch_idr','etc_idr','xlm_idr','uni_idr',
     'luna_idr','lunc_idr','ftt_idr','ustc_idr','luna2_idr','btt_idr','bttc_idr','dgb_idr','qtum_idr','waves_idr','zrx_idr','omg_idr','bat_idr','ont_idr','iost_idr','sc_idr','zcash_idr','dash_idr','xem_idr','bcd_idr','bcha_idr',
     'shib_idr','pepe_idr','floki_idr','bonk_idr','wif_idr','ern_idr',
-    'ondo_idr','hot_idr','sui_idr','dodo_idr','bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
+    'ondo_idr','hot_idr','sui_idr','indr_idr,'bome_idr','nom_idr','mpro_idr','amp_idr','unmd_idr','kdag_idr',
     'bsv_idr','vet_idr','fil_idr','eos_idr','xtz_idr','neo_idr','aave_idr','comp_idr','mkr_idr','snx_idr','yfi_idr','mana_idr','axs_idr','slp_idr','chz_idr',
     'flow_idr','icp_idr','near_idr','egld_idr','hbar_idr','algo_idr','ftm_idr','one_idr','klay_idr','celo_idr','rvn_idr',
     'ena_idr','hype_idr','pengu_idr','fanc_idr','mog_idr','edena_idr',
@@ -231,7 +229,7 @@ def scan():
     oi_data, mcap_data, mcap_chg_data = get_oi_mcap()
     tier_gas=[]; tier_pumpcepet=[]; tier_global=[]; tier_indo=[]; tier_bahaya=[]
     tier_gap0=[]; tier_gap1b=[]; tier_gap2=[]
-    tier_breakout=[]; tier_oi=[]; tier_lead=[]; tier_watch=[]; tier_pump_lanjutan=[]
+    tier_breakout=[]; tier_oi=[]; tier_lead=[]; tier_watch=[]; tier_pump_lanjutan=[]; tier_volglobal=[]
     top_priority=[]
     USD_IDR=16500
     try:
@@ -318,29 +316,35 @@ def scan():
             tier_gap1b.append((gap, f"🚀 TIER 1B - BANDAR GLOBAL GAP RUNNING! | {sym} Rp{price:.0f} | GAP {gap:.1f}% {beam_txt} | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | {prem_txt} | ENTRY {ent_txt} {ob_type} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
         if has_g and gap>2.0 and naik>=0.5 and chg_15m>0.5 and vol>=100_000_000 and vol_1j_ratio>=3.0 and pos<35 and prem_ok:
             tier_gap2.append((gap, f"🔥 TIER 2 - IGNITION GAP! | {sym} Rp{price:.0f} | GAP {gap:.1f}% {beam_txt} | Indo {naik:.1f}% +15m {chg_15m:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn (1J {vol_1j_ratio:.1f}%) | Global {gp:.1f}% | {prem_txt} | ENTRY {ent_txt} {ob_type} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
-        # === V49.5 POLA SIMPEN 2 - BREAKOUT - PIEVERSE! ===
+        # === V49.6 POLA SIMPEN 2 - BREAKOUT - PIEVERSE! GAK DIUBAH! ===
         if 10.0<=naik<=50.0 and 40<=pos<=75 and vol>=1_000_000_000 and chg_15m>0.5:
             br_cut = price*0.95; br_tp1 = price*1.10; br_tp2 = price*1.25
             score_br = vol/1e9 + naik
             tier_breakout.append((score_br, f"🚀 BREAKOUT RETEST! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn GEDE! | {gp_txt} | {prem_txt} | ENTRY {price:.0f} BREAKOUT | CUT {br_cut:.0f} | TP1 {br_tp1:.0f} TP2 {br_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_br+25, f"🏆 TOP PRIORITY [BREAKOUT]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} BREAKOUT | CUT {br_cut:.0f} | TP1 {br_tp1:.0f} TP2 {br_tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | {prem_txt} | MODAL 200rb!"))
-        oi_ok = False
-        oi_txt = ""
-        if has_oi and oi_1j_chg>3.0:
-            oi_ok = True
-            oi_txt = f"OI +{oi_1j_chg:.1f}% 1J!"
-        elif not has_oi and vol>=1_000_000_000 and vol_1j_ratio>=5.0:
-            oi_ok = True
-            oi_txt = f"OI? Vol 1J {vol_1j_ratio:.1f}%!"
-        mcap_ok = mcap_chg>0 or (has_g and gp>=2.0)
-        # === V49.5 POLA SIMPEN 3 - OI + MCAP! ===
-        if oi_ok and mcap_ok and 0<=naik<=30.0 and pos<=70 and vol>=500_000_000 and premium<15 and chg_15m>-1.0:
+        # === V49.6 OI REAL + VOL+GLOBAL! 2 JALUR! ===
+        # Anti telat: +15m >0,5% + +1J >-2% + Harga/High >0,80!
+        anti_telat = chg_15m>0.5 and chg_60m>-2.0 and (price/high>0.80 if high>0 else False)
+        base_ok = 0<=naik<=30.0 and pos<=70 and vol>=500_000_000 and premium<15
+        # OI REAL: OI beneran + MCAP >0!
+        is_oi_real = has_oi and oi_1j_chg>3.0 and mcap_chg>0 and anti_telat and base_ok
+        # VOL+GLOBAL: Kalo OI gak ada, pake Vol + Global! Biar MOODENG gak ketinggalan!
+        is_volglobal = (not has_oi) and vol_1j_ratio>=5.0 and has_g and gp>=2.0 and anti_telat and base_ok
+        # Buat is_oi_breakout: OI REAL atau VOL+GLOBAL atau BREAKOUT atau GLOBAL LEAD!
+        oi_ok_for_breakout = is_oi_real or is_volglobal
+        mcap_ok_for_breakout = True if is_oi_real else (has_g and gp>=2.0)
+        if is_oi_real:
             oi_cut = price*0.95; oi_tp1 = price*1.10; oi_tp2 = price*1.25
-            score_oi = (oi_1j_chg if has_oi else vol_1j_ratio) + (gp if has_g else 0) + naik
-            tier_oi.append((score_oi, f"🔥 OI + MCAP! | {sym} Rp{price:.0f} | {oi_txt} MCAP {mcap_chg:.1f}% | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | {prem_txt} | ENTRY {price:.0f} OI! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | MODAL 200rb!"))
-            top_priority.append((score_oi+30, f"🏆 TOP PRIORITY [OI+MCAP]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} OI! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | {oi_txt} Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | MODAL 200rb!"))
+            score_oi = oi_1j_chg + (gp if has_g else 0) + naik
+            tier_oi.append((score_oi, f"🔥 OI REAL + MCAP! | {sym} Rp{price:.0f} | OI +{oi_1j_chg:.1f}% 1J! MCAP {mcap_chg:.1f}% | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | {prem_txt} | ENTRY {price:.0f} OI REAL! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_oi+30, f"🏆 TOP PRIORITY [OI REAL]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} OI REAL! | CUT {oi_cut:.0f} | TP1 {oi_tp1:.0f} TP2 {oi_tp2:.0f} | OI +{oi_1j_chg:.1f}% MCAP {mcap_chg:.1f}% Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | MODAL 200rb!"))
+        if is_volglobal:
+            vg_cut = price*0.95; vg_tp1 = price*1.10; vg_tp2 = price*1.25
+            score_vg = vol_1j_ratio + (gp if has_g else 0) + naik
+            tier_volglobal.append((score_vg, f"🔥 VOL + GLOBAL! | {sym} Rp{price:.0f} | Vol 1J {vol_1j_ratio:.1f}%! Global {gp:.1f}% [{gname}] | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {prem_txt} | ENTRY {price:.0f} VOL+GLOBAL! | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | MODAL 200rb!"))
+            top_priority.append((score_vg+28, f"🏆 TOP PRIORITY [VOL+GLOBAL]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} VOL+GLOBAL! | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | Vol 1J {vol_1j_ratio:.1f}% Global {gp:.1f}% Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | MODAL 200rb!"))
         gap_lead = (gp - naik) if has_g else 0
-        # === V49.5 POLA SIMPEN 1 - GLOBAL LEAD - LISTA + SAHARA! ===
+        # === V49.6 POLA SIMPEN 1 - GLOBAL LEAD - LISTA + SAHARA! GAK DIUBAH! ===
         is_global_lead = has_g and gp>=20.0 and gap_lead>5.0 and prem_ok and 10.0<=naik<=40.0 and 20_000_000<=vol<=500_000_000
         if is_global_lead:
             lead_cut = price*0.95; lead_tp1 = price*1.10; lead_tp2 = price*1.25
@@ -348,11 +352,11 @@ def scan():
             tier_lead.append((score_lead, f"🌍 GLOBAL LEAD - INDO LAG! | {sym} Rp{price:.0f} | Global {gp:.1f}% [{gname}] GAP {gap_lead:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% | Vol {vol/1e6:.0f}Mn KECIL TAPI GLOBAL GEDE! | {prem_txt} | ENTRY {price:.0f} GLOBAL LEAD! | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_lead+28, f"🏆 TOP PRIORITY [GLOBAL LEAD]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} GLOBAL LEAD! | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | Global {gp:.1f}% GAP {gap_lead:.1f}% | MODAL 200rb!"))
         is_global_lead_now = has_g and gp>=20.0 and (gp - naik)>5.0 and prem_ok and 10.0<=naik<=40.0
-        is_oi_breakout = (10.0<=naik<=50.0 and 40<=pos<=75 and vol>=1_000_000_000) or (oi_ok and mcap_ok and vol>=500_000_000) or is_global_lead_now
-        # === V49.5 PUMP BAHAYA DIPECAH! ===
+        is_oi_breakout = (10.0<=naik<=50.0 and 40<=pos<=75 and vol>=1_000_000_000) or (oi_ok_for_breakout and mcap_ok_for_breakout and vol>=500_000_000) or is_global_lead_now
+        # === V49.6 PUMP BAHAYA DIPECAH! ===
         is_bahaya_beneran = ((pos>80 and naik>15) or (chg_15m<-3.0 and pos>70)) and not is_oi_breakout
         is_bahaya_mahal = has_g and 30<premium<100 and naik>10.0 and pos>20 and not is_oi_breakout
-        # === V49.5 FIX SONIC! Tambah chg_15m>=-2.0 and vol>=30Mn! ===
+        # === V49.6 INDO LEAD WATCH - ENJ! +15m >= -2% + Vol >=30Mn! ===
         is_indo_lead_watch = has_g and 30<premium<100 and 0<=naik<=10.0 and pos<20 and chg_15m>=-2.0 and vol>=30_000_000 and not is_oi_breakout and not is_bahaya_beneran and not is_bahaya_mahal
         is_pump_lanjutan = (30.0<=naik<=60.0 and 40<=pos<=70 and 20_000_000<=vol<=200_000_000 and (premium<-20 or premium>30) and -3.0<=chg_15m<=1.0 and not is_oi_breakout and not is_bahaya_beneran)
         if is_indo_lead_watch:
@@ -401,6 +405,7 @@ def scan():
     tier_gap2_sorted = [x[1] for x in sorted(tier_gap2, key=lambda y: y[0], reverse=True)]
     tier_breakout_sorted = [x[1] for x in sorted(tier_breakout, key=lambda y: y[0], reverse=True)]
     tier_oi_sorted = [x[1] for x in sorted(tier_oi, key=lambda y: y[0], reverse=True)]
+    tier_volglobal_sorted = [x[1] for x in sorted(tier_volglobal, key=lambda y: y[0], reverse=True)]
     tier_lead_sorted = [x[1] for x in sorted(tier_lead, key=lambda y: y[0], reverse=True)]
     top_sorted = [x[1] for x in sorted(top_priority, key=lambda y: y[0], reverse=True)]
     seen_top=set(); top_5=[]
@@ -410,8 +415,8 @@ def scan():
         if sym_part not in seen_top:
             seen_top.add(sym_part); top_5.append(line)
         if len(top_5)>=5: break
-    msg=f"=== V49.5 FINAL - 4 TIPE + INDO LEAD WATCH + PUMP LANJUTAN! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
-    msg+=f"🏆 TOP 5 ENTRI - V30.10 + BREAKOUT + OI + GLOBAL LEAD [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5!")+"\n\n"
+    msg=f"=== V49.6 FINAL - 4 TIPE + OI REAL + VOL+GLOBAL + INDO LEAD WATCH + PUMP LANJUTAN! {now} - {len(tickers)} KOINS (9 HOLD DISKIP) ===\n"
+    msg+=f"🏆 TOP 5 ENTRI - V30.10 + BREAKOUT + OI REAL + VOL+GLOBAL + GLOBAL LEAD [MAX 5 - LIAT INI DULU!]:\n"+("\n".join(top_5) if top_5 else "Belum ada TOP 5!")+"\n\n"
     msg+=f"👀 WATCH INDO LEAD - SIAP-SIAP TERBANG! [MAX 5 - Prem 30-100% + Indo 0-10% + Pos <20% + +15m >= -2% = Kayak ENJ 535! SONIC -6,7% GAK LOLOS!]:\n"+("\n".join(tier_watch[:5]) if tier_watch else "Gak ada WATCH!")+"\n\n"
     msg+=f"👀 WATCH PUMP LANJUTAN - INDO SOLO PUMP! [MAX 5 - Naik 30-60% + Pos 40-70% + Vol 20Mn-200Mn + Prem < -20% ATAU >30% = Kayak STG 2055! TUNGGU +15m HIJAU >0,5% BARU MASUK!]:\n"+("\n".join(tier_pump_lanjutan[:5]) if tier_pump_lanjutan else "Gak ada PUMP LANJUTAN!")+"\n\n"
     msg+=f"⛽ TIPE 1 - GAS AWAL - V29.9 FIX [MAX 5]:\n"+("\n".join(tier_gas_sorted[:5]) if tier_gas_sorted else "Belum ada GAS AWAL!")+"\n\n"
@@ -422,10 +427,11 @@ def scan():
     msg+=f"🚀 TIPE 1 - TIER 1B - BANDAR GLOBAL GAP RUNNING V19.1b [MAX 5]:\n"+("\n".join(tier_gap1b_sorted[:5]) if tier_gap1b_sorted else "Tidak ada")+"\n\n"
     msg+=f"🔥 TIPE 1 - TIER 2 - IGNITION GAP V19.1b [MAX 5]:\n"+("\n".join(tier_gap2_sorted[:5]) if tier_gap2_sorted else "Tidak ada")+"\n\n"
     msg+=f"🚀 TIPE 2 - BREAKOUT RETEST - KOIN VOL GEDE! [MAX 5 - Naik 10-50% + Pos 40-75% + Vol >=1 Miliar!]:\n"+("\n".join(tier_breakout_sorted[:5]) if tier_breakout_sorted else "Belum ada BREAKOUT!")+"\n\n"
-    msg+=f"🔥 TIPE 3 - OI + MARKET CAP - KOIN OI NAIK! [MAX 5 - OI 1J >3% + MCAP Naik + Global Naik!]:\n"+("\n".join(tier_oi_sorted[:5]) if tier_oi_sorted else "Belum ada OI!")+"\n\n"
+    msg+=f"🔥 TIPE 3A - OI REAL + MCAP - KOIN OI BENERAN NAIK! [MAX 5 - OI 1J >3% + MCAP >0% + +15m >0,5% + Harga/High >0,80!]:\n"+("\n".join(tier_oi_sorted[:5]) if tier_oi_sorted else "Belum ada OI REAL!")+"\n\n"
+    msg+=f"🔥 TIPE 3B - VOL + GLOBAL - KOIN VOL + GLOBAL NAIK! [MAX 5 - Vol 1J >=5% + Global >=2% + +15m >0,5% + Harga/High >0,80! Kayak MOODENG 20:05!]:\n"+("\n".join(tier_volglobal_sorted[:5]) if tier_volglobal_sorted else "Belum ada VOL+GLOBAL!")+"\n\n"
     msg+=f"🌍 TIPE 4 - GLOBAL LEAD - INDO LAG - KOIN APA AJA! [MAX 5 - Global >=20% + GAP >5% + Prem <10% + Naik 10-40% + Vol 20Mn-500Mn!]:\n"+("\n".join(tier_lead_sorted[:5]) if tier_lead_sorted else "Belum ada GLOBAL LEAD!")+"\n\n"
-    msg+=f"⛔ PUMP BAHAYA BENERAN - JANGAN BELI - V49.5 FIX [MAX 5 - Pos >80% ATAU +15m < -3% + Pos >70% ATAU MAHAL + Naik >10% + Pos >20%!]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
-    msg+=f"📌 V49.5 FINAL 4 TIPE + INDO LEAD WATCH + PUMP LANJUTAN! TIPE 1 = RETEST OB! TIPE 2 = BREAKOUT 10-50% Pos 40-75% Vol >=1 Miliar! TIPE 3 = OI + MCAP! TIPE 4 = GLOBAL LEAD! WATCH INDO LEAD = Prem 30-100% + Naik 0-10% + Pos <20% + +15m >= -2%! WATCH PUMP LANJUTAN = Naik 30-60% + Pos 40-70% + Vol 20Mn-200Mn + Prem < -20% ATAU >30%! HTX DIBUANG! PREM FIX! USD DARI USDT_IDR! LOG CRON-JOB KELIATAN! ENTRY TIPE 1=Low*1,01-1,03! ENTRY TIPE 2,3,4=Harga Sekarang! ENTRY PUMP LANJUTAN=Harga Sekarang! CUT 3-7%! TP1 10-15% TP2 25-30%! MANUAL! Bot jalan tiap 5 menit!\n"
+    msg+=f"⛔ PUMP BAHAYA BENERAN - JANGAN BELI - V49.6 FIX [MAX 5 - Pos >80% ATAU +15m < -3% + Pos >70% ATAU MAHAL + Naik >10% + Pos >20%!]:\n"+("\n".join(tier_bahaya[:5]) if tier_bahaya else "Gak ada pump bahaya!")+"\n\n"
+    msg+=f"📌 V49.6 FINAL 4 TIPE + OI REAL + VOL+GLOBAL + PUMP LANJUTAN! TIPE 1 = RETEST OB! TIPE 2 = BREAKOUT 10-50% Pos 40-75% Vol >=1 Miliar! TIPE 3A = OI REAL! TIPE 3B = VOL+GLOBAL! TIPE 4 = GLOBAL LEAD! WATCH INDO LEAD = Prem 30-100% + Naik 0-10% + Pos <20% + +15m >= -2%! WATCH PUMP LANJUTAN = Naik 30-60% + Pos 40-70% + Vol 20Mn-200Mn + Prem < -20% ATAU >30%! HTX DIBUANG! PREM FIX! USD DARI USDT_IDR! ENTRY TIPE 1=Low*1,01-1,03! ENTRY TIPE 2,3,4=Harga Sekarang! ENTRY PUMP LANJUTAN=Harga Sekarang! CUT 3-7%! TP1 10-15% TP2 25-30%! MANUAL! Bot jalan tiap 5 menit!\n"
     return msg
 if __name__=="__main__":
     send_tele(scan())
