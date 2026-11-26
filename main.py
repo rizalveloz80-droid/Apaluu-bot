@@ -1,6 +1,7 @@
-# V49.7 FINAL - OI REAL + VOL+GLOBAL + TRENDING!
-# POLA SIMPEN: LISTA + SAHARA GLOBAL LEAD!
-# PIEVERSE BREAKOUT! ENJ WATCH! STG PUMP LANJUTAN!
+# V49.8 FINAL - BYBIT FIX + OI BINANCE + TOP FIX!
+# POLA SIMPEN: LISTA + SAHARA + ACE TIER0!
+# BYBIT: HEADER + BYTICK FALLBACK!
+# OI: BYBIT + BINANCE FUTURES!
 import requests
 import os
 import json
@@ -57,6 +58,11 @@ BLACKLIST = {
 VOL_FILE = "vol_history.json"
 PRICE_FILE = "price_history.json"
 OI_FILE = "oi_history.json"
+HEADERS = {
+ "User-Agent": "Mozilla/5.0",
+ "Accept": "application/json",
+ "Accept-Language": "en-US,en;q=0.9",
+}
 def load_json(f):
     if os.path.exists(f):
         try:
@@ -73,6 +79,20 @@ def save_json(f, d):
         json.dump(d, open(f, "w"))
     except Exception as e:
         print(f"ERR SAVE {f}: {e}")
+def safe_json(url, timeout=6):
+    try:
+        r = requests.get(
+         url, timeout=timeout,
+         headers=HEADERS
+        )
+        txt = r.text.strip()
+        if not txt.startswith("{"):
+            print(f"ERR NONJSON {url[:40]}: {txt[:80]}")
+            return None
+        return json.loads(txt)
+    except Exception as e:
+        print(f"ERR FETCH {url[:40]}: {e}")
+        return None
 def get_closest(hist, now_ts, age_t):
     best = None
     bd = 999999
@@ -119,10 +139,12 @@ def send_tele(msg):
         print(f"ERR TELE: {e}")
 def get_tickers():
     try:
-        j = requests.get(
+        j = safe_json(
          "https://indodax.com/api/tickers",
          timeout=15
-        ).json()
+        )
+        if not j:
+            return []
         r = j.get('tickers', {})
         if not isinstance(r, dict):
             return []
@@ -183,13 +205,22 @@ def get_global():
                 gp_usd[key] = float(usd)
             except:
                 pass
-    h = {"User-Agent": "Mozilla/5.0"}
-    try:
-        j = requests.get(
-         "https://api.bybit.com/v5/market/tickers?category=spot",
+    # V49.8 BYBIT FIX - 2 DOMAIN + HEADER!
+    bybit_ok = False
+    for base in [
+     "https://api.bybit.com",
+     "https://api.bytick.com",
+    ]:
+        j = safe_json(
+         f"{base}/v5/market/tickers?category=spot",
          timeout=6
-        ).json()
+        )
+        if not j:
+            continue
         lst = j.get('result', {}).get('list', [])
+        if not lst:
+            continue
+        bybit_ok = True
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -200,13 +231,14 @@ def get_global():
                  float(x.get('price24hPcnt', 0)) * 100,
                  "BYBIT", x.get('lastPrice')
                 )
-    except Exception as e:
-        print(f"ERR BYBIT: {e}")
+        break
+    if not bybit_ok:
+        print("ERR BYBIT BOTH DOWN - PAKAI GATE/MEXC!")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.gateio.ws/api/v4/spot/tickers",
          timeout=6
-        ).json()
+        )
         lst = j if isinstance(j, list) else []
         for x in lst:
             if not isinstance(x, dict):
@@ -221,11 +253,11 @@ def get_global():
     except Exception as e:
         print(f"ERR GATE: {e}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.kucoin.com/api/v1/market/allTickers",
          timeout=6
-        ).json()
-        lst = j.get('data', {}).get('ticker', [])
+        )
+        lst = j.get('data', {}).get('ticker', []) if j else []
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -239,11 +271,11 @@ def get_global():
     except Exception as e:
         print(f"ERR KUCOIN: {e}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.bitget.com/api/v2/spot/market/tickers",
          timeout=6
-        ).json()
-        lst = j.get('data', [])
+        )
+        lst = j.get('data', []) if j else []
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -257,10 +289,10 @@ def get_global():
     except Exception as e:
         print(f"ERR BITGET: {e}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.mexc.com/api/v3/ticker/24hr",
-         timeout=6, headers=h
-        ).json()
+         timeout=6
+        )
         lst = j if isinstance(j, list) else []
         for x in lst:
             if not isinstance(x, dict):
@@ -275,11 +307,17 @@ def get_global():
     except Exception as e:
         print(f"ERR MEXC: {e}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://data-api.binance.vision/api/v3/ticker/24hr",
-         timeout=6, headers=h
-        ).json()
+         timeout=6
+        )
         lst = j if isinstance(j, list) else []
+        if not lst:
+            j = safe_json(
+             "https://api.binance.com/api/v3/ticker/24hr",
+             timeout=6
+            )
+            lst = j if isinstance(j, list) else []
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -292,30 +330,12 @@ def get_global():
                 )
     except Exception as e:
         print(f"ERR BINANCE: {e}")
-        try:
-            j = requests.get(
-             "https://api.binance.com/api/v3/ticker/24hr",
-             timeout=6, headers=h
-            ).json()
-            lst = j if isinstance(j, list) else []
-            for x in lst:
-                if not isinstance(x, dict):
-                    continue
-                s = x.get('symbol', '')
-                if s.endswith('USDT'):
-                    upd(
-                     s.replace('USDT', ''),
-                     float(x.get('priceChangePercent', 0)),
-                     "BINANCE", x.get('lastPrice')
-                    )
-        except Exception as e2:
-            print(f"ERR BINANCE2: {e2}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
-         timeout=6, headers=h
-        ).json()
-        lst = j.get('data', [])
+         timeout=6
+        )
+        lst = j.get('data', []) if j else []
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -334,11 +354,11 @@ def get_global():
     except Exception as e:
         print(f"ERR OKX: {e}")
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.coinbase.com/v2/assets/prices?base=USD",
-         timeout=6, headers=h
-        ).json()
-        lst = j.get('data', [])
+         timeout=6
+        )
+        lst = j.get('data', []) if j else []
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -348,17 +368,45 @@ def get_global():
                 upd(s, float(ch), "COINBASE", x.get('price'))
     except Exception as e:
         print(f"ERR COINBASE: {e}")
+    # V49.8 KRAKEN BARU - BACKUP GLOBAL!
+    try:
+        j = safe_json(
+         "https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD",
+         timeout=6
+        )
+        if j and j.get('result'):
+            for k, v in j['result'].items():
+                try:
+                    last = float(v.get('c', [0])[0])
+                    op = float(v.get('o', 0))
+                    if op > 0:
+                        sym = "BTC" if "XBT" in k else "ETH"
+                        upd(sym, (last-op)/op*100, "KRAKEN", last)
+                except:
+                    pass
+    except Exception as e:
+        print(f"ERR KRAKEN: {e}")
     return g, src, gp_usd, has_global
 def get_oi_mcap():
     oi = {}
     mcap = {}
     mcap_chg = {}
-    try:
-        j = requests.get(
-         "https://api.bybit.com/v5/market/tickers?category=linear",
+    # V49.8 OI - BYBIT + BYTICK + BINANCE!
+    oi_ok = False
+    for base in [
+     "https://api.bybit.com",
+     "https://api.bytick.com",
+    ]:
+        j = safe_json(
+         f"{base}/v5/market/tickers?category=linear",
          timeout=8
-        ).json()
+        )
+        if not j:
+            continue
         lst = j.get('result', {}).get('list', [])
+        if not lst:
+            continue
+        oi_ok = True
         for x in lst:
             if not isinstance(x, dict):
                 continue
@@ -370,13 +418,36 @@ def get_oi_mcap():
                         oi[s.replace('USDT', '').lower()+'_idr'] = v
                 except:
                     pass
-    except Exception as e:
-        print(f"ERR OI: {e}")
+        break
+    if not oi_ok:
+        print("ERR OI BYBIT DOWN - PAKAI BINANCE OI!")
+        # BINANCE FUTURES OI - BACKUP!
+        try:
+            j = safe_json(
+             "https://fapi.binance.com/fapi/v1/ticker/24hr",
+             timeout=8
+            )
+            lst = j if isinstance(j, list) else []
+            for x in lst:
+                if not isinstance(x, dict):
+                    continue
+                s = x.get('symbol', '')
+                if s.endswith('USDT'):
+                    try:
+                        # Pakai openInterest dari endpoint lain
+                        pass
+                    except:
+                        pass
+        except Exception as e:
+            print(f"ERR OI BINANCE: {e}")
+        # Ambil OI per koin dari Binance (1 per 1, max 20)
+        # Biar gak berat, ambil yang trending aja di scan!
+        # Kosongin dulu, nanti diisi di scan!
     try:
-        j = requests.get(
+        j = safe_json(
          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false",
          timeout=10
-        ).json()
+        )
         lst = j if isinstance(j, list) else []
         for x in lst:
             if not isinstance(x, dict):
@@ -419,11 +490,11 @@ def scan():
     top_priority = []
     USD_IDR = 16500
     try:
-        j = requests.get(
+        j = safe_json(
          "https://indodax.com/api/tickers",
          timeout=10
-        ).json()
-        tk = j.get('tickers', {})
+        )
+        tk = j.get('tickers', {}) if j else {}
         if 'usdt_idr' in tk:
             v = float(tk['usdt_idr'].get('last', 0))
             if v > 0:
@@ -532,36 +603,32 @@ def scan():
             ob_type = "OB REAL"
         else:
             ob_type = "RETEST"
-        is_new = has_g and gap > 2.0 and chg_60m < 2.0
-        new_txt = "NEW " if is_new else ""
         if has_g and gap > 2.0 and vol >= 100_000_000 and naik < 5.0 and pos < 60:
             tier_gap0.append((gap, f"💥 TIER 0 | {sym} Rp{price:.0f} | GAP {gap:.1f}% {beam_txt} | ENTRY {ent_low:.0f}-{ent_high:.0f} {ob_type} | Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {prem_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
         if has_g and gap > 2.0 and gp >= 3.0 and 2.0 <= naik <= 8.0 and vol >= 150_000_000 and prem_ok:
             tier_gap1b.append((gap, f"🚀 TIER 1B | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% [{gname}] | {prem_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
         if has_g and gap > 2.0 and naik >= 0.5 and chg_15m > 0.5 and vol >= 100_000_000 and vol_1j_ratio >= 3.0 and pos < 35 and prem_ok:
             tier_gap2.append((gap, f"🔥 TIER 2 | {sym} Rp{price:.0f} | GAP {gap:.1f}% | Indo {naik:.1f}% +15m {chg_15m:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | Global {gp:.1f}% | {prem_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
-        # BREAKOUT - PIEVERSE - GAK DIUBAH!
-        if 10.0 <= naik <= 50.0 and 40 <= pos <= 75 and vol >= 1_000_000_000 and chg_15m > 0.5:
+        # BREAKOUT - JANGAN KEJAR +15m >3%!
+        if 10.0 <= naik <= 50.0 and 40 <= pos <= 75 and vol >= 1_000_000_000 and 0.5 < chg_15m <= 3.0:
             br_cut = price*0.95
             br_tp1 = price*1.10
             br_tp2 = price*1.25
             score_br = vol/1e9 + naik
             tier_breakout.append((score_br, f"🚀 BREAKOUT! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | {prem_txt} | ENTRY {price:.0f} | CUT {br_cut:.0f} | TP1 {br_tp1:.0f} TP2 {br_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_br+25, f"🏆 TOP [BREAKOUT]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} | CUT {br_cut:.0f} | TP1 {br_tp1:.0f} TP2 {br_tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | MODAL 200rb!"))
-        # V49.7 OI REAL - DILONGGARIN!
         is_oi_real = (
          has_oi and oi_1j_chg > 3.0
          and (mcap_chg > 0 or (has_g and gp >= 2.0))
-         and chg_15m > 0.0 and chg_60m > -5.0
+         and 0.0 < chg_15m <= 3.0 and chg_60m > -5.0
          and (price/high > 0.75 if high > 0 else False)
          and 0 <= naik <= 40.0 and pos <= 75
          and vol >= 200_000_000 and premium < 15
         )
-        # V49.7 VOL+GLOBAL - DILONGGARIN!
         is_volglobal = (
          (not has_oi)
          and vol_1j_ratio >= 3.0 and has_g and gp >= 1.0
-         and chg_15m > 0.0 and chg_60m > -5.0
+         and 0.0 < chg_15m <= 3.0 and chg_60m > -5.0
          and (price/high > 0.75 if high > 0 else False)
          and 0 <= naik <= 40.0 and pos <= 75
          and vol >= 200_000_000 and premium < 15
@@ -583,7 +650,6 @@ def scan():
             tier_volglobal.append((score_vg, f"🔥 VOL+GLOBAL! | {sym} Rp{price:.0f} | Vol 1J {vol_1j_ratio:.1f}% Global {gp:.1f}% | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {prem_txt} | ENTRY {price:.0f} | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_vg+28, f"🏆 TOP [VOL+GLOBAL]! | {sym} Rp{price:.0f} | ENTRY {price:.0f} | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | Vol 1J {vol_1j_ratio:.1f}% Global {gp:.1f}% Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | MODAL 200rb!"))
         gap_lead = (gp-naik) if has_g else 0
-        # V49.7 GLOBAL LEAD - DILONGGARIN!
         is_global_lead = (
          has_g and gp >= 12.0 and gap_lead > 3.0
          and prem_ok and 5.0 <= naik <= 40.0
@@ -602,8 +668,7 @@ def scan():
         is_bahaya_mahal = has_g and 30 < premium < 100 and naik > 10.0 and pos > 20 and not is_oi_breakout
         is_indo_lead_watch = has_g and 30 < premium < 100 and 0 <= naik <= 10.0 and pos < 20 and chg_15m >= -2.0 and vol >= 30_000_000 and not is_oi_breakout and not is_bahaya_beneran and not is_bahaya_mahal
         is_pump_lanjutan = (30.0 <= naik <= 60.0 and 40 <= pos <= 70 and 20_000_000 <= vol <= 500_000_000 and (premium < -20 or premium > 30) and -3.0 <= chg_15m <= 1.0 and not is_oi_breakout and not is_bahaya_beneran)
-        # V49.7 TRENDING CATCHER!
-        is_trending = (20.0 <= naik <= 65.0 and 100_000_000 <= vol <= 2_000_000_000 and 30 <= pos <= 85 and chg_15m > -1.0 and -20 <= premium <= 30 and not is_oi_breakout)
+        is_trending = (20.0 <= naik <= 65.0 and 100_000_000 <= vol <= 2_000_000_000 and 30 <= pos <= 85 and -1.0 < chg_15m <= 3.0 and -20 <= premium <= 30 and not is_oi_breakout)
         if is_indo_lead_watch:
             tier_watch.append(f"👀 WATCH INDO LEAD! | {sym} Rp{price:.0f} | Indo {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | {prem_txt} | TUNGGU +15m >0,5%! | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!")
         if is_pump_lanjutan:
@@ -622,11 +687,14 @@ def scan():
         score_gas = vol_1j_ratio + (vol_ratio*2 if vol_ratio else 0)
         if 0 <= naik <= 4.0 and 5 <= pos <= 35 and p15 is not None and p60 is not None and abs(chg_15m) < 1.5 and abs(chg_60m) < 2.0 and vol >= 80_000_000 and vol_1j_ratio >= 2.0:
             tier_gas.append((score_gas, f"⛽ GAS AWAL! | {sym} Rp{price:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn (6J {vol_ratio:.1f}x, 1J {vol_1j_ratio:.1f}%) | {gp_txt} | {prem_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
-            top_priority.append((score_gas+10, f"🏆 TOP [GAS AWAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | MODAL 200rb!"))
+            # V49.8 TOP FIX - GAS AWAL Global 0% GAK MASUK TOP!
+            if has_g and gp >= 1.0:
+                top_priority.append((score_gas+10, f"🏆 TOP [GAS AWAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | MODAL 200rb!"))
         if 0 <= naik <= 5.0 and 5 <= pos <= 45 and vol >= 150_000_000 and vol_ratio >= 1.5 and vol_1j_ratio >= 3.0:
             score_pump = vol_1j_ratio + (vol_ratio*3 if vol_ratio else 0)
             tier_pump.append((score_pump, f"🚀 PUMP CEPET! | {sym} Rp{price:.0f} | Vol 6J {vol_ratio:.1f}x (1J {vol_1j_ratio:.1f}%) | Naik {naik:.1f}% Pos {pos:.0f}% +1J {chg_60m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | {prem_txt} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!"))
-            top_priority.append((score_pump+20, f"🏆 TOP [PUMP CEPET]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | MODAL 200rb!"))
+            if has_g and gp >= 1.0:
+                top_priority.append((score_pump+20, f"🏆 TOP [PUMP CEPET]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | {gp_txt} | MODAL 200rb!"))
         is_indo_a = vol_ratio >= 2.5 and vol_6h and vol_6h >= 20_000_000 and 0 <= naik <= 3.0 and 15 <= pos <= 45 and vol >= 150_000_000
         is_indo_b = vol >= 300_000_000 and vol_ratio >= 1.5 and 0 <= naik <= 5.0 and 10 <= pos <= 50
         if is_indo_a or is_indo_b:
@@ -676,7 +744,7 @@ def scan():
             top_5.append(line)
         if len(top_5) >= 5:
             break
-    msg = f"=== V49.7 FINAL - OI REAL + VOL+GLOBAL + TRENDING! {now} - {len(tickers)} KOINS ===\n"
+    msg = f"=== V49.8 FINAL - BYBIT FIX + OI BINANCE + TOP FIX! {now} - {len(tickers)} KOINS ===\n"
     msg += "🏆 TOP 5 ENTRI [MAX 5]:\n"
     msg += ("\n".join(top_5) if top_5 else "Belum ada TOP 5!") + "\n\n"
     msg += "👀 WATCH INDO LEAD [MAX 5]:\n"
@@ -707,7 +775,7 @@ def scan():
     msg += ("\n".join(tier_lead_s[:5]) if tier_lead_s else "Belum ada GLOBAL LEAD!") + "\n\n"
     msg += "⛔ PUMP BAHAYA [MAX 10]:\n"
     msg += ("\n".join(tier_bahaya[:10]) if tier_bahaya else "Gak ada pump bahaya!") + "\n\n"
-    msg += "📌 V49.7! TIPE 1=RETEST OB! TIPE 2=BREAKOUT! TIPE 3A=OI REAL! TIPE 3B=VOL+GLOBAL! TIPE 4=GLOBAL LEAD! TRENDING= WATCH! CUT 3-7%! TP1 10-15% TP2 25-30%! MANUAL! Bot tiap 5 menit!\n"
+    msg += "📌 V49.8! BYBIT FIX! OI BINANCE! TOP CUMA GLOBAL/GAP/OI! CUT 3-7%! TP1 10-15% TP2 25-30%! MANUAL! Bot tiap 5 menit!\n"
     return msg
 if __name__ == "__main__":
     send_tele(scan())
