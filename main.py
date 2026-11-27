@@ -1,7 +1,6 @@
-# V49.11 - HYBRID + PRE-PUMP + PUMP VERTIKAL!
-# CEPET V49.2! AMAN V49.10! + DETEKSI PORTAL!
-# PRE-PUMP: VOL NAIK TAPI HARGA MASIH BAWAH!
-# PUMP VERTIKAL: UDAH PUMP 30-150%! TUNGGU RETEST!
+# V49.12 - GLOBAL LEAD PRIORITY!
+# CEPET V49.2! + PRE-PUMP + VERTIKAL + GLOBAL LEAD DI ATAS!
+# TOP 5 = 2 GLOBAL LEAD + 3 LAINNYA!
 import requests
 import os
 import json
@@ -14,7 +13,8 @@ if not TELE_CHAT_ID:
     TELE_CHAT_ID = os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
 HOLD_LIST = {
- 'btc_idr','myx_idr','aih_idr',
+ 'btc_idr',
+ 'myx_idr','aih_idr',
  'mct_idr','onl_idr','home_idr'
 }
 BLACKLIST = {
@@ -562,10 +562,8 @@ def scan():
             ob_type = "OB REAL"
         else:
             ob_type = "RETEST"
-        # V49.11 BARU - PRE-PUMP! VOL NAIK TAPI HARGA MASIH BAWAH!
         if vol_1j_ratio >= 10.0 and pos < 20.0 and naik < 5.0 and vol >= 80_000_000 and chg_15m >= 0.0:
             tier_prepump.append(f"⚡ PRE-PUMP! | {sym} Rp{price:.0f} | Vol 1J {vol_1j_ratio:.1f}% Pos {pos:.0f}% Naik {naik:.1f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {gp_txt} | {prem_txt} | VOL NAIK! HARGA MASIH BAWAH! SIAP-SIAP! JANGAN BELI DULU! TUNGGU +15m >0,5%! | ENTRY {ent_txt} | CUT {cut:.0f} | TP1 {tp1:.0f} TP2 {tp2:.0f} | MODAL 200rb!")
-        # V49.11 BARU - PUMP VERTIKAL! UDAH PUMP! TUNGGU RETEST!
         if 30.0 <= naik <= 150.0 and pos > 70.0 and chg_15m > 3.0 and vol >= 200_000_000:
             retest = price*0.87
             retest2 = price*0.80
@@ -618,11 +616,13 @@ def scan():
             tier_volglobal.append((score_vg, f"🔥 VOL+GLOBAL! | {sym} Rp{price:.0f} | Vol 1J {vol_1j_ratio:.1f}% Global {gp:.1f}% | Naik {naik:.1f}% Pos {pos:.0f}% +15m {chg_15m:.1f}% | Vol {vol/1e6:.0f}Mn | {prem_txt} | ENTRY {ent_txt} | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | MODAL 200rb!"))
             top_priority.append((score_vg+28, f"🏆 TOP [VOL+GLOBAL]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {vg_cut:.0f} | TP1 {vg_tp1:.0f} TP2 {vg_tp2:.0f} | Vol 1J {vol_1j_ratio:.1f}% Global {gp:.1f}% Naik {naik:.1f}% Pos {pos:.0f}% Vol {vol/1e6:.0f}Mn | MODAL 200rb!"))
         gap_lead = (gp-naik) if has_g else 0
+        # V49.12 - GLOBAL LEAD DILUASIN! BIAR GAK TELAT!
         is_global_lead = (
-         has_g and gp >= 8.0 and gap_lead > 2.0
-         and prem_ok and 0.0 <= naik <= 20.0
-         and 20_000_000 <= vol <= 1_000_000_000
+         has_g and gp >= 5.0 and gap_lead > 1.0
+         and prem_ok and 0.0 <= naik <= 15.0
+         and 20_000_000 <= vol <= 1_500_000_000
          and pos <= 50
+         and chg_15m > -1.0
         )
         if is_global_lead:
             lead_cut = price*0.95
@@ -630,8 +630,9 @@ def scan():
             lead_tp2 = price*1.25
             score_lead = gp + gap_lead
             tier_lead.append((score_lead, f"🌍 GLOBAL LEAD! | {sym} Rp{price:.0f} | Global {gp:.1f}% GAP {gap_lead:.1f}% | Indo {naik:.1f}% Pos {pos:.0f}% | Vol {vol/1e6:.0f}Mn | {prem_txt} | ENTRY {ent_txt} | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | MODAL 200rb!"))
-            top_priority.append((score_lead+28, f"🏆 TOP [GLOBAL LEAD]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | Global {gp:.1f}% GAP {gap_lead:.1f}% | MODAL 200rb!"))
-        is_global_lead_now = has_g and gp >= 8.0 and (gp-naik) > 2.0 and prem_ok and 0.0 <= naik <= 20.0 and pos <= 50
+            # V49.12: SKOR +100! BIAR SELALU TOP 1-2!
+            top_priority.append((score_lead+100, f"🏆 TOP [GLOBAL LEAD]! | {sym} Rp{price:.0f} | ENTRY {ent_txt} | CUT {lead_cut:.0f} | TP1 {lead_tp1:.0f} TP2 {lead_tp2:.0f} | Global {gp:.1f}% GAP {gap_lead:.1f}% Indo {naik:.1f}% Pos {pos:.0f}% | MODAL 200rb!"))
+        is_global_lead_now = has_g and gp >= 5.0 and (gp-naik) > 1.0 and prem_ok and 0.0 <= naik <= 15.0 and pos <= 50
         is_oi_breakout = (10.0 <= naik <= 30.0 and 40 <= pos <= 70 and vol >= 1_000_000_000) or (oi_ok_for_breakout and mcap_ok_for_breakout and vol >= 200_000_000) or is_global_lead_now
         is_bahaya_beneran = ((pos > 80 and naik > 15) or (chg_15m < -3.0 and pos > 70)) and not is_oi_breakout
         is_bahaya_mahal = has_g and 30 < premium < 100 and naik > 10.0 and pos > 20 and not is_oi_breakout
@@ -700,9 +701,22 @@ def scan():
     tier_volglobal_s = srt(tier_volglobal)
     tier_lead_s = srt(tier_lead)
     top_s = srt(top_priority)
+    # V49.12 - TOP 5 = 2 GLOBAL LEAD + 3 LAINNYA!
+    top_global = [x for x in top_s if "[GLOBAL LEAD]" in x]
+    top_other = [x for x in top_s if "[GLOBAL LEAD]" not in x]
     seen = set()
     top_5 = []
-    for line in top_s:
+    for line in top_global:
+        try:
+            sp = line.split("|")[1].strip().split(" ")[0]
+        except:
+            sp = line
+        if sp not in seen:
+            seen.add(sp)
+            top_5.append(line)
+        if len(top_5) >= 2:
+            break
+    for line in top_other:
         try:
             sp = line.split("|")[1].strip().split(" ")[0]
         except:
@@ -712,9 +726,11 @@ def scan():
             top_5.append(line)
         if len(top_5) >= 5:
             break
-    msg = f"=== V49.11 - HYBRID + PRE-PUMP + VERTIKAL! {now} - {len(tickers)} KOINS ===\n"
-    msg += "🏆 TOP 5 ENTRI [MAX 5]:\n"
+    msg = f"=== V49.12 - GLOBAL LEAD PRIORITY! {now} - {len(tickers)} KOINS ===\n"
+    msg += "🏆 TOP 5 ENTRI [2 GLOBAL LEAD + 3 LAINNYA]:\n"
     msg += ("\n".join(top_5) if top_5 else "Belum ada TOP 5!") + "\n\n"
+    msg += "🌍 GLOBAL LEAD PRIORITY [MAX 5 - SELALU MUNCUL]:\n"
+    msg += ("\n".join(tier_lead_s[:5]) if tier_lead_s else "Gak ada GLOBAL LEAD!") + "\n\n"
     msg += "⚡ PRE-PUMP [MAX 5]:\n"
     msg += ("\n".join(tier_prepump[:5]) if tier_prepump else "Gak ada PRE-PUMP!") + "\n\n"
     msg += "👀 PUMP VERTIKAL [MAX 5]:\n"
@@ -747,7 +763,7 @@ def scan():
     msg += ("\n".join(tier_lead_s[:5]) if tier_lead_s else "Belum ada GLOBAL LEAD!") + "\n\n"
     msg += "⛔ PUMP BAHAYA [MAX 10]:\n"
     msg += ("\n".join(tier_bahaya[:10]) if tier_bahaya else "Gak ada pump bahaya!") + "\n\n"
-    msg += "📌 V49.11! PRE-PUMP = SIAP-SIAP! TOP = BELI! VERTIKAL = TUNGGU RETEST! CEK HARGA LIVE! JANGAN BELI KALO UDAH +5% DARI ENTRY! CUT 3-7%! TP1 10% TP2 25%! MANUAL! Bot tiap 5 menit!\n"
+    msg += "📌 V49.12! GLOBAL LEAD PRIORITY! TOP 2 GLOBAL LEAD + 3 LAINNYA! PRE-PUMP = SIAP-SIAP! TOP = BELI! VERTIKAL = TUNGGU RETEST! CEK HARGA LIVE! JANGAN BELI KALO UDAH +5% DARI ENTRY! CUT 3-7%! TP1 10% TP2 25%! MANUAL! Bot tiap 5 menit!\n"
     return msg
 if __name__ == "__main__":
     send_tele(scan())
