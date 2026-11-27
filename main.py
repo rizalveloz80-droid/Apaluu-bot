@@ -14,8 +14,7 @@ if not TELE_CHAT_ID:
     TELE_CHAT_ID = os.getenv('CHAT_ID')
 WIB = pytz.timezone('Asia/Jakarta')
 HOLD_LIST = {
- 'btc_idr','qnt_idr',
- 'myx_idr',
+ 'btc_idr','myx_idr','aih_idr',
  'mct_idr','onl_idr','home_idr'
 }
 BLACKLIST = {
@@ -40,7 +39,7 @@ BLACKLIST = {
  'shib_idr','pepe_idr','floki_idr',
  'bonk_idr','wif_idr','ern_idr',
  'ondo_idr','hot_idr','sui_idr',
- 'indr_idr,'bome_idr','nom_idr',
+ 'indr_idr','bome_idr','nom_idr',
  'mpro_idr','amp_idr','unmd_idr',
  'kdag_idr','bsv_idr','vet_idr',
  'fil_idr','eos_idr','xtz_idr',
